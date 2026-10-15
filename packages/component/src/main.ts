@@ -1,14 +1,15 @@
 // Main entry module — TaskManager demo page
-import { eventBus } from './index.js';
-import { registry } from './registry.js';
-import { escapeHtml, formatDate } from './utils.js';
-import type { Task } from './storage.js';
+
 // ARCHITECTURE NOTE: Direct persistence import for debug/exposure purposes
 // These are exposed on `window` for E2E tests and debugging access.
 // In production code, prefer using the registry or WorkerBridge APIs.
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
 import type { RtcAgent } from './components/rtc-agent/rtc-agent.js';
+import { eventBus } from './index.js';
+import { registry } from './registry.js';
+import type { Task } from './storage.js';
+import { escapeHtml, formatDate } from './utils.js';
 
 const log = createLogger('TaskManager');
 
@@ -126,19 +127,21 @@ document.addEventListener('click', (e) => {
 // Window function assignments (typed via global Window interface augmentation above)
 window.renderTasks = renderTasks;
 
-window.toggleTask = async function (id: string, completed: boolean) {
+window.toggleTask = async (id: string, completed: boolean) => {
   await registry.execute('task.update', { id, completed });
 };
 
-window.deleteTask = async function (id: string) {
+window.deleteTask = async (id: string) => {
   if (confirm('Are you sure you want to delete this task?')) {
     await registry.execute('task.delete', { id });
   }
 };
 
-window.openCreateModal = function () {
+window.openCreateModal = () => {
   const modalTitle = document.getElementById('modalTitle');
-  const taskForm = document.getElementById('taskForm') as HTMLFormElement | null;
+  const taskForm = document.getElementById(
+    'taskForm',
+  ) as HTMLFormElement | null;
   const taskId = document.getElementById('taskId') as HTMLInputElement | null;
   const taskModal = document.getElementById('taskModal');
 
@@ -153,16 +156,29 @@ window.openCreateModal = function () {
   taskModal.classList.add('active');
 };
 
-window.openEditModal = async function (id: string) {
+window.openEditModal = async (id: string) => {
   const task = (await registry.execute('task.get', { id })) as Task;
   const modalTitle = document.getElementById('modalTitle');
   const taskId = document.getElementById('taskId') as HTMLInputElement | null;
-  const taskTitle = document.getElementById('taskTitle') as HTMLInputElement | null;
-  const taskPriority = document.getElementById('taskPriority') as HTMLSelectElement | null;
-  const taskDueDate = document.getElementById('taskDueDate') as HTMLInputElement | null;
+  const taskTitle = document.getElementById(
+    'taskTitle',
+  ) as HTMLInputElement | null;
+  const taskPriority = document.getElementById(
+    'taskPriority',
+  ) as HTMLSelectElement | null;
+  const taskDueDate = document.getElementById(
+    'taskDueDate',
+  ) as HTMLInputElement | null;
   const taskModal = document.getElementById('taskModal');
 
-  if (!modalTitle || !taskId || !taskTitle || !taskPriority || !taskDueDate || !taskModal) {
+  if (
+    !modalTitle ||
+    !taskId ||
+    !taskTitle ||
+    !taskPriority ||
+    !taskDueDate ||
+    !taskModal
+  ) {
     log.warn('Required modal elements not found');
     return;
   }
@@ -191,13 +207,14 @@ if (taskForm) {
   taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const id = (document.getElementById('taskId') as HTMLInputElement).value;
-    const title = (document.getElementById('taskTitle') as HTMLInputElement).value;
-    const priority = (document.getElementById('taskPriority') as HTMLSelectElement).value as
-      | 'low'
-      | 'medium'
-      | 'high';
+    const title = (document.getElementById('taskTitle') as HTMLInputElement)
+      .value;
+    const priority = (
+      document.getElementById('taskPriority') as HTMLSelectElement
+    ).value as 'low' | 'medium' | 'high';
     const dueDate =
-      (document.getElementById('taskDueDate') as HTMLInputElement).value || undefined;
+      (document.getElementById('taskDueDate') as HTMLInputElement).value ||
+      undefined;
 
     if (id) {
       await registry.execute('task.update', { id, title, priority, dueDate });
@@ -215,9 +232,9 @@ if (taskForm) {
 // Filter buttons
 document.querySelectorAll('.filter-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document
-      .querySelectorAll('.filter-btn')
-      .forEach((b) => b.classList.remove('active'));
+    for (const b of document.querySelectorAll('.filter-btn')) {
+      b.classList.remove('active');
+    }
     btn.classList.add('active');
     currentFilter = (btn as HTMLElement).dataset.filter!;
     renderTasks();

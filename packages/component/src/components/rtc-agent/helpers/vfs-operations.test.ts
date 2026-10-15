@@ -1,22 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { virtualFS } from '@rtc-agent/persistence';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   handleEditorSave,
+  handleFileChange,
   loadFolderChildren,
   restoreEditorAreaContent,
-  handleFileChange,
   type VfsDeps,
 } from './vfs-operations.js';
-import { virtualFS } from '@rtc-agent/persistence';
 
-// Mock virtualFS
-vi.mock('@rtc-agent/persistence', () => ({
-  virtualFS: {
-    write: vi.fn(),
-    read: vi.fn(),
-    exists: vi.fn(),
-    ls: vi.fn(),
-  },
-}));
+// Mock virtualFS using shared factory (dynamic import to handle vi.mock hoisting)
+vi.mock('@rtc-agent/persistence', async () => {
+  const { createMockPersistenceModule } = await import(
+    '../../../test-helpers.js'
+  );
+  return createMockPersistenceModule();
+});
 
 describe('handleEditorSave', () => {
   let mockDeps: VfsDeps;
@@ -254,7 +252,7 @@ describe('handleEditorSave', () => {
       ];
 
       let writeCallCount = 0;
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         writeCallCount++;
         // Simulate delay
         await new Promise((resolve) => setTimeout(resolve, 10));
@@ -306,7 +304,7 @@ describe('handleEditorSave', () => {
 
       let writeCallCount = 0;
       const contents = ['v1', 'v2', 'v3', 'v3']; // Stabilizes at v3
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         // Simulate drift on first two writes
         if (writeCallCount < 2) {
           mockDeps.editorArea.tabs = [
@@ -359,7 +357,7 @@ describe('handleEditorSave', () => {
       ];
 
       let writeCallCount = 0;
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         writeCallCount++;
         // User types once more during first write, then stops
         if (writeCallCount === 1) {
@@ -425,7 +423,7 @@ describe('handleEditorSave', () => {
       expect(mockWrite).toHaveBeenCalledTimes(1);
 
       // Complete first save
-      firstWriteResolve!();
+      firstWriteResolve?.();
       await firstSave;
 
       expect(mockSaveFile).toHaveBeenCalledTimes(1);
@@ -649,7 +647,7 @@ describe('handleEditorSave', () => {
       ];
 
       const writeTimes: number[] = [];
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         writeTimes.push(Date.now());
         if (writeTimes.length === 1) {
           mockDeps.editorArea.tabs = [
@@ -731,7 +729,7 @@ describe('handleEditorSave', () => {
       let autoSaveStarted = false;
       let autoSaveResolve: (() => void) | null = null;
 
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         if (!autoSaveStarted) {
           autoSaveStarted = true;
           // Hold auto-save write
@@ -763,7 +761,7 @@ describe('handleEditorSave', () => {
       expect(mockWrite).toHaveBeenCalledTimes(1);
 
       // Complete auto-save
-      autoSaveResolve!();
+      autoSaveResolve?.();
       await autoSave;
 
       // Auto-save should detect drift and write again
@@ -814,7 +812,7 @@ describe('handleEditorSave', () => {
       ];
 
       let writeCount = 0;
-      mockWrite.mockImplementation(async (path, content) => {
+      mockWrite.mockImplementation(async (_path, content) => {
         writeCount++;
         await new Promise((resolve) => setTimeout(resolve, 5));
         // Simulate continuous typing
@@ -1035,11 +1033,11 @@ describe('loadFolderChildren (Fix 42)', () => {
       const promise2 = loadFolderChildren(path, mockDeps);
 
       // Now resolve both - second resolves first
-      resolveSecondLs!(['current1.txt', 'current2.txt']);
+      resolveSecondLs?.(['current1.txt', 'current2.txt']);
       await promise2;
 
       // Then first resolves (but should be discarded)
-      resolveFirstLs!(['stale1.txt', 'stale2.txt']);
+      resolveFirstLs?.(['stale1.txt', 'stale2.txt']);
       await promise1;
 
       // Only the second (current) load should update UI
@@ -1128,11 +1126,11 @@ describe('loadFolderChildren (Fix 42)', () => {
       const promise2 = loadFolderChildren(path, mockDeps);
 
       // Resolve second first
-      resolveSecondLs!(['current.txt']);
+      resolveSecondLs?.(['current.txt']);
       await promise2;
 
       // Then resolve first (should be discarded)
-      resolveFirstLs!(['stale.txt']);
+      resolveFirstLs?.(['stale.txt']);
       await promise1;
 
       // setLoading(true) called twice (once per load)
@@ -1376,9 +1374,9 @@ describe('restoreEditorAreaContent (Fix 43/49)', () => {
         { filePath: '/file2.txt', content: '', isDirty: false },
       ];
 
-      let readCount = 0;
+      let _readCount = 0;
       mockRead.mockImplementation(async (path: string) => {
-        readCount++;
+        _readCount++;
         if (path === '/file1.txt') {
           // Simulate first tab being closed during await
           mockDeps.editorArea.tabs = [

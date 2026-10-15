@@ -99,7 +99,7 @@ export function zodToParams<T extends ZodType>(
         typeof obj._def.shape === 'object' &&
         !Array.isArray(obj._def.shape))); // v4
 
-  if (!obj || !obj._def || !isZodObject) {
+  if (!obj?._def || !isZodObject) {
     throw new Error(
       'zodToParams expects a ZodObject schema (got: ' +
         (obj?._def?.typeName || obj?._def?.type || 'unknown') +

@@ -15,11 +15,11 @@
  *   - getHistory1(history[last], false, true) for bottom
  */
 
-import { ScrollSaver } from './scroll-saver.js';
-import { MessageSkeletonGenerator } from './message-skeleton.js';
 import { createLogger } from '@rtc-agent/protocol';
-import { VisibilityManager, VisibilityState } from './visibility-manager.js';
+import { MessageSkeletonGenerator } from './message-skeleton.js';
+import { ScrollSaver } from './scroll-saver.js';
 import { SkeletonTracker } from './skeleton-tracker.js';
+import { VisibilityManager, VisibilityState } from './visibility-manager.js';
 
 const log = createLogger('VirtualScroll');
 
@@ -775,7 +775,7 @@ export class MessageVirtualScroll<T> {
 
       // Item changed - check if it's currently rendered
       const element = this._elementMap.get(oldEntry.index);
-      if (!element || !element.isConnected) {
+      if (!element?.isConnected) {
         return; // Not in DOM
       }
 
@@ -859,7 +859,8 @@ export class MessageVirtualScroll<T> {
 
     // Size guard: estimate size before JSON.stringify
     // JSON.stringify is O(n) where n is object size, which can be very slow for large objects
-    const estimatedSize = this._estimateObjectSize(a) + this._estimateObjectSize(b);
+    const estimatedSize =
+      this._estimateObjectSize(a) + this._estimateObjectSize(b);
     if (estimatedSize > this.MAX_COMPARE_SIZE) {
       // Objects are too large for efficient comparison
       // Return false to force a re-render (safer than potentially stale equality)
@@ -878,18 +879,29 @@ export class MessageVirtualScroll<T> {
    * Estimate object size without JSON.stringify overhead.
    * Provides a fast, approximate size by traversing primitive values.
    */
-  private _estimateObjectSize(obj: unknown, maxDepth: number = 5, currentDepth: number = 0): number {
+  private _estimateObjectSize(
+    obj: unknown,
+    maxDepth: number = 5,
+    currentDepth: number = 0,
+  ): number {
     if (currentDepth >= maxDepth) return 1024; // Conservative estimate for deep nesting
     if (obj === null || obj === undefined) return 0;
     if (typeof obj === 'string') return obj.length * 2;
     if (typeof obj === 'number' || typeof obj === 'boolean') return 8;
     if (Array.isArray(obj)) {
-      return obj.reduce((sum, item) => sum + this._estimateObjectSize(item, maxDepth, currentDepth + 1), 8);
+      return obj.reduce(
+        (sum, item) =>
+          sum + this._estimateObjectSize(item, maxDepth, currentDepth + 1),
+        8,
+      );
     }
     if (typeof obj === 'object') {
       return Object.entries(obj as Record<string, unknown>).reduce(
-        (sum, [k, v]) => sum + k.length * 2 + this._estimateObjectSize(v, maxDepth, currentDepth + 1),
-        8
+        (sum, [k, v]) =>
+          sum +
+          k.length * 2 +
+          this._estimateObjectSize(v, maxDepth, currentDepth + 1),
+        8,
       );
     }
     return 8;
@@ -911,7 +923,7 @@ export class MessageVirtualScroll<T> {
     const objA = a as Record<string, unknown>;
     const objB = b as Record<string, unknown>;
     for (const key of keysA) {
-      if (!Object.prototype.hasOwnProperty.call(objB, key)) return false;
+      if (!Object.hasOwn(objB, key)) return false;
       if (objA[key] !== objB[key]) return false;
     }
     return true;
@@ -1082,7 +1094,7 @@ export class MessageVirtualScroll<T> {
 
     // 3. If component exists (not a placeholder), update DOM
     const element = this._elementMap.get(index);
-    if (!element || !element.isConnected) {
+    if (!element?.isConnected) {
       return true; // Data updated but not in DOM
     }
 
@@ -1121,9 +1133,9 @@ export class MessageVirtualScroll<T> {
     // (including ChildPart markers and empty state elements) inside .message-list-inner.
     // Using innerHTML would break Lit's rendering and cause "ChildPart has no parentNode" errors.
     // Instead, only remove elements managed by virtual scroll (those with data-item-id).
-    const managedElements = this._innerContainer.querySelectorAll('[data-item-id]');
-    managedElements.forEach((el) => el.remove());
-    this._loadedTop = true;
+    const managedElements =
+      this._innerContainer.querySelectorAll('[data-item-id]');
+    for (const el of managedElements) el.remove();
     this._loadedBottom = true;
 
     // Cleanup skeleton tracking (consolidated via SkeletonTracker)
@@ -2311,7 +2323,7 @@ export class MessageVirtualScroll<T> {
     const index = this._idToIndex.get(itemId);
     if (index !== undefined) {
       const el = this._elementMap.get(index);
-      if (el && el.isConnected) {
+      if (el?.isConnected) {
         return el;
       }
     }
@@ -2382,7 +2394,7 @@ export class MessageVirtualScroll<T> {
     if (this._settledCount > Number.MAX_SAFE_INTEGER - 1000) {
       log.warn(
         `_settledCount approaching MAX_SAFE_INTEGER, resetting to 0. ` +
-        `This is normal for long-running sessions.`,
+          `This is normal for long-running sessions.`,
       );
       this._settledCount = 0;
     }
@@ -2446,9 +2458,9 @@ export class MessageVirtualScroll<T> {
     // (including ChildPart markers and empty state elements) inside .message-list-inner.
     // Using innerHTML would break Lit's rendering and cause "ChildPart has no parentNode" errors.
     // Instead, only remove elements managed by virtual scroll (those with data-item-id).
-    const managedElements = this._innerContainer.querySelectorAll('[data-item-id]');
-    managedElements.forEach((el) => el.remove());
-    this._elementMap.clear();
+    const managedElements =
+      this._innerContainer.querySelectorAll('[data-item-id]');
+    for (const el of managedElements) el.remove();
     this._idToIndex.clear();
 
     // Critical: Clear all skeleton tracking state to prevent "ghost" placeholders.

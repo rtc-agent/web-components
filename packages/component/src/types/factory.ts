@@ -4,11 +4,11 @@
  * @module factory-types
  */
 
-import type { WindowConfig } from './window-config.js';
 import type { ActivityBarConfig } from './activity-bar-config.js';
 import type { AgentFunctionGroup } from './agent-config.js';
+import type { Message, Session } from './index.js';
 import type { FunctionDef } from './skill.js';
-import type { Session, Message } from './index.js';
+import type { WindowConfig } from './window-config.js';
 
 // ===== Authentication Configuration =====
 

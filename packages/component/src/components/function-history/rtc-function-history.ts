@@ -7,50 +7,36 @@
  *
  * @element rtc-function-history
  */
-import { LitElement, html, nothing, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-function-history.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing, type TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FunctionDebugContext,
   type FunctionDebugContextValue,
 } from '../../contexts/function-debug.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { chevronDownIcon, chevronRightIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type {
   DebugHistoryItem,
   LogEntry,
 } from '../../types/functions-debug.js';
-import { chevronRightIcon, chevronDownIcon } from '../../icons/index.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { formatRelativeTime } from '../../utils/relative-time.js';
+import { styles } from './rtc-function-history.styles.js';
 
 const log = createLogger('FunctionHistory');
-
-/**
- * Format relative time (e.g., "2 分钟前", "1 小时前")
- */
-function relativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (seconds < 60) return msg('刚刚');
-  if (minutes < 60) return msg(str`${minutes} 分钟前`);
-  if (hours < 24) return msg(str`${hours} 小时前`);
-  return msg(str`${days} 天前`);
-}
 
 @localized()
 @customElement('rtc-function-history')
@@ -279,7 +265,7 @@ export class RtcFunctionHistory extends LitElement {
                     <div class="history-info">
                         <span class="history-name">${item.functionName}</span>
                         <div class="history-meta">
-                            <span>${relativeTime(item.timestamp)}</span>
+                            <span>${formatRelativeTime(item.timestamp)}</span>
                             <span>${item.durationMs}ms</span>
                         </div>
                     </div>

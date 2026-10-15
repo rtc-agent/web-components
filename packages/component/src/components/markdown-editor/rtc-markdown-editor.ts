@@ -20,23 +20,24 @@
  * ## Styling
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-markdown-editor.styles.js';
-import type { EditorViewMode } from '../../types/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { EditorViewMode } from '../../types/index.js';
+import { styles } from './rtc-markdown-editor.styles.js';
 
 const log = createLogger('MarkdownEditor');
 
@@ -231,9 +232,9 @@ export class RtcMarkdownEditor extends LitElement {
     if (!html.includes('<pre>')) return html;
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc
-      .querySelectorAll('pre code')
-      .forEach((el) => hljs.highlightElement(el as HTMLElement));
+    for (const el of doc.querySelectorAll('pre code')) {
+      hljs.highlightElement(el as HTMLElement);
+    }
     return doc.body.innerHTML;
   }
 
@@ -313,7 +314,7 @@ export class RtcMarkdownEditor extends LitElement {
       const { selectionStart, selectionEnd, value } = textarea;
       const before = value.substring(0, selectionStart);
       const after = value.substring(selectionEnd);
-      const newValue = before + '  ' + after;
+      const newValue = `${before}  ${after}`;
 
       this.content = newValue;
       textarea.value = newValue;

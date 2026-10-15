@@ -9,9 +9,9 @@
  * avoid recreation on every callback invocation (performance optimization).
  */
 import { msg } from '@lit/localize';
-import type { SessionStatus } from '../../../types/index.js';
 import type { UIUpdateEvent } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
+import type { SessionStatus } from '../../../types/index.js';
 
 // Controller type interfaces (minimal, to avoid circular imports)
 interface MessageControllerLike {
@@ -35,9 +35,7 @@ interface SessionTabControllerLike {
   };
 }
 
-interface SessionTreeControllerLike {
-  // Reserved for future session tree updates
-}
+type SessionTreeControllerLike = {};
 
 interface PersistenceLayerLike {
   getSession(

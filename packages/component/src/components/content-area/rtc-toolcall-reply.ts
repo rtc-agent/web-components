@@ -18,21 +18,22 @@
  * @csspart header - The clickable reference header
  * @csspart content - The output content area
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-toolcall-reply.styles.js';
 import type { Message } from '../../types/index.js';
-import { formatTimestampCompact } from '../../utils/format.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { formatTimestampCompact } from '../../utils/format.js';
+import { styles } from './rtc-toolcall-reply.styles.js';
 import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallReply');

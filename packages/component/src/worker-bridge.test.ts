@@ -8,49 +8,47 @@
  * - destroy() cleans up Worker resources regardless of _initialized state
  * - destroy() nulls out _worker and _core references
  * - destroy() resolves pending yield channel Promises
+ *
+ * NOTE ON PRIVATE FIELD ACCESS:
+ * These tests intentionally access private fields (e.g., `_core`, `_initialized`,
+ * `_catchUpAbortController`) via `(bridge as any)._field`. This is necessary because:
+ * 1. WorkerBridge's init() performs heavy side effects (SharedWorker creation, Comlink
+ *    wrapping, IndexedDB setup) that are impractical for focused unit testing.
+ * 2. The private fields under test are precisely the internal state machines being
+ *    verified — there is no public API equivalent for observing abort controller
+ *    lifecycle or catch-up state transitions.
+ * 3. The tests validate internal invariants (e.g., "destroy nulls _worker and _core")
+ *    that are implementation-specific contracts, not observable through public methods.
+ *
+ * Alternative approaches considered and rejected:
+ * - Adding public test-only accessors: pollutes the production API surface.
+ * - Using a test-specific subclass: TypeScript's `private` is compile-time only;
+ *   subclassing doesn't help with Comlink Remote<> types or vi.fn() injection.
+ *
+ * If WorkerBridge is refactored to separate state management from I/O, these tests
+ * should be updated to use the new public API.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type {
-  WorkerPersistenceCore,
-  WorkerCallbacks,
-  UIUpdatePayload,
-} from '@rtc-agent/worker';
+
+import type { WorkerCallbacks, WorkerPersistenceCore } from '@rtc-agent/worker';
 import type { Remote } from 'comlink';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock heavy dependencies before importing WorkerBridge
-vi.mock('@rtc-agent/persistence', () => ({
-  getUIUpdateBus: () => ({
-    publish: vi.fn(),
-  }),
-  virtualFS: {
-    read: vi.fn(),
-    write: vi.fn(),
-    ls: vi.fn(),
-    find: vi.fn(),
-    grep: vi.fn(),
-    queryByType: vi.fn(),
-    exists: vi.fn(),
-    remove: vi.fn(),
-  },
-}));
+// (dynamic imports to handle vi.mock hoisting)
+vi.mock('@rtc-agent/persistence', async () => {
+  const { createMockPersistenceModule } = await import('./test-helpers.js');
+  return createMockPersistenceModule();
+});
 
-vi.mock('@rtc-agent/client', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@rtc-agent/client', async () => {
+  const { createMockClientModule } = await import('./test-helpers.js');
+  return createMockClientModule();
+});
 
-vi.mock('@rtc-agent/protocol', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@rtc-agent/protocol', async () => {
+  const { createMockProtocolModule } = await import('./test-helpers.js');
+  return createMockProtocolModule();
+});
 
 // Dynamic import after mocks
 const { WorkerBridge } = await import('./worker-bridge.js');
@@ -119,13 +117,13 @@ describe('WorkerBridge - AbortController & Catch-up Cancellation', () => {
       await vi.waitUntil(() => capturedSignal !== undefined);
 
       // Verify signal is not yet aborted
-      expect(capturedSignal!.aborted).toBe(false);
+      expect(capturedSignal?.aborted).toBe(false);
 
       // Call destroy — should abort the catch-up
       await bridge.destroy();
 
       // Verify signal is now aborted
-      expect(capturedSignal!.aborted).toBe(true);
+      expect(capturedSignal?.aborted).toBe(true);
 
       // Wait for catch-up to finish (should exit cleanly after abort)
       await catchUpPromise;
@@ -195,7 +193,7 @@ describe('WorkerBridge - AbortController & Catch-up Cancellation', () => {
       await bridge.destroy();
 
       // Resolve the first getCatchUpEvents call (after abort is set)
-      resolveFirstCall!();
+      resolveFirstCall?.();
 
       // Wait for catch-up to complete
       await catchUpPromise;
@@ -232,7 +230,7 @@ describe('WorkerBridge - AbortController & Catch-up Cancellation', () => {
       await bridge.destroy();
 
       // Now resolve the mock (after abort)
-      resolveCall!();
+      resolveCall?.();
 
       await catchUpPromise;
 
@@ -271,7 +269,7 @@ describe('WorkerBridge - AbortController & Catch-up Cancellation', () => {
       expect(destroyCompleted).toBe(false);
 
       // Now resolve init
-      resolveInit!();
+      resolveInit?.();
       await initPromise;
 
       // destroy() should now complete
@@ -443,7 +441,9 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       cacheFilePending: vi.fn().mockResolvedValue(undefined),
       getCachedFile: vi.fn().mockResolvedValue(null),
       evictExpiredCache: vi.fn().mockResolvedValue(0),
-      evictCache: vi.fn().mockResolvedValue({ evictedCount: 0, evictedBytes: 0 }),
+      evictCache: vi
+        .fn()
+        .mockResolvedValue({ evictedCount: 0, evictedBytes: 0 }),
 
       // File operations
       uploadFile: vi.fn().mockResolvedValue({
@@ -545,9 +545,9 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       (bridge as any)._core = null;
 
       const blob = new Blob(['test']);
-      await expect(bridge.cacheFile('md5', 'ext', blob, 'type')).rejects.toThrow(
-        'core is not available',
-      );
+      await expect(
+        bridge.cacheFile('md5', 'ext', blob, 'type'),
+      ).rejects.toThrow('core is not available');
     });
   });
 
@@ -690,7 +690,15 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
 
       const blob = new Blob(['test']);
       await expect(
-        bridge.uploadFile('md5', 'ext', blob, 'type', 'name', undefined, controller.signal),
+        bridge.uploadFile(
+          'md5',
+          'ext',
+          blob,
+          'type',
+          'name',
+          undefined,
+          controller.signal,
+        ),
       ).rejects.toThrow('Upload aborted');
     });
 
@@ -724,7 +732,7 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       controller.abort();
 
       // Resolve the upload
-      resolveUpload!();
+      resolveUpload?.();
       await uploadPromise;
 
       expect(mockCore.cancelFileOperation).toHaveBeenCalled();
@@ -803,7 +811,7 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       controller.abort();
 
       // Resolve the download
-      resolveDownload!();
+      resolveDownload?.();
       await downloadPromise;
 
       expect(mockCore.cancelFileOperation).toHaveBeenCalled();
@@ -872,7 +880,9 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
           { md5: 'file1', ext: 'txt' },
           { md5: 'file2', ext: 'md' },
         ],
-        failedFiles: [{ md5: 'file3', ext: 'pdf', errorMessage: 'Network error' }],
+        failedFiles: [
+          { md5: 'file3', ext: 'pdf', errorMessage: 'Network error' },
+        ],
       };
       mockCore.syncPendingFiles.mockResolvedValue(syncResult);
 
@@ -901,7 +911,9 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
         failed: 1,
         expired: 2,
         syncedFiles: [{ md5: 'file1', ext: 'txt' }],
-        failedFiles: [{ md5: 'file2', ext: 'pdf', errorMessage: 'Upload expired' }],
+        failedFiles: [
+          { md5: 'file2', ext: 'pdf', errorMessage: 'Upload expired' },
+        ],
       };
       mockCore.resumeInterruptedUploads.mockResolvedValue(resumeResult);
 
@@ -1068,7 +1080,7 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       for (const l of (bridge as any)._connectionListeners) {
         try {
           l(event);
-        } catch (err) {
+        } catch (_err) {
           // Error is caught and logged, doesn't propagate
         }
       }
@@ -1080,6 +1092,12 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
   });
 
   describe('installVirtualFSProxy', () => {
+    afterEach(() => {
+      // Restore virtualFS after each test to prevent cross-test contamination
+      // (static flags persist across tests)
+      WorkerBridge.restoreVirtualFS();
+    });
+
     it('should replace virtualFS methods with core proxies', async () => {
       // Access the mocked virtualFS module
       const persistenceModule = await import('@rtc-agent/persistence');
@@ -1095,12 +1113,28 @@ describe('WorkerBridge - File Cache & S3 Operations', () => {
       expect(typeof virtualFS.find).toBe('function');
     });
 
-    it('should throw when core is not available', () => {
+    it('should throw when core is not available', async () => {
+      // Access the mocked virtualFS module to verify restoration
+      const persistenceModule = await import('@rtc-agent/persistence');
+      const virtualFS = persistenceModule.virtualFS;
+
+      // First install successfully
+      bridge.installVirtualFSProxy();
+
+      // Now set core to null and try to reinstall
+      // With WeakRef tracking, this should detect the same instance and allow reinstall
+      // But since core is null, it should throw "core is not available"
       (bridge as any)._core = null;
+
+      // Restore first, then try to install again with null core
+      WorkerBridge.restoreVirtualFS();
 
       expect(() => bridge.installVirtualFSProxy()).toThrow(
         'core is not available',
       );
+
+      // Verify virtualFS was not modified (remains original)
+      expect(typeof virtualFS.read).toBe('function');
     });
   });
 });
@@ -1169,9 +1203,9 @@ describe('WorkerBridge - Error Handling & Edge Cases', () => {
       mockCore.uploadFile.mockRejectedValue(error);
 
       const blob = new Blob(['test']);
-      await expect(
-        bridge.uploadFile('md5', 'ext', blob),
-      ).rejects.toThrow('Upload failed');
+      await expect(bridge.uploadFile('md5', 'ext', blob)).rejects.toThrow(
+        'Upload failed',
+      );
     });
 
     it('should propagate errors from downloadFile', async () => {
@@ -1215,9 +1249,9 @@ describe('WorkerBridge - Error Handling & Edge Cases', () => {
       (bridge as any)._core = null;
 
       const blob = new Blob(['test']);
-      await expect(
-        bridge.uploadFile('md5', 'ext', blob),
-      ).rejects.toThrow('core is not available');
+      await expect(bridge.uploadFile('md5', 'ext', blob)).rejects.toThrow(
+        'core is not available',
+      );
     });
 
     it('should throw on downloadFile after destroy', async () => {
@@ -1272,7 +1306,7 @@ describe('WorkerBridge - Error Handling & Edge Cases', () => {
 
     it('should generate unique operation IDs for concurrent uploads', async () => {
       const blob = new Blob(['test']);
-      let capturedOperationIds: string[] = [];
+      const capturedOperationIds: string[] = [];
 
       mockCore.uploadFile.mockImplementation(
         (
@@ -1300,7 +1334,7 @@ describe('WorkerBridge - Error Handling & Edge Cases', () => {
     });
 
     it('should generate unique operation IDs for concurrent downloads', async () => {
-      let capturedOperationIds: string[] = [];
+      const capturedOperationIds: string[] = [];
 
       mockCore.downloadFile.mockImplementation(
         (

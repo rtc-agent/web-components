@@ -1,4 +1,4 @@
-import { LocaleModule } from '@lit/localize';
+import type { LocaleModule } from '@lit/localize';
 import { templates } from '../.generated/locales/en-US.js';
 
 const locale: LocaleModule = { templates };

@@ -913,8 +913,6 @@ export function isMockCentrifugeClient(
 /**
  * Type guard to check if an object is a MockSubscription.
  */
-export function isMockSubscription(
-  sub: unknown,
-): sub is MockSubscription {
+export function isMockSubscription(sub: unknown): sub is MockSubscription {
   return sub instanceof MockSubscription;
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { FileCacheRepository } from './file-cache-repository.js';
 
 describe('FileCacheRepository - calculateMD5', () => {

@@ -4,13 +4,13 @@
  * @module factory
  */
 
+import { eventBus } from './core/event-bus.js';
+import type { AgentConfig } from './types/agent-config.js';
 import type {
+  AuthProvider,
   RtcAgentConfig,
   RtcAgentWithLifecycle,
-  AuthProvider,
 } from './types/factory.js';
-import type { AgentConfig } from './types/agent-config.js';
-import { eventBus } from './core/event-bus.js';
 
 /**
  * Create a pre-configured `<rtc-agent>` custom element.
@@ -201,72 +201,75 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     // to the user callback. This matches the JSDoc contract: users receive the
     // typed detail object, not the raw CustomEvent envelope.
     const eventMap: Array<[string, ((event: Event) => void) | undefined]> = [
-      ['rtc-agent-ready', callbacks.ready && (() => callbacks.ready!())],
+      ['rtc-agent-ready', callbacks.ready && (() => callbacks.ready?.())],
       [
         'rtc-connection-retry',
-        callbacks.connectionRetry && (() => callbacks.connectionRetry!()),
+        callbacks.connectionRetry && (() => callbacks.connectionRetry?.()),
       ],
       [
         'rtc-auth-login-requested',
-        callbacks.authLoginRequested && (() => callbacks.authLoginRequested!()),
+        callbacks.authLoginRequested &&
+          (() => callbacks.authLoginRequested?.()),
       ],
       [
         'rtc-auth-refresh-failed',
-        callbacks.authError && (() => callbacks.authError!()),
+        callbacks.authError && (() => callbacks.authError?.()),
       ],
       [
         'rtc-auth-logout',
-        callbacks.authLogout && (() => callbacks.authLogout!()),
+        callbacks.authLogout && (() => callbacks.authLogout?.()),
       ],
       [
         'rtc-session-created',
         callbacks.sessionCreated &&
-          ((e: Event) => callbacks.sessionCreated!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.sessionCreated?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-session-switched',
         callbacks.sessionSwitched &&
-          ((e: Event) => callbacks.sessionSwitched!((e as CustomEvent).detail)),
+          ((e: Event) =>
+            callbacks.sessionSwitched?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-session-renamed',
         callbacks.sessionRenamed &&
-          ((e: Event) => callbacks.sessionRenamed!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.sessionRenamed?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-session-deleted',
         callbacks.sessionDeleted &&
-          ((e: Event) => callbacks.sessionDeleted!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.sessionDeleted?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-message-received',
         callbacks.messageReceived &&
-          ((e: Event) => callbacks.messageReceived!((e as CustomEvent).detail)),
+          ((e: Event) =>
+            callbacks.messageReceived?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-message-sent',
         callbacks.messageSent &&
-          ((e: Event) => callbacks.messageSent!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.messageSent?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-connection-state-change',
         callbacks.connectionStateChange &&
           ((e: Event) =>
-            callbacks.connectionStateChange!((e as CustomEvent).detail)),
+            callbacks.connectionStateChange?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-auth-login',
         callbacks.authLogin &&
-          ((e: Event) => callbacks.authLogin!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.authLogin?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-theme-change',
         callbacks.themeChange &&
-          ((e: Event) => callbacks.themeChange!((e as CustomEvent).detail)),
+          ((e: Event) => callbacks.themeChange?.((e as CustomEvent).detail)),
       ],
       [
         'rtc-before-destroy',
-        callbacks.beforeDestroy && (() => callbacks.beforeDestroy!()),
+        callbacks.beforeDestroy && (() => callbacks.beforeDestroy?.()),
       ],
     ];
 
@@ -403,13 +406,13 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
 
     // 4. Cancel all DOM event subscriptions
     if (element._eventUnsubscribes) {
-      element._eventUnsubscribes.forEach((unsub) => unsub());
+      for (const unsub of element._eventUnsubscribes) unsub();
       element._eventUnsubscribes = undefined;
     }
 
     // 5. Cancel all EventBus subscriptions
     if (element._eventBusUnsubscribes) {
-      element._eventBusUnsubscribes.forEach((unsub) => unsub());
+      for (const unsub of element._eventBusUnsubscribes) unsub();
       element._eventBusUnsubscribes = undefined;
     }
 

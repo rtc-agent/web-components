@@ -9,21 +9,22 @@
  * @csspart list - The todo list container
  * @csspart filter - The filter bar
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg, str } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import { repeat } from 'lit/directives/repeat.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { repeat } from 'lit/directives/repeat.js';
-import { classMap } from 'lit/directives/class-map.js';
-import { styles } from './rtc-todo-panel.styles.js';
 import type { TodoItem } from '../../types/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-todo-panel.styles.js';
 
 const log = createLogger('TodoPanel');
 
@@ -82,7 +83,12 @@ export class RtcTodoPanel extends LitElement {
    * Count of todos by status for filter badges.
    */
   private get _statusCounts(): Record<TodoFilter, number> {
-    const counts = { all: this.todoList.length, pending: 0, in_progress: 0, completed: 0 };
+    const counts = {
+      all: this.todoList.length,
+      pending: 0,
+      in_progress: 0,
+      completed: 0,
+    };
     for (const item of this.todoList) {
       if (item.status === 'pending') counts.pending++;
       else if (item.status === 'in_progress') counts.in_progress++;
@@ -96,7 +102,9 @@ export class RtcTodoPanel extends LitElement {
    */
   private get _progressPercent(): number {
     if (this.todoList.length === 0) return 0;
-    return Math.round((this._statusCounts.completed / this.todoList.length) * 100);
+    return Math.round(
+      (this._statusCounts.completed / this.todoList.length) * 100,
+    );
   }
 
   private _setFilter(filter: TodoFilter) {
@@ -116,7 +124,6 @@ export class RtcTodoPanel extends LitElement {
         return html`<svg viewBox="0 0 16 16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg>`;
       case 'in_progress':
         return html`<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3"/></svg>`;
-      case 'pending':
       default:
         return html`<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
     }
@@ -190,12 +197,13 @@ export class RtcTodoPanel extends LitElement {
       ${this._renderProgressBar()}
       ${hasMultipleStatuses ? this._renderFilterBar() : nothing}
       <div class="todo-list" part="list" role="list" aria-label="${msg('任务列表')}">
-        ${filtered.length === 0
-          ? html`<div class="empty-filter">${msg('没有匹配的任务')}</div>`
-          : repeat(
-              filtered,
-              (_item, i) => `${i}-${_item.content}`,
-              (item) => html`
+        ${
+          filtered.length === 0
+            ? html`<div class="empty-filter">${msg('没有匹配的任务')}</div>`
+            : repeat(
+                filtered,
+                (_item, i) => `${i}-${_item.content}`,
+                (item) => html`
                 <div
                   class="todo-item todo-item--${item.status}"
                   role="listitem"
@@ -213,7 +221,8 @@ export class RtcTodoPanel extends LitElement {
                   </div>
                 </div>
               `,
-            )}
+              )
+        }
       </div>
     `;
   }

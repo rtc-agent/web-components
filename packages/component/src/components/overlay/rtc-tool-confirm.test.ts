@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-tool-confirm.js';
 import type { ToolCall } from '../../types/index.js';
 
@@ -26,7 +26,7 @@ describe('<rtc-tool-confirm>', () => {
     );
     await nextFrame();
     // Tool name is formatted: "file-write" becomes "File Write"
-    expect(el.shadowRoot!.textContent).toContain('File Write');
+    expect(el.shadowRoot?.textContent).toContain('File Write');
   });
 
   it('should display parameter summary', async () => {
@@ -34,7 +34,7 @@ describe('<rtc-tool-confirm>', () => {
       html`<rtc-tool-confirm .toolCall=${mockToolCall}></rtc-tool-confirm>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.textContent).toContain('/test.txt');
+    expect(el.shadowRoot?.textContent).toContain('/test.txt');
   });
 
   it('should have Yes, No buttons', async () => {
@@ -42,8 +42,8 @@ describe('<rtc-tool-confirm>', () => {
       html`<rtc-tool-confirm .toolCall=${mockToolCall}></rtc-tool-confirm>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('[data-action="yes"]')).not.toBeNull();
-    expect(el.shadowRoot!.querySelector('[data-action="no"]')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('[data-action="yes"]')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('[data-action="no"]')).not.toBeNull();
   });
 
   it('should dispatch rtc-tool-call-approved on Yes click', async () => {
@@ -53,9 +53,10 @@ describe('<rtc-tool-confirm>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-tool-call-approved', handler);
-    (
-      el.shadowRoot!.querySelector('[data-action="yes"]') as HTMLElement
-    ).click();
+    const yesBtn = el.shadowRoot!.querySelector(
+      '[data-action="yes"]',
+    ) as HTMLElement;
+    yesBtn.click();
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail.toolCallId).toBe('tc-1');
   });
@@ -67,7 +68,10 @@ describe('<rtc-tool-confirm>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-tool-call-denied', handler);
-    (el.shadowRoot!.querySelector('[data-action="no"]') as HTMLElement).click();
+    const noBtn = el.shadowRoot!.querySelector(
+      '[data-action="no"]',
+    ) as HTMLElement;
+    noBtn.click();
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail.toolCallId).toBe('tc-1');
   });
@@ -77,7 +81,7 @@ describe('<rtc-tool-confirm>', () => {
       html`<rtc-tool-confirm .toolCall=${mockToolCall}></rtc-tool-confirm>`,
     );
     await nextFrame();
-    const backdrop = el.shadowRoot!.querySelector('.backdrop');
+    const backdrop = el.shadowRoot?.querySelector('.backdrop');
     expect(backdrop).not.toBeNull();
   });
 });

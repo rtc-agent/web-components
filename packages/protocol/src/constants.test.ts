@@ -1,49 +1,49 @@
 import { describe, it, expect } from 'vitest';
-import { RpcMethod, RpcErrorCode } from './index.js';
+import { RPC_METHODS, RpcErrorCode } from './index.js';
 
-describe('RpcMethod constants', () => {
+describe('RPC_METHODS constants', () => {
   it('should have all Session methods', () => {
-    expect(RpcMethod.SessionList).toBe('v1.session.list');
-    expect(RpcMethod.SessionGet).toBe('v1.session.get');
-    expect(RpcMethod.SessionClose).toBe('v1.session.close');
-    expect(RpcMethod.SessionOpen).toBe('v1.session.open');
-    expect(RpcMethod.SessionUpdate).toBe('v1.session.update');
-    expect(RpcMethod.SessionFork).toBe('v1.session.fork');
-    expect(RpcMethod.SessionCompact).toBe('v1.session.compact');
+    expect(RPC_METHODS.SessionList).toBe('v1.session.list');
+    expect(RPC_METHODS.SessionGet).toBe('v1.session.get');
+    expect(RPC_METHODS.SessionClose).toBe('v1.session.close');
+    expect(RPC_METHODS.SessionOpen).toBe('v1.session.open');
+    expect(RPC_METHODS.SessionUpdate).toBe('v1.session.update');
+    expect(RPC_METHODS.SessionFork).toBe('v1.session.fork');
+    expect(RPC_METHODS.SessionCompact).toBe('v1.session.compact');
   });
 
   it('should have all Message methods', () => {
-    expect(RpcMethod.MessageSend).toBe('v1.message.send');
-    expect(RpcMethod.MessageList).toBe('v1.message.list');
-    expect(RpcMethod.MessageGet).toBe('v1.message.get');
+    expect(RPC_METHODS.MessageSend).toBe('v1.message.send');
+    expect(RPC_METHODS.MessageList).toBe('v1.message.list');
+    expect(RPC_METHODS.MessageGet).toBe('v1.message.get');
   });
 
   it('should have all Turn methods', () => {
-    expect(RpcMethod.TurnList).toBe('v1.turn.list');
-    expect(RpcMethod.TurnGet).toBe('v1.turn.get');
-    expect(RpcMethod.TurnStop).toBe('v1.turn.stop');
+    expect(RPC_METHODS.TurnList).toBe('v1.turn.list');
+    expect(RPC_METHODS.TurnGet).toBe('v1.turn.get');
+    expect(RPC_METHODS.TurnStop).toBe('v1.turn.stop');
   });
 
   it('should have all RTC methods', () => {
-    expect(RpcMethod.RtcList).toBe('v1.rtc.list');
-    expect(RpcMethod.RtcGet).toBe('v1.rtc.get');
-    expect(RpcMethod.RtcUpdateStatus).toBe('v1.rtc.update_status');
-    expect(RpcMethod.RtcSubmitResult).toBe('v1.rtc.submit_result');
+    expect(RPC_METHODS.RtcList).toBe('v1.rtc.list');
+    expect(RPC_METHODS.RtcGet).toBe('v1.rtc.get');
+    expect(RPC_METHODS.RtcUpdateStatus).toBe('v1.rtc.update_status');
+    expect(RPC_METHODS.RtcSubmitResult).toBe('v1.rtc.submit_result');
   });
 
   it('should have correct total number of methods', () => {
-    const methodCount = Object.keys(RpcMethod).length;
+    const methodCount = Object.keys(RPC_METHODS).length;
     expect(methodCount).toBe(17); // 7 Session + 3 Message + 3 Turn + 4 RTC
   });
 
   it('should have unique method values', () => {
-    const values = Object.values(RpcMethod);
+    const values = Object.values(RPC_METHODS);
     const uniqueValues = new Set(values);
     expect(uniqueValues.size).toBe(values.length);
   });
 
   it('should follow naming convention (v1.<resource>.<action>)', () => {
-    Object.values(RpcMethod).forEach((method) => {
+    Object.values(RPC_METHODS).forEach((method) => {
       expect(method).toMatch(/^v1\.\w+\.\w+$/);
     });
   });

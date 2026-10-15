@@ -12,20 +12,20 @@
  * Consumers: <rtc-session-tab-bar>, <rtc-chat-layout>
  */
 import { msg } from '@lit/localize';
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type {
-  SessionTab,
-  SessionTabState,
-  SessionTabActions,
-  SessionStatus,
-} from '../types/index.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { STORAGE_KEYS } from '../config/auth.js';
+import type {
+  SessionStatus,
+  SessionTab,
+  SessionTabActions,
+  SessionTabState,
+} from '../types/index.js';
 import {
   safeLocalStorageGet,
-  safeLocalStorageSet,
   safeLocalStorageRemove,
+  safeLocalStorageSet,
 } from '../utils/safe-local-storage.js';
-import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('SessionTabController');
 
@@ -202,7 +202,7 @@ export class SessionTabController implements ReactiveController {
   /** Mark a specific tab as saved. */
   private _markSaved(sessionId: string): void {
     const tab = this._state.tabs.find((t) => t.sessionId === sessionId);
-    if (!tab || tab.isUnsaved !== true) {
+    if (tab?.isUnsaved !== true) {
       return;
     }
     const tabs = this._state.tabs.map((t) =>
@@ -269,7 +269,7 @@ export class SessionTabController implements ReactiveController {
         const updated = {
           ...t,
           title,
-          isDefault: isPlaceholder ? true : false,
+          isDefault: !!isPlaceholder,
         };
         if (transientParams) {
           updated.initialInputValue = transientParams.initialInputValue;
@@ -289,7 +289,7 @@ export class SessionTabController implements ReactiveController {
       const newTab: SessionTab = {
         sessionId,
         title,
-        isDefault: isPlaceholder ? true : false,
+        isDefault: !!isPlaceholder,
         isUnsaved: options?.isUnsaved ?? false,
         ...(transientParams
           ? {

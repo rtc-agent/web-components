@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provideContext } from '../../test-context-helpers.js';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-input-area.js';
-import type { RtcInputArea } from './rtc-input-area.js';
-import { ModeContext } from '../../contexts/mode.js';
 import type { ModeContextValue } from '../../contexts/mode.js';
+import { ModeContext } from '../../contexts/mode.js';
+import type { RtcInputArea } from './rtc-input-area.js';
 
 const mockModeCtx: ModeContextValue = {
   state: { currentMode: 'manual' },
@@ -29,7 +29,7 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const textarea = el.shadowRoot!.querySelector('textarea');
+    const textarea = el.shadowRoot?.querySelector('textarea');
     expect(textarea).not.toBeNull();
   });
 
@@ -39,8 +39,8 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.mode-btn');
-    expect(btn!.textContent).toContain('手动');
+    const btn = el.shadowRoot?.querySelector('.mode-btn');
+    expect(btn?.textContent).toContain('手动');
   });
 
   it('should dispatch rtc-input-submit with content on Enter', async () => {
@@ -51,7 +51,7 @@ describe('<rtc-input-area>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-input-submit', handler);
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.value = 'Hello';
@@ -69,7 +69,7 @@ describe('<rtc-input-area>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-input-submit', handler);
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.value = 'Hello';
@@ -88,7 +88,7 @@ describe('<rtc-input-area>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-input-submit', handler);
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
@@ -101,7 +101,7 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.value = 'Hello';
@@ -117,10 +117,10 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.mode-btn') as HTMLElement;
+    const btn = el.shadowRoot?.querySelector('.mode-btn') as HTMLElement;
     btn.click();
     await nextFrame();
-    const panel = el.shadowRoot!.querySelector('rtc-mode-panel');
+    const panel = el.shadowRoot?.querySelector('rtc-mode-panel');
     expect(panel).not.toBeNull();
   });
 
@@ -130,7 +130,7 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.send-btn');
+    const btn = el.shadowRoot?.querySelector('.send-btn');
     expect(btn).not.toBeNull();
   });
 
@@ -140,8 +140,8 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.send-btn') as HTMLButtonElement;
-    expect(btn!.disabled).toBe(true);
+    const btn = el.shadowRoot?.querySelector('.send-btn') as HTMLButtonElement;
+    expect(btn?.disabled).toBe(true);
   });
 
   it('should enable send button when textarea has content', async () => {
@@ -150,14 +150,14 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.value = 'Hello';
     textarea.dispatchEvent(new Event('input'));
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.send-btn') as HTMLButtonElement;
-    expect(btn!.disabled).toBe(false);
+    const btn = el.shadowRoot?.querySelector('.send-btn') as HTMLButtonElement;
+    expect(btn?.disabled).toBe(false);
   });
 
   it('should submit on send button click', async () => {
@@ -168,13 +168,13 @@ describe('<rtc-input-area>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-input-submit', handler);
-    const textarea = el.shadowRoot!.querySelector(
+    const textarea = el.shadowRoot?.querySelector(
       'textarea',
     ) as HTMLTextAreaElement;
     textarea.value = 'Hello';
     textarea.dispatchEvent(new Event('input'));
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.send-btn') as HTMLButtonElement;
+    const btn = el.shadowRoot?.querySelector('.send-btn') as HTMLButtonElement;
     btn.click();
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail.contentData.data.text).toBe('Hello');
@@ -186,7 +186,7 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.voice-btn');
+    const btn = el.shadowRoot?.querySelector('.voice-btn');
     expect(btn).not.toBeNull();
   });
 
@@ -196,7 +196,7 @@ describe('<rtc-input-area>', () => {
       { setup: (host) => provideContext(host, ModeContext, mockModeCtx) },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.voice-btn') as HTMLButtonElement;
+    const btn = el.shadowRoot?.querySelector('.voice-btn') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
 });

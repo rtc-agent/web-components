@@ -11,36 +11,37 @@
  * ## Styles
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-  switchLocale,
-  type SupportedLocale,
-} from '../../core/i18n.js';
-import { styles } from './rtc-settings-layout.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
-import { SettingsContext } from '../../contexts/settings.js';
-import type { SettingsContextValue } from '../../contexts/settings.js';
-import { AuthContext } from '../../contexts/auth.js';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { AuthContextValue } from '../../contexts/auth.js';
+import { AuthContext } from '../../contexts/auth.js';
+import type { SettingsContextValue } from '../../contexts/settings.js';
+import { SettingsContext } from '../../contexts/settings.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  type SupportedLocale,
+  sourceLocale,
+  switchLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import { validateAuthContext } from '../../utils/context-validation.js';
+import { styles } from './rtc-settings-layout.styles.js';
 import '../logo/rtc-logo.js';
 import type { SettingsCategory } from './rtc-settings-nav.js';
 import './rtc-settings-nav.js';
 import '../drawer/rtc-drawer.js';
 
+import { createLogger } from '@rtc-agent/protocol';
 // Import types (TypeScript only)
 import type { SettingsState } from '../../contexts/settings.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SettingsLayout');
 

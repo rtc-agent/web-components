@@ -31,7 +31,9 @@ const relativeTimeFormatterCache = new Map<string, Intl.RelativeTimeFormat>();
 /**
  * Get or create a cached RelativeTimeFormat instance.
  */
-function getCachedRelativeTimeFormatter(locale: string): Intl.RelativeTimeFormat {
+function getCachedRelativeTimeFormatter(
+  locale: string,
+): Intl.RelativeTimeFormat {
   let formatter = relativeTimeFormatterCache.get(locale);
   if (!formatter) {
     formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });

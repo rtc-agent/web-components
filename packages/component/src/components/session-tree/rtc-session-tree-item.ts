@@ -12,34 +12,35 @@
  * @fires rtc-session-tree-item-rename - Confirmed rename (detail: { sessionId, title })
  * @fires rtc-session-tree-item-delete - Clicked delete (detail: { sessionId })
  */
-import { LitElement, html, nothing, svg } from 'lit';
+
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { localized, msg } from '@lit/localize';
-import { consume } from '@lit/context';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
-import { styles } from './rtc-session-tree-item.styles.js';
 import {
-  folderOpenIcon,
-  folderClosedIcon,
   chatIcon,
-  editIcon,
-  deleteIcon,
   checkIcon,
   closeIcon,
+  deleteIcon,
+  editIcon,
+  folderClosedIcon,
+  folderOpenIcon,
 } from '../../icons/index.js';
-import { formatRelativeTime } from '../../utils/relative-time.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type { SessionTreeNode } from '../../types/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { formatRelativeTime } from '../../utils/relative-time.js';
+import { styles } from './rtc-session-tree-item.styles.js';
 
 const log = createLogger('SessionTreeItem');
 

@@ -13,14 +13,14 @@
  * Consumed by: `<rtc-tool-confirm>`, `<rtc-overlay-manager>`
  */
 import type { ReactiveControllerHost } from 'lit';
-import type {
-  ToolCall,
-  ToolCallState,
-  ToolCallActions,
-} from '../types/index.js';
 import type { ToolCallContextValue } from '../contexts/tool-call.js';
 import { DEFAULT_TOOL_CALL_STATE } from '../contexts/tool-call.js';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type {
+  ToolCall,
+  ToolCallActions,
+  ToolCallState,
+} from '../types/index.js';
 
 export class ToolCallController extends CachedContextController<
   ToolCallState,

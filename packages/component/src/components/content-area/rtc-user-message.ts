@@ -35,31 +35,32 @@
  * @csspart show-more - The "Show more" button
  * @csspart more    - The more button (⋯)
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+
+import {
+  autoUpdate,
+  computePosition,
+  flip,
+  offset,
+  shift,
+} from '@floating-ui/dom';
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import {
-  computePosition,
-  flip,
-  shift,
-  offset,
-  autoUpdate,
-} from '@floating-ui/dom';
-import { styles } from './rtc-user-message.styles.js';
 import type {
+  FileAttachment,
   Message,
   UserMessageContent,
-  FileAttachment,
 } from '../../types/index.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import { extractTextContent } from '../../utils/format.js';
+import { styles } from './rtc-user-message.styles.js';
 import './rtc-message-more-menu.js';
 import '../file-preview/rtc-file-preview-area.js';
 import { createLogger } from '@rtc-agent/protocol';
@@ -145,12 +146,12 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
   }
 
   firstUpdated() {
-    this._textEl = this.shadowRoot!.querySelector(
+    this._textEl = this.shadowRoot?.querySelector(
       '.user-message-text',
     ) as HTMLElement;
     // Observe the content wrapper (files + text) for overflow detection,
     // not just the text element, since file previews also contribute to total height.
-    this._contentEl = this.shadowRoot!.querySelector(
+    this._contentEl = this.shadowRoot?.querySelector(
       '.user-message-content',
     ) as HTMLElement;
     const observeTarget = this._contentEl ?? this._textEl;
@@ -244,7 +245,7 @@ export class RtcUserMessage extends LitElement implements StatefulComponent {
         .getPropertyValue('--rtc-user-message-max-height')
         .trim();
       effectiveMaxHeight = parseFloat(cssVar);
-      if (isNaN(effectiveMaxHeight)) effectiveMaxHeight = 120;
+      if (Number.isNaN(effectiveMaxHeight)) effectiveMaxHeight = 120;
     } else {
       effectiveMaxHeight = bubble.clientHeight;
     }

@@ -1,10 +1,10 @@
 // FileOpCoordinator — coordinates file operations, broadcasts state changes automatically
 
+import { createLogger } from '@rtc-agent/protocol';
 import type {
   FileCacheRepository,
   FileSyncStatus,
 } from './file-cache-repository.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('FileOpCoordinator');
 

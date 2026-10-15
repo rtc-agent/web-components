@@ -8,8 +8,8 @@
 import { msg, str } from '@lit/localize';
 import { virtualFS } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
-import type { FileNode } from '../../../types/index.js';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
+import type { FileNode } from '../../../types/index.js';
 
 // ── Dependency interfaces ──
 

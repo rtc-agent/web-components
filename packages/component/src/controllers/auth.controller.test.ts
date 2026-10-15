@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthController } from './auth.controller.js';
 
 class MockHost {
@@ -619,8 +619,10 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
   it('should open BroadcastChannel on construction', () => {
     const host = createMockHost();
-    const ctrl = new AuthController(host as any);
-    expect(MockBroadcastChannel.channels.get('rtc-auth-refresh')).toHaveLength(1);
+    const _ctrl = new AuthController(host as any);
+    expect(MockBroadcastChannel.channels.get('rtc-auth-refresh')).toHaveLength(
+      1,
+    );
   });
 
   it('should close BroadcastChannel synchronously on hostDisconnected and reopen on hostConnected (StrictMode support)', () => {
@@ -630,7 +632,7 @@ describe('AuthController - BroadcastChannel coordination', () => {
     // Initial state: channel is open
     let channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
     expect(channels).toHaveLength(1);
-    const firstChannel = channels![0];
+    const firstChannel = channels?.[0];
     expect(firstChannel.closed).toBe(false);
 
     // Simulate StrictMode disconnect - channel closes synchronously
@@ -646,7 +648,7 @@ describe('AuthController - BroadcastChannel coordination', () => {
     channels = MockBroadcastChannel.channels.get('rtc-auth-refresh');
     // A new channel should be created
     expect(channels).toHaveLength(1);
-    const newChannel = channels![0];
+    const newChannel = channels?.[0];
     expect(newChannel).not.toBe(firstChannel); // Different instance
     expect(newChannel.closed).toBe(false);
   });
@@ -677,7 +679,9 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
     const provider = {
       getToken: vi.fn().mockReturnValue('token'),
-      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      refreshToken: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
       isLoggedIn: vi.fn().mockReturnValue(true),
     };
     ctrl.setAuthProvider(provider);
@@ -705,7 +709,9 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
     const provider1 = {
       getToken: vi.fn().mockReturnValue('token'),
-      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      refreshToken: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
       isLoggedIn: vi.fn().mockReturnValue(true),
     };
     ctrl1.setAuthProvider(provider1);
@@ -717,13 +723,15 @@ describe('AuthController - BroadcastChannel coordination', () => {
     // Simulate ctrl2 receiving refresh-start from ctrl1
     const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
     const channel2 = channels[1]; // ctrl2's channel
-    channel2.onmessage!(new MessageEvent('message', {
-      data: {
-        type: 'refresh-start',
-        tabId: (ctrl1 as any)._tabId,
-        timestamp: Date.now() - 1000,
-      },
-    }));
+    channel2.onmessage?.(
+      new MessageEvent('message', {
+        data: {
+          type: 'refresh-start',
+          tabId: (ctrl1 as any)._tabId,
+          timestamp: Date.now() - 1000,
+        },
+      }),
+    );
 
     // ctrl2 should have created a deferred refresh promise
     expect((ctrl2 as any)._deferredRefresh).toBeDefined();
@@ -752,12 +760,14 @@ describe('AuthController - BroadcastChannel coordination', () => {
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: () => Promise.resolve({
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
-        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-        token_type: 'Bearer',
-        expires_in: 3600,
-      }),
+      json: () =>
+        Promise.resolve({
+          access_token:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
+          issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -769,17 +779,19 @@ describe('AuthController - BroadcastChannel coordination', () => {
     // Simulate receiving refresh-success from another tab
     const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
     const channel = channels[0];
-    channel.onmessage!(new MessageEvent('message', {
-      data: {
-        type: 'refresh-success',
-        tabId: 'other-tab-id',
-        tokens: {
-          accessToken: 'refreshed-token',
-          refreshToken: '',
-          expiresAt: Date.now() + 3600000,
+    channel.onmessage?.(
+      new MessageEvent('message', {
+        data: {
+          type: 'refresh-success',
+          tabId: 'other-tab-id',
+          tokens: {
+            accessToken: 'refreshed-token',
+            refreshToken: '',
+            expiresAt: Date.now() + 3600000,
+          },
         },
-      },
-    }));
+      }),
+    );
 
     // Tokens should be accepted even though isLoggedIn was initially false
     // (state may have been updated by the token exchange or by the refresh-success)
@@ -795,7 +807,9 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
     const provider = {
       getToken: vi.fn().mockReturnValue('token'),
-      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      refreshToken: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
       isLoggedIn: vi.fn().mockReturnValue(true),
     };
     ctrl.setAuthProvider(provider);
@@ -810,17 +824,19 @@ describe('AuthController - BroadcastChannel coordination', () => {
     // Simulate receiving refresh-success
     const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
     const channel = channels[0];
-    channel.onmessage!(new MessageEvent('message', {
-      data: {
-        type: 'refresh-success',
-        tabId: 'other-tab-id',
-        tokens: {
-          accessToken: 'refreshed-token',
-          refreshToken: '',
-          expiresAt: Date.now() + 3600000,
+    channel.onmessage?.(
+      new MessageEvent('message', {
+        data: {
+          type: 'refresh-success',
+          tabId: 'other-tab-id',
+          tokens: {
+            accessToken: 'refreshed-token',
+            refreshToken: '',
+            expiresAt: Date.now() + 3600000,
+          },
         },
-      },
-    }));
+      }),
+    );
 
     // Deferred promise should be resolved and cleared
     expect((ctrl as any)._deferredRefresh).toBeUndefined();
@@ -836,7 +852,9 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
     const provider = {
       getToken: vi.fn().mockReturnValue('token'),
-      refreshToken: vi.fn().mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+      refreshToken: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
       isLoggedIn: vi.fn().mockReturnValue(true),
     };
     ctrl.setAuthProvider(provider);
@@ -844,13 +862,15 @@ describe('AuthController - BroadcastChannel coordination', () => {
     // Trigger the yield mechanism
     const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
     const channel = channels[0];
-    channel.onmessage!(new MessageEvent('message', {
-      data: {
-        type: 'refresh-start',
-        tabId: 'other-tab-id',
-        timestamp: Date.now() - 1000, // Earlier timestamp (other tab is leader)
-      },
-    }));
+    channel.onmessage?.(
+      new MessageEvent('message', {
+        data: {
+          type: 'refresh-start',
+          tabId: 'other-tab-id',
+          timestamp: Date.now() - 1000, // Earlier timestamp (other tab is leader)
+        },
+      }),
+    );
 
     // Verify deferred refresh was created
     expect((ctrl as any)._deferredRefresh).toBeDefined();
@@ -872,7 +892,11 @@ describe('AuthController - BroadcastChannel coordination', () => {
 
     const provider = {
       type: 'token-exchange' as const,
-      getExchangeToken: vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100))),
+      getExchangeToken: vi
+        .fn()
+        .mockImplementation(
+          () => new Promise((resolve) => setTimeout(resolve, 100)),
+        ),
       isLoggedIn: vi.fn().mockReturnValue(true),
       logout: vi.fn().mockResolvedValue(undefined),
       getUserId: vi.fn().mockReturnValue('test-user'),
@@ -883,12 +907,14 @@ describe('AuthController - BroadcastChannel coordination', () => {
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: () => Promise.resolve({
-        access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
-        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
-        token_type: 'Bearer',
-        expires_in: 3600,
-      }),
+      json: () =>
+        Promise.resolve({
+          access_token:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdC11c2VyIn0.sig',
+          issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+          token_type: 'Bearer',
+          expires_in: 3600,
+        }),
     });
     vi.stubGlobal('fetch', fetchMock);
 

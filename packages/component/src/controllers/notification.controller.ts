@@ -15,36 +15,36 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: Components that need to be aware of unread notifications
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+
 import { msg } from '@lit/localize';
+import type { IPersistenceLayer, UIUpdateEvent } from '@rtc-agent/persistence';
+import { getUIUpdateBus } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type {
+  NotificationActions,
   NotificationContextValue,
   NotificationState,
-  NotificationActions,
 } from '../contexts/notification.js';
 import { DEFAULT_NOTIFICATION_STATE } from '../contexts/notification.js';
-import type { SessionController } from './session.controller.js';
-import type { MessageController } from './message.controller.js';
-import type { ToastController } from './toast.controller.js';
-import type { SettingsController } from './settings.controller.js';
-import type { WindowStateController } from './window-state.controller.js';
-import type { IPersistenceLayer } from '@rtc-agent/persistence';
-import { getUIUpdateBus } from '@rtc-agent/persistence';
-import type { UIUpdateEvent } from '@rtc-agent/persistence';
-import { createLogger } from '@rtc-agent/protocol';
-import { extractTextContent } from '../utils/format.js';
 import type { ContentData } from '../types/index.js';
+import { extractTextContent } from '../utils/format.js';
+import type { MessageController } from './message.controller.js';
+import type { SessionController } from './session.controller.js';
+import type { SettingsController } from './settings.controller.js';
+import type { ToastController } from './toast.controller.js';
+import type { WindowStateController } from './window-state.controller.js';
 
 const log = createLogger('NotificationController');
 
+import completeSoundUrl from '../assets/sounds/complete.mp3?url';
+import errorSoundUrl from '../assets/sounds/error.mp3?url';
 // Sound resource URLs: Vite's `?url` suffix resolves to a correct accessible URL
 // in both dev and build (dev: dev server path; build: hashed path under dist),
 // loading correctly regardless of whether the component is deployed at root,
 // a subpath, or a CDN. Compared to the old `new URL('./', import.meta.url).pathname`
 // approach: (1) no 404 from host mismatch; (2) sound files don't need to be in the same directory as scripts.
 import messageSoundUrl from '../assets/sounds/message.mp3?url';
-import completeSoundUrl from '../assets/sounds/complete.mp3?url';
-import errorSoundUrl from '../assets/sounds/error.mp3?url';
 
 export class NotificationController implements ReactiveController {
   host: ReactiveControllerHost & HTMLElement;
@@ -159,7 +159,7 @@ export class NotificationController implements ReactiveController {
       // The persistence setter will handle subscription when dependencies arrive.
       log.debug(
         'NotificationController: persistence layer not ready at hostConnected, ' +
-        'will subscribe when persistence is injected.',
+          'will subscribe when persistence is injected.',
       );
     }
   }
@@ -284,7 +284,7 @@ export class NotificationController implements ReactiveController {
       { once: true },
     );
 
-      audio.addEventListener(
+    audio.addEventListener(
       'error',
       () => {
         // Sound file may not exist or failed to load; degrade gracefully: don't play this sound

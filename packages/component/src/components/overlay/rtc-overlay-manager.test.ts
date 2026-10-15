@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it } from 'vitest';
 import { provideContext } from '../../test-context-helpers.js';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-overlay-manager.js';
-import type { RtcOverlayManager } from './rtc-overlay-manager.js';
-import { ToolCallContext } from '../../contexts/tool-call.js';
 import type { ToolCallContextValue } from '../../contexts/tool-call.js';
+import { ToolCallContext } from '../../contexts/tool-call.js';
+import type { RtcOverlayManager } from './rtc-overlay-manager.js';
 
 const mockToolCallCtx: ToolCallContextValue = {
   state: { pendingCalls: [] },
@@ -33,9 +33,9 @@ describe('<rtc-overlay-manager>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).toBeNull();
-    expect(el.shadowRoot!.querySelector('rtc-mode-panel')).toBeNull();
-    expect(el.shadowRoot!.querySelector('rtc-tool-confirm')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-mode-panel')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-tool-confirm')).toBeNull();
   });
 
   it('should show tool confirm when pending tool call exists', async () => {
@@ -61,6 +61,6 @@ describe('<rtc-overlay-manager>', () => {
       },
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-tool-confirm')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-tool-confirm')).not.toBeNull();
   });
 });

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { zodToParams, withMeta } from './zod-to-openapi.js';
+import { withMeta, zodToParams } from './zod-to-openapi.js';
 
 describe('zodToParams', () => {
   it('should convert schema with describe and withMeta', () => {

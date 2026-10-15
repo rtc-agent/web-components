@@ -20,29 +20,43 @@
  */
 import type {
   ContentData,
+  ErrorContent,
+  SummaryContentData,
   ToolCall,
   ToolCallExtended,
-  SummaryContentData,
-  ErrorContent,
 } from '@rtc-agent/protocol';
 import {
-  isToolCallInputContent,
-  isToolCallOutputContent,
-  isSummaryContentData as isSummaryContentDataBase,
   isErrorContentData as isErrorContentDataBase,
   isStringContentData,
+  isSummaryContentData as isSummaryContentDataBase,
+  isToolCallInputContent,
+  isToolCallOutputContent,
 } from '@rtc-agent/protocol';
 
 // Re-export Protocol types for component use
-export type { ToolCall, ToolCallExtended, SummaryContentData, ErrorContent };
+export type { ErrorContent, SummaryContentData, ToolCall, ToolCallExtended };
 
-// Re-export Protocol type guards for convenience
+// Re-export Protocol type guards for convenience.
+//
+// Naming note: `isSummaryContentDataBase` and `isErrorContentDataBase` are renamed
+// to `isSummaryContentData` and `isErrorContentData` (dropping the "Base" suffix)
+// because this module serves as the component layer's public API. The "Base" suffix
+// in the protocol package distinguished the original definitions from these re-exports;
+// here, the cleaner names are preferred since no naming collision exists in this scope.
 export {
-  isToolCallInputContent,
-  isToolCallOutputContent,
-  isSummaryContentDataBase as isSummaryContentData,
+  /**
+   * @see {@link import('@rtc-agent/protocol').isErrorContentData} — re-exported
+   * without the "Base" suffix for component-layer convenience.
+   */
   isErrorContentDataBase as isErrorContentData,
   isStringContentData,
+  /**
+   * @see {@link import('@rtc-agent/protocol').isSummaryContentData} — re-exported
+   * without the "Base" suffix for component-layer convenience.
+   */
+  isSummaryContentDataBase as isSummaryContentData,
+  isToolCallInputContent,
+  isToolCallOutputContent,
 };
 
 /**

@@ -15,8 +15,8 @@
  * at a time per session.
  */
 
-import type { Message, MessageState } from '../types/index.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { Message, MessageState } from '../types/index.js';
 
 const log = createLogger('MessageRepository');
 

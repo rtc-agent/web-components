@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-message-list.js';
-import type { RtcMessageList } from './rtc-message-list.js';
-import type { Message, ContentData, MessageState } from '../../types/index.js';
 import type { MessageController } from '../../controllers/message.controller.js';
 import type { MessageRepository } from '../../repositories/message.repository.js';
+import type { ContentData, Message, MessageState } from '../../types/index.js';
+import type { RtcMessageList } from './rtc-message-list.js';
 
 const makeMsg = (clientId: string, content: string): Message => ({
   clientId,
@@ -46,7 +46,7 @@ const createMockController = (
     updateMessages: (sid: string, newMessages: Message[]) => {
       if (sid === sessionId) {
         state.messages = newMessages;
-        subscribers.forEach((cb) => cb(state));
+        for (const cb of subscribers) cb(state);
       }
     },
   };
@@ -76,7 +76,7 @@ describe('<rtc-message-list>', () => {
       html`<rtc-message-list .sessionId=${sessionId} .messageController=${controller}></rtc-message-list>`,
     );
     await nextFrame();
-    const items = el.shadowRoot!.querySelectorAll('rtc-message');
+    const items = el.shadowRoot?.querySelectorAll('rtc-message');
     expect(items.length).toBe(0);
   });
 
@@ -88,7 +88,7 @@ describe('<rtc-message-list>', () => {
       html`<rtc-message-list .sessionId=${sessionId} .messageController=${controller}></rtc-message-list>`,
     );
     await nextFrame();
-    const items = el.shadowRoot!.querySelectorAll('rtc-message');
+    const items = el.shadowRoot?.querySelectorAll('rtc-message');
     expect(items.length).toBe(2);
   });
 
@@ -101,7 +101,7 @@ describe('<rtc-message-list>', () => {
     );
     await nextFrame();
     await nextFrame(); // Extra frame for virtual scroll to render
-    const items = el.shadowRoot!.querySelectorAll('rtc-message');
+    const items = el.shadowRoot?.querySelectorAll('rtc-message');
     expect(items.length).toBe(2);
     expect(items[0].hasAttribute('is-last')).toBe(false);
     expect(items[1].hasAttribute('is-last')).toBe(true);
@@ -114,7 +114,7 @@ describe('<rtc-message-list>', () => {
       html`<rtc-message-list .sessionId=${sessionId} .messageController=${controller}></rtc-message-list>`,
     );
     await nextFrame();
-    const container = el.shadowRoot!.querySelector('.message-list-scroll');
+    const container = el.shadowRoot?.querySelector('.message-list-scroll');
     expect(container).not.toBeNull();
   });
 });

@@ -33,23 +33,24 @@
  * ## Styling
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-editor-area.styles.js';
-import type { EditorTab, EditorViewMode } from '../../types/index.js';
 import { fileMarkdownIcon } from '../../icons/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { EditorTab, EditorViewMode } from '../../types/index.js';
+import { styles } from './rtc-editor-area.styles.js';
 
 // Sub-components
 import './rtc-editor-tab.js';

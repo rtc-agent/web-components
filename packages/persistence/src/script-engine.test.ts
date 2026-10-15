@@ -1,21 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { closeDatabase, DB_NAME_PREFIX, getDatabase } from './database.js';
 import {
-  ScriptTimeoutError,
-  ScriptCompileError,
-  createSandbox,
-  transformTypeScript,
-  parseScriptContent,
-  generateScriptContent,
   _executeCode,
-  executeScriptCode,
-  saveScript,
-  loadAndExecuteScript,
-  type ScriptSandbox,
   type ConsoleOutput,
+  createSandbox,
+  executeScriptCode,
+  generateScriptContent,
+  loadAndExecuteScript,
+  parseScriptContent,
   type RtcAgentAPI,
+  ScriptCompileError,
+  type ScriptSandbox,
+  ScriptTimeoutError,
+  saveScript,
+  transformTypeScript,
 } from './script-engine.js';
 import { virtualFS } from './virtual-fs.js';
-import { getDatabase, closeDatabase, DB_NAME_PREFIX } from './database.js';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-script-engine`;
 
@@ -130,8 +130,8 @@ describe('createSandbox', () => {
   it('should have parsing and encoding functions', () => {
     expect(sandbox.parseInt).toBe(parseInt);
     expect(sandbox.parseFloat).toBe(parseFloat);
-    expect(sandbox.isNaN).toBe(isNaN);
-    expect(sandbox.isFinite).toBe(isFinite);
+    expect(sandbox.isNaN).toBe(Number.isNaN);
+    expect(sandbox.isFinite).toBe(Number.isFinite);
     expect(sandbox.encodeURIComponent).toBe(encodeURIComponent);
     expect(sandbox.decodeURIComponent).toBe(decodeURIComponent);
     expect(sandbox.encodeURI).toBe(encodeURI);
@@ -377,7 +377,7 @@ describe('transformTypeScript', () => {
     it('should block for(;;) infinite loops', () => {
       expect(() => {
         transformTypeScript('for(;;) { break; }');
-      }).toThrow(/for\(\;\;\)/);
+      }).toThrow(/for\(;;\)/);
     });
 
     it('should allow bounded for loops', () => {

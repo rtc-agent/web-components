@@ -6,23 +6,23 @@
  * - Result size truncation for large payloads
  * - Proper error handling during size check
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('PersistenceLayer.submitRtcResult - result size handling', () => {
-  let mockClient: any;
-  let mockEntityRepository: any;
+  let _mockClient: any;
+  let _mockEntityRepository: any;
   let mockLog: any;
 
   beforeEach(() => {
     vi.useFakeTimers();
 
     // Mock client
-    mockClient = {
+    _mockClient = {
       submitRtcResult: vi.fn().mockResolvedValue({}),
     };
 
     // Mock entity repository
-    mockEntityRepository = {
+    _mockEntityRepository = {
       getRtc: vi.fn(),
       upsertRtc: vi.fn().mockResolvedValue(undefined),
     };
@@ -43,7 +43,10 @@ describe('PersistenceLayer.submitRtcResult - result size handling', () => {
   /**
    * Helper to simulate the result size check logic from submitRtcResult
    */
-  function checkResultSize(result: any): { resultToSend: any; truncated: boolean } {
+  function checkResultSize(result: any): {
+    resultToSend: any;
+    truncated: boolean;
+  } {
     const MAX_RESULT_SIZE = 32000;
     let resultToSend = result;
     let truncated = false;
@@ -172,7 +175,7 @@ describe('PersistenceLayer.submitRtcResult - result size handling', () => {
     it('should handle results just over size limit', () => {
       const result = { data: 'x'.repeat(32001) }; // Just over limit
 
-      const { resultToSend, truncated } = checkResultSize(result);
+      const { truncated } = checkResultSize(result);
       expect(truncated).toBe(true);
     });
 

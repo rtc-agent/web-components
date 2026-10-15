@@ -8,24 +8,25 @@
  *              <rtc-function-console>, <rtc-function-history>
  * Provided by: <rtc-agent> (root)
  */
+
+import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type { FunctionRegistry } from '../core/function-registry.js';
-import type { FunctionDef } from '../types/skill.js';
 import {
   DEFAULT_FUNCTION_DEBUG_STATE,
   type FunctionDebugActions,
   type FunctionDebugContextValue,
 } from '../contexts/function-debug.js';
-import type {
-  FunctionDebugState,
-  LogEntry,
-  DebugHistoryItem,
-  LogLevel,
-  HistoryPaginationState,
-} from '../types/functions-debug.js';
-import type { WorkerBridge } from '../worker-bridge.js';
+import type { FunctionRegistry } from '../core/function-registry.js';
 import { getExampleValue } from '../core/markdown-generator.js';
-import { createLogger } from '@rtc-agent/protocol';
+import type {
+  DebugHistoryItem,
+  FunctionDebugState,
+  HistoryPaginationState,
+  LogEntry,
+  LogLevel,
+} from '../types/functions-debug.js';
+import type { FunctionDef } from '../types/skill.js';
+import type { WorkerBridge } from '../worker-bridge.js';
 
 const log = createLogger('FunctionDebugController');
 

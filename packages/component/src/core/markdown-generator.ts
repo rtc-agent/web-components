@@ -5,18 +5,18 @@
  * Uses OpenAPI Schema format to describe parameters and return values.
  */
 
+import { createLogger } from '@rtc-agent/protocol';
 import type {
   FunctionDef,
   FunctionGroupDef,
-  RegistryConfig,
   OpenAPISchema,
   ParameterDef,
+  RegistryConfig,
 } from '../types/skill.js';
 import {
-  zodToParams,
   zodToOpenAPISchema,
+  zodToParams,
 } from '../validation/zod-to-openapi.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('MarkdownGenerator');
 
@@ -63,7 +63,10 @@ export function sanitizeHref(url: string): string {
   if (/^\s*vbscript\s*:/i.test(trimmed)) return '';
 
   // Only allow http/https or relative URLs
-  if (/^\s*https?:\/\//i.test(trimmed) || (!/^\s*[a-z][a-z0-9+.-]*:/i.test(trimmed))) {
+  if (
+    /^\s*https?:\/\//i.test(trimmed) ||
+    !/^\s*[a-z][a-z0-9+.-]*:/i.test(trimmed)
+  ) {
     return trimmed;
   }
 
@@ -285,7 +288,7 @@ export function generateFunctionMd(
           '<br/>',
         ),
       );
-      md += rows.join('\n') + '\n';
+      md += `${rows.join('\n')}\n`;
     }
     md += '\n';
   }
@@ -323,7 +326,7 @@ export function generateFunctionMd(
             propRequired,
             propSchema.description?.replaceAll('\n', '<br/>'),
           );
-          md += rows.join('\n') + '\n';
+          md += `${rows.join('\n')}\n`;
         }
         md += '\n';
       }
@@ -362,7 +365,7 @@ export function generateFunctionMd(
         .filter((p) => p.required)
         .map((p) => `  ${p.name}: ${getExampleValue(p.schema)}`)
         .join(',\n');
-      md += params + '\n';
+      md += `${params}\n`;
     }
     md += `});\n`;
   } else {
@@ -373,7 +376,7 @@ export function generateFunctionMd(
         .filter((p) => p.required)
         .map((p) => `  ${p.name}: ${getExampleValue(p.schema)}`)
         .join(',\n');
-      md += params + '\n';
+      md += `${params}\n`;
     }
     md += `});\n`;
   }
@@ -442,7 +445,7 @@ export function generateFunctionsIndex(
   if (groups.length > 0) {
     for (const group of groups) {
       const groupFunctions = functions.filter((f) =>
-        f.name.startsWith(group.name + '.'),
+        f.name.startsWith(`${group.name}.`),
       );
 
       if (groupFunctions.length > 0) {
@@ -605,7 +608,7 @@ function generateAgentFunctions(
   // List by group
   for (const group of groups) {
     const groupFunctions = functions.filter((f) =>
-      f.name.startsWith(group.name + '.'),
+      f.name.startsWith(`${group.name}.`),
     );
     if (groupFunctions.length === 0) continue;
 

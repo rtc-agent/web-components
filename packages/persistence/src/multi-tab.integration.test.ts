@@ -14,13 +14,14 @@
  * These tests verify that the Persistence layer correctly handles
  * concurrent access patterns that occur in multi-tab environments.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import {
-  getDatabase,
   closeDatabase,
-  virtualFS,
   DB_NAME_PREFIX,
+  getDatabase,
+  virtualFS,
 } from '@rtc-agent/persistence';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock logger to avoid noise in tests
 vi.mock('@rtc-agent/client', () => ({
@@ -118,16 +119,12 @@ describe('Multi-Tab Collaboration', () => {
   describe('Large File Synchronization', () => {
     it('should handle concurrent large file writes', async () => {
       const promises = [
-        virtualFS.write(
-          '/large1.txt',
-          'a'.repeat(512 * 1024),
-          { mode: 'overwrite' },
-        ),
-        virtualFS.write(
-          '/large2.txt',
-          'b'.repeat(512 * 1024),
-          { mode: 'overwrite' },
-        ),
+        virtualFS.write('/large1.txt', 'a'.repeat(512 * 1024), {
+          mode: 'overwrite',
+        }),
+        virtualFS.write('/large2.txt', 'b'.repeat(512 * 1024), {
+          mode: 'overwrite',
+        }),
       ];
 
       await Promise.all(promises);

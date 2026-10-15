@@ -1,14 +1,14 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { closeDatabase, getDatabase } from './database.js';
 import {
-  VirtualFS,
-  PathError,
-  normalizePath,
-  getParentPath,
   getFileName,
+  getParentPath,
   isChildPath,
   matchGlob,
+  normalizePath,
+  PathError,
+  VirtualFS,
 } from './virtual-fs.js';
-import { getDatabase, closeDatabase } from './database.js';
 
 describe('virtual-fs', () => {
   const DB_NAME = 'rtc-agent-test-virtual-fs';
@@ -281,14 +281,14 @@ describe('virtual-fs', () => {
       await vfs.write('/file.txt', 'v1');
       const db = getDatabase();
       const entry1 = await db.fileSystemEntries.get('/file.txt');
-      const originalCreatedAt = entry1!.metadata.createdAt;
+      const originalCreatedAt = entry1?.metadata.createdAt;
 
       await new Promise((resolve) => setTimeout(resolve, 10));
       await vfs.write('/file.txt', 'v2');
 
       const entry2 = await db.fileSystemEntries.get('/file.txt');
-      expect(entry2!.metadata.createdAt).toEqual(originalCreatedAt);
-      expect(entry2!.metadata.updatedAt.getTime()).toBeGreaterThan(
+      expect(entry2?.metadata.createdAt).toEqual(originalCreatedAt);
+      expect(entry2?.metadata.updatedAt.getTime()).toBeGreaterThan(
         originalCreatedAt.getTime(),
       );
     });
@@ -301,8 +301,8 @@ describe('virtual-fs', () => {
 
       const db = getDatabase();
       const entry = await db.fileSystemEntries.get('/file.txt');
-      expect(entry!.metadata.description).toBe('Test file');
-      expect(entry!.metadata.tags).toEqual(['test', 'example']);
+      expect(entry?.metadata.description).toBe('Test file');
+      expect(entry?.metadata.tags).toEqual(['test', 'example']);
     });
 
     it('should update metadata on append', async () => {
@@ -313,7 +313,7 @@ describe('virtual-fs', () => {
 
       const db = getDatabase();
       const entry = await db.fileSystemEntries.get('/file.txt');
-      expect(entry!.metadata.description).toBe('Updated');
+      expect(entry?.metadata.description).toBe('Updated');
     });
 
     it('should infer type from path', async () => {
@@ -323,22 +323,22 @@ describe('virtual-fs', () => {
       const funcEntry = await db.fileSystemEntries.get(
         '/functions/user/register.md',
       );
-      expect(funcEntry!.type).toBe('function');
-      expect(funcEntry!.metadata.group).toBe('user');
+      expect(funcEntry?.type).toBe('function');
+      expect(funcEntry?.metadata.group).toBe('user');
 
       await vfs.write('/scenarios/login.md', 'content');
       const scenarioEntry = await db.fileSystemEntries.get(
         '/scenarios/login.md',
       );
-      expect(scenarioEntry!.type).toBe('scenario');
+      expect(scenarioEntry?.type).toBe('scenario');
 
       await vfs.write('/scripts/test.js', 'content');
       const scriptEntry = await db.fileSystemEntries.get('/scripts/test.js');
-      expect(scriptEntry!.type).toBe('script');
+      expect(scriptEntry?.type).toBe('script');
 
       await vfs.write('/docs/readme.md', 'content');
       const indexEntry = await db.fileSystemEntries.get('/docs/readme.md');
-      expect(indexEntry!.type).toBe('index');
+      expect(indexEntry?.type).toBe('index');
     });
 
     it('should extract group for function type', async () => {
@@ -346,17 +346,17 @@ describe('virtual-fs', () => {
 
       await vfs.write('/functions/auth/login.md', 'content');
       const entry1 = await db.fileSystemEntries.get('/functions/auth/login.md');
-      expect(entry1!.metadata.group).toBe('auth');
+      expect(entry1?.metadata.group).toBe('auth');
 
       await vfs.write('/functions/api/users/list.md', 'content');
       const entry2 = await db.fileSystemEntries.get(
         '/functions/api/users/list.md',
       );
-      expect(entry2!.metadata.group).toBe('api');
+      expect(entry2?.metadata.group).toBe('api');
 
       await vfs.write('/functions/standalone.md', 'content');
       const entry3 = await db.fileSystemEntries.get('/functions/standalone.md');
-      expect(entry3!.metadata.group).toBeUndefined();
+      expect(entry3?.metadata.group).toBeUndefined();
     });
 
     it('should return total character count after write', async () => {
@@ -879,13 +879,13 @@ describe('virtual-fs', () => {
       await vfs.write('/file.txt', 'v1 content');
       const db = getDatabase();
       const entry1 = await db.fileSystemEntries.get('/file.txt');
-      const originalCreatedAt = entry1!.metadata.createdAt;
+      const originalCreatedAt = entry1?.metadata.createdAt;
 
       await vfs.edit('/file.txt', 'v1', 'v2');
 
       const entry2 = await db.fileSystemEntries.get('/file.txt');
-      expect(entry2!.metadata.createdAt).toEqual(originalCreatedAt);
-      expect(entry2!.metadata.updatedAt.getTime()).toBeGreaterThanOrEqual(
+      expect(entry2?.metadata.createdAt).toEqual(originalCreatedAt);
+      expect(entry2?.metadata.updatedAt.getTime()).toBeGreaterThanOrEqual(
         originalCreatedAt.getTime(),
       );
     });

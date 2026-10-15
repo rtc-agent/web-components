@@ -8,28 +8,29 @@
  * @fires rtc-mode-panel-close - User pressed Escape to close
  * @csspart list - The mode list container
  */
-import { LitElement, html, nothing } from 'lit';
+
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { localized, msg } from '@lit/localize';
-import { consume } from '@lit/context';
+import { MODE_CONFIGS } from '../../contexts/mode.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-mode-panel.styles.js';
-import { MODE_CONFIGS } from '../../contexts/mode.js';
 import {
-  handIcon,
+  checkIcon,
   codeIcon,
+  gearIcon,
+  handIcon,
   planIcon,
   zapIcon,
-  gearIcon,
-  checkIcon,
 } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-mode-panel.styles.js';
 
 const log = createLogger('ModePanel');
 

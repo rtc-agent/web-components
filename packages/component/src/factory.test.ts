@@ -6,10 +6,10 @@
  * plus Phase 3 event callback registration and cleanup.
  */
 
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eventBus } from './core/event-bus.js';
 import { createRtcAgent } from './factory.js';
 import { cleanupFixtures } from './test-helpers.js';
-import { eventBus } from './core/event-bus.js';
 
 // Import the component to trigger @customElement('rtc-agent') registration.
 // Without this, document.createElement('rtc-agent') returns a plain HTMLElement
@@ -237,14 +237,14 @@ describe('createRtcAgent', () => {
 
     const agent = createRtcAgent({ auth: authProvider });
     expect(agent._pendingAuthProvider).toBeDefined();
-    expect(agent._pendingAuthProvider!.getToken).toBe(authProvider.getToken);
-    expect(agent._pendingAuthProvider!.refreshToken).toBe(
+    expect(agent._pendingAuthProvider?.getToken).toBe(authProvider.getToken);
+    expect(agent._pendingAuthProvider?.refreshToken).toBe(
       authProvider.refreshToken,
     );
-    expect(agent._pendingAuthProvider!.isLoggedIn).toBe(
+    expect(agent._pendingAuthProvider?.isLoggedIn).toBe(
       authProvider.isLoggedIn,
     );
-    expect(agent._pendingAuthProvider!.logout).toBe(authProvider.logout);
+    expect(agent._pendingAuthProvider?.logout).toBe(authProvider.logout);
   });
 
   it('should clear pending auth references on destroy()', async () => {
@@ -681,7 +681,7 @@ describe('createRtcAgent', () => {
 
       // Call the async hook directly
       const detail = { message: { content: 'test message' } };
-      const result = await agent._beforeMessageSendHook!(detail);
+      const result = await agent._beforeMessageSendHook?.(detail);
 
       expect(beforeMessageSend).toHaveBeenCalledWith(detail);
       expect(result).toBe(true);
@@ -695,7 +695,7 @@ describe('createRtcAgent', () => {
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({
+      const result = await agent._beforeMessageSendHook?.({
         message: { content: 'test' },
       });
       expect(result).toBe(true);
@@ -709,7 +709,7 @@ describe('createRtcAgent', () => {
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({
+      const result = await agent._beforeMessageSendHook?.({
         message: { content: 'test' },
       });
       expect(result).toBe(true);
@@ -724,7 +724,7 @@ describe('createRtcAgent', () => {
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({
+      const result = await agent._beforeMessageSendHook?.({
         message: { content: 'test' },
       });
       expect(result).toBe(false);
@@ -738,7 +738,7 @@ describe('createRtcAgent', () => {
 
       document.body.appendChild(agent);
 
-      const result = await agent._beforeMessageSendHook!({
+      const result = await agent._beforeMessageSendHook?.({
         message: { content: 'test' },
       });
       expect(result).toBe(false);

@@ -55,7 +55,7 @@ export class EventBus<TEventMap extends DefaultEventMap = DefaultEventMap> {
     if (!this.handlers.has(event)) {
       this.handlers.set(event, new Set());
     }
-    this.handlers.get(event)!.add(handler as EventHandler);
+    this.handlers.get(event)?.add(handler as EventHandler);
 
     // Return unsubscribe function
     return () => {

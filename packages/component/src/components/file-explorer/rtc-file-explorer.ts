@@ -8,37 +8,45 @@
  * - Content: recursively renders rtc-file-tree-item
  * - Empty State: shows prompt when no files
  *
+ * PERFORMANCE: Virtual scrolling is implemented to handle large file trees efficiently.
+ * - Only visible items (+ overscan buffer) are rendered in the DOM
+ * - Tree nodes are flattened into a list for O(1) virtual scroll calculations
+ * - Scroll events are throttled via requestAnimationFrame to prevent excessive re-renders
+ * - Container resize is monitored via ResizeObserver for accurate viewport calculations
+ * - Flattened tree results are cached and only recalculated when structure changes
+ *
  * @element rtc-file-explorer
  * @fires file-select - User clicks a file (detail: { path })
  * @fires folder-toggle - User clicks a folder (detail: { path })
  * @fires refresh-requested - User clicks the refresh button
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-file-explorer.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FileExplorerContext,
   type FileExplorerContextValue,
 } from '../../contexts/file-explorer.js';
-import type { FileNode } from '../../types/index.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import { refreshIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { FileNode } from '../../types/index.js';
+import { styles } from './rtc-file-explorer.styles.js';
 
 // Sub-components (side-effect imports)
 import './rtc-file-tree-item.js';
-import type { RtcFileTreeItem } from './rtc-file-tree-item.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { RtcFileTreeItem } from './rtc-file-tree-item.js';
 
 const log = createLogger('FileExplorer');
 
@@ -135,7 +143,8 @@ export class RtcFileExplorer extends LitElement {
   private _containerHeight = 0;
 
   /** Cached flattened tree nodes (invalidated when tree structure changes) */
-  private _cachedFlatNodes: Array<{ node: FileNode; depth: number }> | null = null;
+  private _cachedFlatNodes: Array<{ node: FileNode; depth: number }> | null =
+    null;
 
   /** Flag to track if tree structure has changed */
   private _treeStructureChanged = true;
@@ -239,13 +248,20 @@ export class RtcFileExplorer extends LitElement {
    */
   private _collectMetrics(renderTimeMs: number = 0): FileExplorerMetrics {
     const effectiveRoot = this.root ?? this._explorerCtx.state.root;
-    const flatNodes = effectiveRoot?.children ? this._flattenTree(effectiveRoot.children) : [];
+    const flatNodes = effectiveRoot?.children
+      ? this._flattenTree(effectiveRoot.children)
+      : [];
 
     // Count expanded folders
     let expandedFolders = 0;
     const countExpanded = (nodes: FileNode[]) => {
       for (const node of nodes) {
-        if (node.type === 'folder' && node.isExpanded && node.children && node.children.length > 0) {
+        if (
+          node.type === 'folder' &&
+          node.isExpanded &&
+          node.children &&
+          node.children.length > 0
+        ) {
           expandedFolders++;
           countExpanded(node.children);
         }
@@ -383,7 +399,7 @@ export class RtcFileExplorer extends LitElement {
   private _findTreeItemByPath(path: string): RtcFileTreeItem | null {
     // Try O(1) lookup from cache
     const cachedItem = this._pathToElementMap.get(path);
-    if (cachedItem && cachedItem.isConnected) {
+    if (cachedItem?.isConnected) {
       return cachedItem;
     }
 

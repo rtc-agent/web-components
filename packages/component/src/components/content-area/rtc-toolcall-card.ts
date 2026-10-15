@@ -24,24 +24,25 @@
  * @csspart header  - Tool name header
  * @csspart in      - Input section
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
+import type { ToolCallExtended } from '@rtc-agent/protocol';
+import { createLogger, type TodoStatus } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { classMap } from 'lit/directives/class-map.js';
-import { styles } from './rtc-toolcall-card.styles.js';
 import type { Message } from '../../types/index.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import { formatTimestampCompact } from '../../utils/format.js';
 import { formatPluralCount } from '../../utils/plural-rules.js';
-import { createLogger, TodoStatus } from '@rtc-agent/protocol';
-import type { ToolCallExtended } from '@rtc-agent/protocol';
+import { styles } from './rtc-toolcall-card.styles.js';
 import './rtc-scroll-container.js';
 
 const log = createLogger('ToolCallCard');
@@ -439,7 +440,9 @@ export class RtcToolCallCard extends LitElement {
       case 'todoWrite': {
         const todos = input.todos as unknown[] | undefined;
         const count = Array.isArray(todos) ? todos.length : 0;
-        return msg(str`todoWrite (${formatPluralCount(count, msg('task'), msg('tasks'))})`);
+        return msg(
+          str`todoWrite (${formatPluralCount(count, msg('task'), msg('tasks'))})`,
+        );
       }
       default:
         return toolName;
@@ -449,7 +452,10 @@ export class RtcToolCallCard extends LitElement {
   /**
    * Render input section based on tool type.
    */
-  private _renderInputSection(toolName: string, toolData: ToolCallExtended | null) {
+  private _renderInputSection(
+    toolName: string,
+    toolData: ToolCallExtended | null,
+  ) {
     // read/ls/write/grep/find: header-only, no content section
     if (['read', 'ls', 'write', 'grep', 'find'].includes(toolName)) {
       return nothing;

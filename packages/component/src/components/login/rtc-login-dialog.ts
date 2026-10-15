@@ -9,21 +9,22 @@
  * @fires rtc-login-complete - Login succeeded; detail contains tokens
  * @fires rtc-login-dialog-close - Dialog closed
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-login-dialog.styles.js';
+import { localized, msg } from '@lit/localize';
+import { generatePKCEParams, OAuth2Client } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { AUTH_CONFIG, STORAGE_KEYS } from '../../config/auth.js';
-import { getOrCreateDeviceId, getDeviceName } from '../../utils/device.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { OAuth2Client, generatePKCEParams } from '@rtc-agent/client';
-import { createLogger } from '@rtc-agent/protocol';
+import { getDeviceName, getOrCreateDeviceId } from '../../utils/device.js';
+import { styles } from './rtc-login-dialog.styles.js';
 
 const log = createLogger('LoginDialog');
 

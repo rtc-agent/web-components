@@ -12,13 +12,13 @@
  * outside-click dismissal, while this controller handles the DOM math.
  */
 import {
+  autoUpdate,
   computePosition,
   flip,
-  shift,
-  offset,
-  autoUpdate,
-  type Placement,
   type Middleware,
+  offset,
+  type Placement,
+  shift,
 } from '@floating-ui/dom';
 
 export interface FloatingPanelControllerOptions {

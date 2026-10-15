@@ -12,8 +12,8 @@
  */
 
 import type { FunctionDef } from '../types/skill.js';
+import { withMeta, z } from '../validation/index.js';
 import type { FunctionRegistry } from './function-registry.js';
-import { z, withMeta } from '../validation/index.js';
 import { getLocale } from './i18n.js';
 
 /**
@@ -27,7 +27,7 @@ const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
  */
 function getCachedDateTimeFormat(
   locale?: string,
-  options?: Intl.DateTimeFormatOptions
+  options?: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
   const cacheKey = `${locale ?? 'default'}_${JSON.stringify(options ?? {})}`;
 
@@ -243,7 +243,6 @@ export const TIME_DEF: FunctionDef = {
         return now.toISOString();
       case 'timestamp':
         return String(Date.now());
-      case 'locale':
       default:
         return now.toLocaleString(getLocale());
     }

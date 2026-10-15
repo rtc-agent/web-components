@@ -12,21 +12,22 @@
  * @csspart providers - Provider buttons container
  * @csspart provider-btn - Single Provider button
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
 import { styles } from './rtc-login-page.styles.js';
 import '../logo/rtc-logo.js';
-import { AUTH_CONFIG } from '../../config/auth.js';
 import { OAuth2Client } from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/protocol';
+import { AUTH_CONFIG } from '../../config/auth.js';
 
 const log = createLogger('LoginPage');
 

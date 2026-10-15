@@ -1,4 +1,5 @@
 import { createLogger } from '@rtc-agent/protocol';
+
 const log = createLogger('FunctionRegistry');
 
 /**
@@ -58,36 +59,36 @@ export function isValidIconUrl(url: string): boolean {
  * pipeline across files, making the system harder to understand and maintain.
  */
 
+import { virtualFS } from '@rtc-agent/persistence';
 import type {
   FunctionDef,
   FunctionGroupDef,
   RegistryConfig,
   ScenarioDef,
 } from '../types/skill.js';
-import { virtualFS } from '@rtc-agent/persistence';
-import {
-  generateFunctionMd,
-  generateFunctionsIndex,
-  generateAgentMd,
-  generateScenariosIndex,
-} from './markdown-generator.js';
-import { registerBuiltinSystemGroup } from './builtin-system-group.js';
-import {
-  zodToParams,
-  zodToOpenAPISchema,
-} from '../validation/zod-to-openapi.js';
-import {
-  eventBus,
-  type FunctionStartEvent,
-  type FunctionSuccessEvent,
-  type FunctionErrorEvent,
-  type FunctionProgressEvent,
-} from './event-bus.js';
 import {
   buildValidator,
-  validateParams,
   formatValidationError,
+  validateParams,
 } from '../validation/index.js';
+import {
+  zodToOpenAPISchema,
+  zodToParams,
+} from '../validation/zod-to-openapi.js';
+import { registerBuiltinSystemGroup } from './builtin-system-group.js';
+import {
+  eventBus,
+  type FunctionErrorEvent,
+  type FunctionProgressEvent,
+  type FunctionStartEvent,
+  type FunctionSuccessEvent,
+} from './event-bus.js';
+import {
+  generateAgentMd,
+  generateFunctionMd,
+  generateFunctionsIndex,
+  generateScenariosIndex,
+} from './markdown-generator.js';
 
 /**
  * FunctionGroup instance
@@ -555,7 +556,7 @@ export class FunctionRegistry {
       // onSuccess uses fire-and-forget, does not block main flow
       if (hooks.onSuccess) {
         Promise.resolve()
-          .then(() => hooks.onSuccess!(result))
+          .then(() => hooks.onSuccess?.(result))
           .catch((err) => {
             log.error(`onSuccess hook failed for ${path}:`, err);
           });
@@ -572,7 +573,7 @@ export class FunctionRegistry {
       // onError uses fire-and-forget, does not block main flow
       if (hooks.onError) {
         Promise.resolve()
-          .then(() => hooks.onError!(err))
+          .then(() => hooks.onError?.(err))
           .catch((hookErr) => {
             log.error(`onError hook failed for ${path}:`, hookErr);
           });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Dexie from 'dexie';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UIUpdateQueueEntry } from './database';
 import * as databaseModule from './database.js';
 
@@ -13,9 +13,9 @@ vi.spyOn(databaseModule, 'getDatabase').mockImplementation(() => {
   return mockState.db;
 });
 
-// Now import ui-update-bus (after mock is set up)
-import { getUIUpdateBus, closeUIUpdateBus, UIUpdateBus } from './ui-update-bus';
 import type { UIUpdateEvent } from './ui-update-bus';
+// Now import ui-update-bus (after mock is set up)
+import { closeUIUpdateBus, getUIUpdateBus, UIUpdateBus } from './ui-update-bus';
 
 /**
  * Edge case tests for persistent UIUpdateBus queue.
@@ -39,7 +39,7 @@ const sessionStorageMock = {
     delete mockStorage[key];
   }),
   clear: vi.fn(() => {
-    Object.keys(mockStorage).forEach((k) => delete mockStorage[k]);
+    for (const k of Object.keys(mockStorage)) delete mockStorage[k];
   }),
   get length() {
     return Object.keys(mockStorage).length;
@@ -130,7 +130,7 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
         const stored = sessionStorageMock.getItem(this.storageKey);
         if (stored !== null) {
           const seq = parseInt(stored, 10);
-          if (!isNaN(seq) && seq >= 0) {
+          if (!Number.isNaN(seq) && seq >= 0) {
             this._lastProcessedSeq = seq;
           }
         }
@@ -161,12 +161,12 @@ describe('Persistent UIUpdateBus Queue - Edge Cases', () => {
         .toArray();
 
       let catchUpCount = 0;
-      let skippedInvalid = 0;
+      let _skippedInvalid = 0;
       for (const entry of entries) {
         try {
           // Runtime validation: skip events with invalid structure
           if (!this.isValidUIUpdateEvent(entry.event)) {
-            skippedInvalid++;
+            _skippedInvalid++;
             this._lastProcessedSeq = entry.seq;
             this.saveToStorage();
             continue;

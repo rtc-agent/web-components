@@ -10,11 +10,12 @@
  * @fires rtc-file-preview - File preview requested
  * @csspart preview-area - The scrolling container
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { localized, msg } from '@lit/localize';
-import { styles } from './rtc-file-preview-area.styles.js';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { FileAttachment } from '../../types/index.js';
+import { styles } from './rtc-file-preview-area.styles.js';
 import './rtc-file-thumbnail.js';
 
 @localized()

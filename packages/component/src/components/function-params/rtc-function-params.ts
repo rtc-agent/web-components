@@ -6,26 +6,27 @@
  *
  * @element rtc-function-params
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-function-params.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FunctionDebugContext,
   type FunctionDebugContextValue,
 } from '../../contexts/function-debug.js';
-import { createLogger } from '@rtc-agent/protocol';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-function-params.styles.js';
 
 const log = createLogger('FunctionParams');
 
@@ -94,7 +95,7 @@ export class RtcFunctionParams extends LitElement {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const value = textarea.value;
-      const newValue = value.substring(0, start) + '  ' + value.substring(end);
+      const newValue = `${value.substring(0, start)}  ${value.substring(end)}`;
       textarea.value = newValue;
       textarea.selectionStart = textarea.selectionEnd = start + 2;
 

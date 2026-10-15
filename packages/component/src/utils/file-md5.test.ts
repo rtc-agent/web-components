@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { calculateStringMD5, calculateBufferMD5 } from './file-md5.js';
+import { describe, expect, it } from 'vitest';
+import { calculateBufferMD5, calculateStringMD5 } from './file-md5.js';
 
 describe('file-md5 utilities', () => {
   describe('calculateStringMD5', () => {

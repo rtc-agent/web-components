@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures } from '../../test-helpers.js';
-import { RtcAgent } from './rtc-agent.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture } from '../../test-helpers.js';
+import type { RtcAgent } from './rtc-agent.js';
 import './rtc-agent.js'; // side-effect: ensure @customElement registration
 import { createRtcAgent } from '../../factory.js';
 

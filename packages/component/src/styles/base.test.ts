@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { baseStyles } from './base.js';
 
 describe('Base Styles', () => {

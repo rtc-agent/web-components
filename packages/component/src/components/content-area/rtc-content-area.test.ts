@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-content-area.js';
-import type { RtcContentArea } from './rtc-content-area.js';
-import type { Message, ContentData, MessageState } from '../../types/index.js';
 import type { MessageController } from '../../controllers/message.controller.js';
 import type { MessageRepository } from '../../repositories/message.repository.js';
+import type { ContentData, Message, MessageState } from '../../types/index.js';
+import type { RtcContentArea } from './rtc-content-area.js';
 
 const makeMsg = (clientId: string, content: string): Message => ({
   clientId,
@@ -45,7 +45,7 @@ const createMockController = (
     updateMessages: (sid: string, newMessages: Message[]) => {
       if (sid === sessionId) {
         state.messages = newMessages;
-        subscribers.forEach((cb) => cb(state));
+        for (const cb of subscribers) cb(state);
       }
     },
   };
@@ -73,7 +73,7 @@ describe('<rtc-content-area>', () => {
       html`<rtc-content-area></rtc-content-area>`,
     );
     await nextFrame();
-    const empty = el.shadowRoot!.querySelector('rtc-empty-state');
+    const empty = el.shadowRoot?.querySelector('rtc-empty-state');
     expect(empty).not.toBeNull();
   });
 
@@ -85,9 +85,9 @@ describe('<rtc-content-area>', () => {
       html`<rtc-content-area .sessionId=${sessionId} .messageController=${controller}></rtc-content-area>`,
     );
     await nextFrame();
-    const list = el.shadowRoot!.querySelector('rtc-message-list');
+    const list = el.shadowRoot?.querySelector('rtc-message-list');
     expect(list).not.toBeNull();
-    const empty = el.shadowRoot!.querySelector('rtc-empty-state');
+    const empty = el.shadowRoot?.querySelector('rtc-empty-state');
     expect(empty).toBeNull();
   });
 
@@ -96,7 +96,7 @@ describe('<rtc-content-area>', () => {
       html`<rtc-content-area></rtc-content-area>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-empty-state')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-empty-state')).not.toBeNull();
 
     // Now set sessionId
     const sessionId = 'test-session';
@@ -105,7 +105,7 @@ describe('<rtc-content-area>', () => {
     el.messageController = controller;
     await nextFrame();
 
-    expect(el.shadowRoot!.querySelector('rtc-message-list')).not.toBeNull();
-    expect(el.shadowRoot!.querySelector('rtc-empty-state')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-message-list')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-empty-state')).toBeNull();
   });
 });

@@ -13,25 +13,27 @@
 // Re-export ContentData and TodoItem from protocol
 export type {
   ContentData,
-  TodoItem,
-  UserMessageContent,
-  ScenarioRef,
   FileAttachment,
   PromptContent,
+  ScenarioRef,
+  TodoItem,
   ToolCall,
+  UserMessageContent,
 } from '@rtc-agent/protocol';
+
 import type { ContentData, TodoItem, ToolCall } from '@rtc-agent/protocol';
 
 // Re-export enum types from protocol (both value and type)
 export {
-  SessionStatus,
   MessageRole,
+  SessionStatus,
   SyncStatus,
   TodoStatus,
 } from '@rtc-agent/protocol';
+
 import type {
-  SessionStatus,
   MessageRole,
+  SessionStatus,
   SyncStatus,
 } from '@rtc-agent/protocol';
 
@@ -481,15 +483,15 @@ export interface ToolCallActions {
 /* ── Skill System ── */
 
 export type {
-  OpenAPISchema,
-  ParameterDef,
-  ReturnDef,
-  VisualHooks,
   FunctionDef,
   FunctionGroupDef,
+  OpenAPISchema,
+  ParameterDef,
   RegistryConfig,
+  ReturnDef,
   ScenarioDef,
   ScenarioManifest,
+  VisualHooks,
 } from './skill.js';
 
 /* ── Activity Bar Configuration ── */
@@ -507,12 +509,12 @@ export {
 /* ── Function Debugger ── */
 
 export type {
-  LogLevel,
-  LogEntry,
-  ExecutionStatus,
   DebugHistoryItem,
+  ExecutionStatus,
   FunctionDebugState,
   HistoryPaginationState,
+  LogEntry,
+  LogLevel,
 } from './functions-debug.js';
 
 /* ── File Explorer & Editor (Phase 1) ── */

@@ -8,7 +8,7 @@
  * Consumed by: <rtc-session-tab-bar>, <rtc-chat-layout>
  */
 import { createContext } from '@lit/context';
-import type { SessionTabState, SessionTabActions } from '../types/index.js';
+import type { SessionTabActions, SessionTabState } from '../types/index.js';
 
 export interface SessionTabContextValue {
   state: SessionTabState;

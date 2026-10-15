@@ -152,7 +152,7 @@ export interface WorkerLifecycleOps {
   close(callerCallback?: WorkerCallbacks): Promise<void>;
 
   /** Flush all pending writes to IndexedDB (used for graceful shutdown). */
-  flushAll(): Promise<void>;
+  flushAll(confirm?: boolean): Promise<void>;
 }
 
 /**

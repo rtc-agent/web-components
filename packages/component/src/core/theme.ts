@@ -1,9 +1,9 @@
 import { createLogger } from '@rtc-agent/protocol';
+import { STORAGE_KEYS } from '../config/auth.js';
 import {
   safeLocalStorageGet,
   safeLocalStorageSet,
 } from '../utils/safe-local-storage.js';
-import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('Theme');
 

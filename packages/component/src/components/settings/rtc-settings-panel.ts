@@ -7,21 +7,22 @@
  * @element rtc-settings-panel
  * @fires close - When the panel is closed
  */
-import { LitElement, html } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-settings-panel.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { localized, msg } from '@lit/localize';
+import { html, LitElement } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-settings-panel.styles.js';
 import '../settings-layout/rtc-settings-layout.js';
 import { createLogger } from '@rtc-agent/protocol';
 

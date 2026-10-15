@@ -5,11 +5,13 @@
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
 import type { LocalRtc } from '@rtc-agent/persistence';
-import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
-import type { RtcToolConfirm } from '../../overlay/rtc-tool-confirm.js';
 import type { RtcAskUser } from '../../overlay/rtc-ask-user.js';
+import type {
+  ExportOptions,
+  RtcExportDialog,
+} from '../../overlay/rtc-export-dialog.js';
 import type { RtcRestoreConfirm } from '../../overlay/rtc-restore-confirm.js';
-import type { RtcExportDialog } from '../../overlay/rtc-export-dialog.js';
+import type { RtcToolConfirm } from '../../overlay/rtc-tool-confirm.js';
 
 /**
  * Common template for creating dialog promises.

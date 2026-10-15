@@ -15,32 +15,33 @@
  * @fires rtc-session-tree-toggle - User clicks expand/collapse (detail: { sessionId })
  * @fires rtc-session-tree-new - User clicks the new session button
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-session-tree.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   SessionTreeContext,
   type SessionTreeContextValue,
 } from '../../contexts/session-tree.js';
-import type { SessionTreeNode } from '../../types/index.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import { plusIcon, refreshIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { SessionTreeNode } from '../../types/index.js';
+import { styles } from './rtc-session-tree.styles.js';
 
 // Sub-component (side-effect import)
 import './rtc-session-tree-item.js';
-import type { RtcSessionTreeItem } from './rtc-session-tree-item.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { RtcSessionTreeItem } from './rtc-session-tree-item.js';
 
 const log = createLogger('SessionTree');
 
@@ -128,7 +129,10 @@ export class RtcSessionTree extends LitElement {
   private _containerHeight = 0;
 
   /** Cached flattened tree nodes (invalidated when tree structure changes) */
-  private _cachedFlatNodes: Array<{ node: SessionTreeNode; depth: number }> | null = null;
+  private _cachedFlatNodes: Array<{
+    node: SessionTreeNode;
+    depth: number;
+  }> | null = null;
 
   /** Flag to track if tree structure has changed */
   private _treeStructureChanged = true;
@@ -461,7 +465,7 @@ export class RtcSessionTree extends LitElement {
   ): RtcSessionTreeItem | null {
     // O(1) lookup from cache
     const cachedItem = this._sessionIdToElementMap.get(sessionId);
-    if (cachedItem && cachedItem.isConnected) {
+    if (cachedItem?.isConnected) {
       return cachedItem;
     }
 

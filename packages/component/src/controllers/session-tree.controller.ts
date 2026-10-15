@@ -11,15 +11,15 @@
  * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>
  */
 import type { ReactiveControllerHost } from 'lit';
+import { STORAGE_KEYS } from '../config/auth.js';
+import type { SessionTreeContextValue } from '../contexts/session-tree.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
 import type {
   Session,
+  SessionTreeActions,
   SessionTreeNode,
   SessionTreeState,
-  SessionTreeActions,
 } from '../types/index.js';
-import type { SessionTreeContextValue } from '../contexts/session-tree.js';
-import { STORAGE_KEYS } from '../config/auth.js';
-import { CachedContextController } from '../core/cached-context.controller.js';
 
 /** Expanded state: sessionId → isExpanded */
 type ExpandedMap = Record<string, boolean>;

@@ -4,10 +4,10 @@
  * Manages tool registration and execution.
  */
 
-import type { Tool, ToolName, ToolParams, ToolResult } from './types.js';
-import { createBuiltinTools, ScriptTool } from './builtin.js';
-import type { RtcAgentAPI } from '../script-engine.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { RtcAgentAPI } from '../script-engine.js';
+import { createBuiltinTools, ScriptTool } from './builtin.js';
+import type { Tool, ToolName, ToolParams, ToolResult } from './types.js';
 
 const log = createLogger('ToolRegistry');
 

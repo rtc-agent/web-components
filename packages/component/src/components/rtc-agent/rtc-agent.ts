@@ -51,116 +51,109 @@
  * <rtc-title-bar> → <rtc-agent> listener → controller → reflected `data-mode`
  * attribute → CSS :host([data-mode=...]) visual state.
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { ContextProvider } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { version } from '../../../package.json';
-import { styles } from './rtc-agent.styles.js';
-import type {
-  WindowMode,
-  Activity,
-  FileAttachment,
-} from '../../types/index.js';
-
-// Styles
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { initTheme } from '../../core/theme.js';
-import { baseStyles } from '../../styles/base.js';
-
-// Contexts (for provider keys)
-import { WindowStateContext } from '../../contexts/window-state.js';
-import { AuthContext } from '../../contexts/auth.js';
-import { SessionContext } from '../../contexts/session.js';
-import { SessionTreeContext } from '../../contexts/session-tree.js';
-import { SessionTabContext } from '../../contexts/session-tab.js';
-import { MessageContext } from '../../contexts/message.js';
-import { ModeContext } from '../../contexts/mode.js';
-import { ToolCallContext } from '../../contexts/tool-call.js';
-import { TurnCountContext } from '../../contexts/turn-count.js';
-import { SkillContext, DEFAULT_SKILL_STATE } from '../../contexts/skill.js';
+// Scenario loading
+import { setRedirectUri, setServerUrl } from '../../config/auth.js';
 import { ActivityContext } from '../../contexts/activity.js';
+import { AuthContext } from '../../contexts/auth.js';
 import { FileExplorerContext } from '../../contexts/file-explorer.js';
-import { SettingsContext } from '../../contexts/settings.js';
-import { NotificationContext } from '../../contexts/notification.js';
-import { LogoContext, DEFAULT_LOGO } from '../../contexts/logo.js';
-import { FunctionsContext } from '../../contexts/functions.js';
-import { FunctionDebugContext } from '../../contexts/function-debug.js';
 import {
   FileStorageContext,
   type FileStorageContextValue,
 } from '../../contexts/file-storage.js';
-import { FileStorage } from '../../utils/file-storage.js';
-import { formatBanMessage } from '../../utils/format.js';
-
-// Controllers
-import { WindowStateController } from '../../controllers/window-state.controller.js';
+import { FunctionDebugContext } from '../../contexts/function-debug.js';
+import { FunctionsContext } from '../../contexts/functions.js';
+import { DEFAULT_LOGO, LogoContext } from '../../contexts/logo.js';
+import { MessageContext } from '../../contexts/message.js';
+import { ModeContext } from '../../contexts/mode.js';
+import { NotificationContext } from '../../contexts/notification.js';
+import { SessionContext } from '../../contexts/session.js';
+import { SessionTabContext } from '../../contexts/session-tab.js';
+import { SessionTreeContext } from '../../contexts/session-tree.js';
+import { SettingsContext } from '../../contexts/settings.js';
+import { DEFAULT_SKILL_STATE, SkillContext } from '../../contexts/skill.js';
+import { ToolCallContext } from '../../contexts/tool-call.js';
+import { TurnCountContext } from '../../contexts/turn-count.js';
+// Contexts (for provider keys)
+import { WindowStateContext } from '../../contexts/window-state.js';
+import { ActivityController } from '../../controllers/activity.controller.js';
 import { AuthController } from '../../controllers/auth.controller.js';
-import { SessionController } from '../../controllers/session.controller.js';
+import { EditorAreaController } from '../../controllers/editor-area.controller.js';
+import { EventBindingController } from '../../controllers/event-binding.controller.js';
+import { FileExplorerController } from '../../controllers/file-explorer.controller.js';
+import { ForkController } from '../../controllers/fork.controller.js';
+import { FunctionDebugController } from '../../controllers/function-debug.controller.js';
+import { FunctionsController } from '../../controllers/functions.controller.js';
 import { MessageController } from '../../controllers/message.controller.js';
 import { ModeController } from '../../controllers/mode.controller.js';
-import { ToolCallController } from '../../controllers/tool-call.controller.js';
-import { WindowInteractionController } from '../../controllers/window-interaction.controller.js';
-import { PersistenceController } from '../../controllers/persistence.controller.js';
-import { SkillController } from '../../controllers/skill.controller.js';
-import { ToastController } from '../../controllers/toast.controller.js';
-import { ForkController } from '../../controllers/fork.controller.js';
-import { ActivityController } from '../../controllers/activity.controller.js';
-import { FileExplorerController } from '../../controllers/file-explorer.controller.js';
-import { EditorAreaController } from '../../controllers/editor-area.controller.js';
-import { StatusBarController } from '../../controllers/status-bar.controller.js';
-import { SessionTreeController } from '../../controllers/session-tree.controller.js';
-import { SessionTabController } from '../../controllers/session-tab.controller.js';
-import { SettingsController } from '../../controllers/settings.controller.js';
 import { NotificationController } from '../../controllers/notification.controller.js';
-import { EventBindingController } from '../../controllers/event-binding.controller.js';
-import { FunctionsController } from '../../controllers/functions.controller.js';
-import { FunctionDebugController } from '../../controllers/function-debug.controller.js';
+import { PersistenceController } from '../../controllers/persistence.controller.js';
+import { SessionController } from '../../controllers/session.controller.js';
+import { SessionTabController } from '../../controllers/session-tab.controller.js';
+import { SessionTreeController } from '../../controllers/session-tree.controller.js';
+import { SettingsController } from '../../controllers/settings.controller.js';
+import { SkillController } from '../../controllers/skill.controller.js';
+import { StatusBarController } from '../../controllers/status-bar.controller.js';
+import { ToastController } from '../../controllers/toast.controller.js';
+import { ToolCallController } from '../../controllers/tool-call.controller.js';
 import { TurnCountController } from '../../controllers/turn-count.controller.js';
-
-// Scenario loading
-import { setServerUrl, setRedirectUri } from '../../config/auth.js';
-import { loadScenariosContent } from '../../core/scenario-loader.js';
-import { defineRegistry } from '../../core/function-registry.js';
+import { WindowInteractionController } from '../../controllers/window-interaction.controller.js';
+// Controllers
+import { WindowStateController } from '../../controllers/window-state.controller.js';
 import type { FunctionRegistry } from '../../core/function-registry.js';
-
-// Ready signal
-import { _markReady } from '../../core/ready.js';
-
+import { defineRegistry } from '../../core/function-registry.js';
 // i18n
 import {
-  initLocale,
   getLocale,
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-  switchLocale,
+  initLocale,
   isValidLocale,
+  type LocaleContextValue,
+  localeContext,
   type SupportedLocale,
+  sourceLocale,
+  switchLocale,
+  targetLocales,
 } from '../../core/i18n.js';
-import { msg, localized, str } from '@lit/localize';
-
+// Ready signal
+import { _markReady } from '../../core/ready.js';
+import { loadScenariosContent } from '../../core/scenario-loader.js';
+import { initTheme } from '../../core/theme.js';
 // Logo
 import { renderBubbleLogo } from '../../icons/logo.js';
-
-// Declarative config types
-import type { AgentConfig } from '../../types/agent-config.js';
-import type { WindowConfig } from '../../types/window-config.js';
-import { resolveWindowConfig } from '../../types/window-config.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+// Styles
+import { tokens } from '../../styles/tokens.js';
 import type { ActivityBarConfig } from '../../types/activity-bar-config.js';
 import {
-  resolveActivityBarConfig,
   type ResolvedActivityBarConfig,
+  resolveActivityBarConfig,
 } from '../../types/activity-bar-config.js';
+// Declarative config types
+import type { AgentConfig } from '../../types/agent-config.js';
 import type { AuthProvider } from '../../types/factory.js';
+import type {
+  Activity,
+  FileAttachment,
+  WindowMode,
+} from '../../types/index.js';
+import type { WindowConfig } from '../../types/window-config.js';
+import { resolveWindowConfig } from '../../types/window-config.js';
+import type { FileStorage } from '../../utils/file-storage.js';
+import { formatBanMessage } from '../../utils/format.js';
+import { styles } from './rtc-agent.styles.js';
 // Side-effect import: extends HTMLElementEventMap with rtc-agent-ready event
 import '../../types/events.js';
 
-// UIUpdateBus (persistence-layer singleton for driving UI refreshes)
-import { getUIUpdateBus, RtcProcessor } from '@rtc-agent/persistence';
 import type { LocalRtc } from '@rtc-agent/persistence';
+// UIUpdateBus (persistence-layer singleton for driving UI refreshes)
+import { getUIUpdateBus, type RtcProcessor } from '@rtc-agent/persistence';
 
 // Tool confirm dialog
 import '../overlay/rtc-tool-confirm.js';
@@ -200,39 +193,36 @@ import '../drawer/rtc-drawer.js';
 // Logo component (theme-aware, context-driven)
 import '../logo/rtc-logo.js';
 
-// Toast types (re-exported from ToastController)
-import type { ToastType } from '../overlay/rtc-toast.js';
-
-// Debug API (dev/test only)
-import { installDebugAPI } from '../../debug-api.js';
-
-// Extracted helpers (keep rtc-agent.ts lean — business logic lives in helpers/)
-import { handleCommand as dispatchCommand } from './helpers/command-handler.js';
-import {
-  showToolConfirmDialog,
-  showAskUserDialog,
-  showRestoreConfirmDialog,
-} from './helpers/dialog-helpers.js';
-import {
-  loadFileTree as vfsLoadFileTree,
-  loadFolderChildren as vfsLoadFolderChildren,
-  handleFileOpen as vfsHandleFileOpen,
-  restoreEditorAreaContent as vfsRestoreEditorAreaContent,
-  handleEditorSave as vfsHandleEditorSave,
-  handleFileChange as vfsHandleFileChange,
-  handleRestoreDefault as vfsHandleRestoreDefault,
-} from './helpers/vfs-operations.js';
-import { loadSessions as sessionLoadSessions } from './helpers/session-loader.js';
-import { connectWithRetry } from './helpers/connection-setup.js';
-import {
-  handleBusEvent,
-  type BusHandlerDeps,
-  DebouncedSessionLoader,
-} from './helpers/bus-handler.js';
-
 // Connection state type
 import type { ConnectionState } from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/protocol';
+// Debug API (dev/test only)
+import { installDebugAPI } from '../../debug-api.js';
+// Toast types (re-exported from ToastController)
+import type { ToastType } from '../overlay/rtc-toast.js';
+import {
+  type BusHandlerDeps,
+  DebouncedSessionLoader,
+  handleBusEvent,
+} from './helpers/bus-handler.js';
+// Extracted helpers (keep rtc-agent.ts lean — business logic lives in helpers/)
+import { handleCommand as dispatchCommand } from './helpers/command-handler.js';
+import { connectWithRetry } from './helpers/connection-setup.js';
+import {
+  showAskUserDialog,
+  showRestoreConfirmDialog,
+  showToolConfirmDialog,
+} from './helpers/dialog-helpers.js';
+import { loadSessions as sessionLoadSessions } from './helpers/session-loader.js';
+import {
+  handleEditorSave as vfsHandleEditorSave,
+  handleFileChange as vfsHandleFileChange,
+  handleFileOpen as vfsHandleFileOpen,
+  handleRestoreDefault as vfsHandleRestoreDefault,
+  loadFileTree as vfsLoadFileTree,
+  loadFolderChildren as vfsLoadFolderChildren,
+  restoreEditorAreaContent as vfsRestoreEditorAreaContent,
+} from './helpers/vfs-operations.js';
 
 // Aria-live announcements per mode transition
 const log = createLogger('RtcAgent');
@@ -1335,7 +1325,9 @@ export class RtcAgent extends LitElement {
     }
     this._message.sessionController = this._session;
     // Inject session ID getter into TurnCountController
-    this._turnCount.setSessionIdGetter(() => this._session.value.state.currentSessionId);
+    this._turnCount.setSessionIdGetter(
+      () => this._session.value.state.currentSessionId,
+    );
 
     // Note: workerBridge injection into FunctionDebugController is handled in connection-setup.ts
     // after the connection is established, when workerBridge is confirmed to be available.
@@ -1768,17 +1760,18 @@ export class RtcAgent extends LitElement {
       const cancelPromise = Promise.resolve(this._rtcProcessor.cancel());
       const timeoutPromise = new Promise<void>((resolve) => {
         setTimeout(() => {
-          log.warn('RTC processor cancellation timeout, proceeding with cleanup');
+          log.warn(
+            'RTC processor cancellation timeout, proceeding with cleanup',
+          );
           resolve();
         }, 100);
       });
       // Suppress unhandled rejections: the timeout always resolves, but the
       // cancel() Promise may reject. Promise.race settles with the first result,
       // so we add .catch() to prevent unhandled rejection warnings in the console.
-      Promise.race([cancelPromise, timeoutPromise])
-        .catch((err) => {
-          log.warn('RTC processor cancellation error (non-fatal):', err);
-        });
+      Promise.race([cancelPromise, timeoutPromise]).catch((err) => {
+        log.warn('RTC processor cancellation error (non-fatal):', err);
+      });
       this._rtcProcessor = undefined;
     }
 
@@ -2013,12 +2006,14 @@ export class RtcAgent extends LitElement {
       const defaultWidth =
         parseInt(
           getComputedStyle(this).getPropertyValue('--rtc-window-default-width'),
+          10,
         ) || 420;
       const defaultHeight =
         parseInt(
           getComputedStyle(this).getPropertyValue(
             '--rtc-window-default-height',
           ),
+          10,
         ) || 640;
       const initialX =
         window.innerWidth - defaultWidth - INITIAL_POSITION_MARGIN_PX;
@@ -2144,7 +2139,7 @@ export class RtcAgent extends LitElement {
 
     // Add timeout protection to focus promise chain
     const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Mode transition timeout')), 5000)
+      setTimeout(() => reject(new Error('Mode transition timeout')), 5000),
     );
 
     Promise.race([focusPromise, timeoutPromise]).catch((err) => {

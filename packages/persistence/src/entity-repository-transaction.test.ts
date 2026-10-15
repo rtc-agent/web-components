@@ -1,11 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EntityRepository, type UpsertResult } from './entity-repository.js';
-import {
-  getDatabase,
-  closeDatabase,
-  type LocalSession,
-  type LocalTurn,
-} from './database.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeDatabase, getDatabase } from './database.js';
+import { EntityRepository } from './entity-repository.js';
 import { getUIUpdateBus, type UIUpdateEvent } from './ui-update-bus.js';
 
 const TEST_DB = 'rtc-agent-test-upsert-transaction';
@@ -75,14 +70,14 @@ describe('upsert transaction safety', () => {
         repo.upsertSession({ client_id: 's1', sync_status: 'synced' }),
       ];
 
-      const results = await Promise.all(updates);
+      const _results = await Promise.all(updates);
 
       // All updates should be applied (last write wins for conflicting fields)
       const finalSession = await repo.getClientSession('s1');
       expect(finalSession).toBeDefined();
-      expect(finalSession!.title).toBe('Update1');
-      expect(finalSession!.status).toBe('completed');
-      expect(finalSession!.sync_status).toBe('synced');
+      expect(finalSession?.title).toBe('Update1');
+      expect(finalSession?.status).toBe('completed');
+      expect(finalSession?.sync_status).toBe('synced');
     });
 
     it('should preserve server_id when not provided in update', async () => {
@@ -240,10 +235,10 @@ describe('upsert transaction safety', () => {
 
       const finalSession = await repo.getClientSession('s1');
       // sync_status should remain 'pending'
-      expect(finalSession!.sync_status).toBe('pending');
+      expect(finalSession?.sync_status).toBe('pending');
       // Counts should be updated (last write wins)
-      expect(finalSession!.pending_turn_count).toBe(2);
-      expect(finalSession!.running_turn_count).toBe(1);
+      expect(finalSession?.pending_turn_count).toBe(2);
+      expect(finalSession?.running_turn_count).toBe(1);
     });
   });
 
@@ -263,17 +258,23 @@ describe('upsert transaction safety', () => {
 
       // Should emit events only for changed fields
       // Support both batch format (changes array) and legacy format (single field)
-      let titleEvents: Array<{ oldValue: unknown; newValue: unknown }> = [];
+      const titleEvents: Array<{ oldValue: unknown; newValue: unknown }> = [];
       for (const event of collectedEvents) {
         if (event.changes) {
           // Batch format: find title change in changes array
           const titleChange = event.changes.find((c) => c.field === 'title');
           if (titleChange) {
-            titleEvents.push({ oldValue: titleChange.oldValue, newValue: titleChange.newValue });
+            titleEvents.push({
+              oldValue: titleChange.oldValue,
+              newValue: titleChange.newValue,
+            });
           }
         } else if (event.field === 'title') {
           // Legacy format: single field
-          titleEvents.push({ oldValue: event.oldValue, newValue: event.newValue });
+          titleEvents.push({
+            oldValue: event.oldValue,
+            newValue: event.newValue,
+          });
         }
       }
 
@@ -507,8 +508,8 @@ describe('upsert transaction safety', () => {
       }
 
       const finalSession = await repo.getClientSession('s1');
-      expect(finalSession!.title).toBe('v10');
-      expect(finalSession!.pending_turn_count).toBe(10);
+      expect(finalSession?.title).toBe('v10');
+      expect(finalSession?.pending_turn_count).toBe(10);
     });
 
     it('should handle concurrent upserts to different sessions', async () => {
@@ -525,9 +526,9 @@ describe('upsert transaction safety', () => {
       for (const s of sessions) {
         const session = await repo.getClientSession(s);
         expect(session).toBeDefined();
-        expect(session!.title).toBe(`${s}-title`);
-        expect(session!.status).toBe('active');
-        expect(session!.pending_turn_count).toBe(5);
+        expect(session?.title).toBe(`${s}-title`);
+        expect(session?.status).toBe('active');
+        expect(session?.pending_turn_count).toBe(5);
       }
     });
 
@@ -549,14 +550,14 @@ describe('upsert transaction safety', () => {
       await Promise.all(operations);
 
       const s1 = await repo.getClientSession('s1');
-      expect(s1!.title).toBe('Updated');
-      expect(s1!.status).toBe('completed');
+      expect(s1?.title).toBe('Updated');
+      expect(s1?.status).toBe('completed');
 
       const s2 = await repo.getClientSession('s2');
-      expect(s2!.title).toBe('New');
+      expect(s2?.title).toBe('New');
 
       const s3 = await repo.getClientSession('s3');
-      expect(s3!.title).toBe('Another New');
+      expect(s3?.title).toBe('Another New');
     });
   });
 
@@ -692,10 +693,10 @@ describe('upsert transaction safety', () => {
 
       const session = await repo.getClientSession('s1');
       // sync_status should still be 'pending'
-      expect(session!.sync_status).toBe('pending');
+      expect(session?.sync_status).toBe('pending');
       // Turn counts should be updated
-      expect(session!.pending_turn_count).toBe(1);
-      expect(session!.running_turn_count).toBe(0);
+      expect(session?.pending_turn_count).toBe(1);
+      expect(session?.running_turn_count).toBe(0);
     });
   });
 
@@ -746,13 +747,13 @@ describe('upsert transaction safety', () => {
 
       // Verify the concurrent title update was preserved
       const updatedSession = await repo.getClientSession('s1');
-      expect(updatedSession!.title).toBe('Updated Title');
-      expect(updatedSession!.status).toBe('active');
-      expect(updatedSession!.sync_status).toBe('synced');
+      expect(updatedSession?.title).toBe('Updated Title');
+      expect(updatedSession?.status).toBe('active');
+      expect(updatedSession?.sync_status).toBe('synced');
 
       // Verify turn counts were updated correctly
-      expect(updatedSession!.pending_turn_count).toBe(1);
-      expect(updatedSession!.running_turn_count).toBe(0);
+      expect(updatedSession?.pending_turn_count).toBe(1);
+      expect(updatedSession?.running_turn_count).toBe(0);
     });
 
     it('should not overwrite fields when using partial update pattern', async () => {
@@ -782,8 +783,8 @@ describe('upsert transaction safety', () => {
 
       // Verify it worked
       let session = await repo.getClientSession('s1');
-      expect(session!.pending_turn_count).toBe(5);
-      expect(session!.running_turn_count).toBe(3);
+      expect(session?.pending_turn_count).toBe(5);
+      expect(session?.running_turn_count).toBe(3);
 
       // Now modify title
       await repo.upsertSession({
@@ -799,9 +800,9 @@ describe('upsert transaction safety', () => {
 
       // Verify title was NOT overwritten
       session = await repo.getClientSession('s1');
-      expect(session!.title).toBe('New Title');
-      expect(session!.pending_turn_count).toBe(10);
-      expect(session!.running_turn_count).toBe(7);
+      expect(session?.title).toBe('New Title');
+      expect(session?.pending_turn_count).toBe(10);
+      expect(session?.running_turn_count).toBe(7);
     });
 
     it('should handle multiple sessions with independent partial updates', async () => {
@@ -837,16 +838,16 @@ describe('upsert transaction safety', () => {
 
       // Verify each session's fields are correct
       const s1 = await repo.getClientSession('s1');
-      expect(s1!.title).toBe('Updated Session 1');
-      expect(s1!.status).toBe('active');
-      expect(s1!.pending_turn_count).toBe(1);
-      expect(s1!.running_turn_count).toBe(0);
+      expect(s1?.title).toBe('Updated Session 1');
+      expect(s1?.status).toBe('active');
+      expect(s1?.pending_turn_count).toBe(1);
+      expect(s1?.running_turn_count).toBe(0);
 
       const s2 = await repo.getClientSession('s2');
-      expect(s2!.title).toBe('Session 2');
-      expect(s2!.status).toBe('completed');
-      expect(s2!.pending_turn_count).toBe(0);
-      expect(s2!.running_turn_count).toBe(2);
+      expect(s2?.title).toBe('Session 2');
+      expect(s2?.status).toBe('completed');
+      expect(s2?.pending_turn_count).toBe(0);
+      expect(s2?.running_turn_count).toBe(2);
     });
 
     it('should only write when turn counts actually change', async () => {
@@ -874,9 +875,9 @@ describe('upsert transaction safety', () => {
 
       // Verify session data is unchanged
       const session = await repo.getClientSession('s1');
-      expect(session!.pending_turn_count).toBe(2);
-      expect(session!.running_turn_count).toBe(1);
-      expect(session!.title).toBe('Test');
+      expect(session?.pending_turn_count).toBe(2);
+      expect(session?.running_turn_count).toBe(1);
+      expect(session?.title).toBe('Test');
 
       updateSpy.mockRestore();
     });

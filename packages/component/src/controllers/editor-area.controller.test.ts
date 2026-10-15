@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { EditorAreaController } from './editor-area.controller.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../config/auth.js';
+import { EditorAreaController } from './editor-area.controller.js';
 
 class MockHost {
   updateCount = 0;

@@ -9,15 +9,16 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-settings-layout>`, each feature component
  */
+
+import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { STORAGE_KEYS } from '../config/auth.js';
 import type {
-  SettingsState,
   SettingsActions,
   SettingsContextValue,
+  SettingsState,
 } from '../contexts/settings.js';
 import { DEFAULT_SETTINGS_STATE } from '../contexts/settings.js';
-import { STORAGE_KEYS } from '../config/auth.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('SettingsController');
 
@@ -48,6 +49,10 @@ export class SettingsController implements ReactiveController {
    * on document.documentElement. hostDisconnected() only removes the CSS variable
    * when the count reaches zero, preventing instance A's disconnect from breaking
    * instance B's font size setting.
+   *
+   * Thread safety: JavaScript is single-threaded — increment/decrement operations
+   * on this counter are atomic. Even in React StrictMode's double-mount scenario,
+   * the synchronous lifecycle callbacks guarantee consistent count updates.
    */
   private static _activeInstanceCount = 0;
 

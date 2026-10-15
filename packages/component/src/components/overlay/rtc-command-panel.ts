@@ -10,25 +10,26 @@
  * @csspart list - The command list container
  * @csspart search - The search input
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
-import { localized, msg, str } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-command-panel.styles.js';
 import {
-  gearIcon,
-  clockIcon,
   checklistIcon,
+  clockIcon,
+  gearIcon,
   saveIcon,
 } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-command-panel.styles.js';
 
 const log = createLogger('CommandPanel');
 
@@ -227,7 +228,10 @@ export class RtcCommandPanel extends LitElement {
     // Arrow key navigation
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      this._selectedIndex = Math.min(this._selectedIndex + 1, filtered.length - 1);
+      this._selectedIndex = Math.min(
+        this._selectedIndex + 1,
+        filtered.length - 1,
+      );
       this._scrollSelectedIntoView();
       return;
     }
@@ -282,20 +286,23 @@ export class RtcCommandPanel extends LitElement {
             .value=${this._searchQuery}
             @input=${this._handleSearchInput}
           >
-          ${hasSearch
-            ? html`<button class="clear-btn" @click=${this._clearSearch} aria-label=${msg('清除')}>
+          ${
+            hasSearch
+              ? html`<button class="clear-btn" @click=${this._clearSearch} aria-label=${msg('清除')}>
                 <svg viewBox="0 0 16 16" width="12" height="12">
                   <path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
                 </svg>
               </button>`
-            : nothing}
+              : nothing
+          }
         </div>
         <div class="command-list" part="list" role="listbox">
-          ${noResults
-            ? html`<div class="no-results">${msg('未找到匹配的命令')}</div>`
-            : filtered.map((cmd, i) => {
-                const isSelected = i === this._selectedIndex;
-                return html`
+          ${
+            noResults
+              ? html`<div class="no-results">${msg('未找到匹配的命令')}</div>`
+              : filtered.map((cmd, i) => {
+                  const isSelected = i === this._selectedIndex;
+                  return html`
                   <div
                     class=${classMap({
                       'command-item': true,
@@ -313,16 +320,21 @@ export class RtcCommandPanel extends LitElement {
                       <span class="command-label">${cmd.label}</span>
                       <span class="command-desc">${cmd.description}</span>
                     </span>
-                    ${!cmd.available
-                      ? html`<span class="command-badge">${msg('即将推出')}</span>`
-                      : nothing}
+                    ${
+                      !cmd.available
+                        ? html`<span class="command-badge">${msg('即将推出')}</span>`
+                        : nothing
+                    }
                   </div>
                 `;
-              })}
+                })
+          }
         </div>
-        ${this._feedbackMessage
-          ? html`<div class="feedback-bar">${this._feedbackMessage}</div>`
-          : nothing}
+        ${
+          this._feedbackMessage
+            ? html`<div class="feedback-bar">${this._feedbackMessage}</div>`
+            : nothing
+        }
       </div>
     `;
   }

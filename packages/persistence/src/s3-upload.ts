@@ -28,9 +28,9 @@
  */
 
 import { S3Client } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
 import type { UploadPartRecord } from './database.js';
 import type { UploadProgressRepository } from './upload-progress-repository.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('S3Upload');
 
@@ -77,7 +77,7 @@ export async function uploadMultipart(
   const existing = await progressRepo.get(md5, ext);
 
   let uploadId: string = '';
-  let completedParts: UploadPartRecord[] = [];
+  const completedParts: UploadPartRecord[] = [];
   let bytesUploaded = 0;
   const partSize = DEFAULT_PART_SIZE;
   let totalParts = 0;

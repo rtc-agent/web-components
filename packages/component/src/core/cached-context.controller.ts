@@ -98,7 +98,10 @@ export abstract class CachedContextController<
    */
   get value(): { state: S; actions: A } {
     // Only create new value object if state meaningfully changed
-    if (this._cachedValue && this._shallowEqual(this._cachedState, this._state)) {
+    if (
+      this._cachedValue &&
+      this._shallowEqual(this._cachedState, this._state)
+    ) {
       return this._cachedValue;
     }
     this._cachedState = this._state;
@@ -127,8 +130,9 @@ export abstract class CachedContextController<
 
     for (const key of keysA) {
       if (
-        !Object.prototype.hasOwnProperty.call(b, key) ||
-        (a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]
+        !Object.hasOwn(b, key) ||
+        (a as Record<string, unknown>)[key] !==
+          (b as Record<string, unknown>)[key]
       ) {
         return false;
       }

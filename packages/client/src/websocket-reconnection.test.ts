@@ -5,7 +5,7 @@
  * covering exponential backoff, max retry limits, state transitions,
  * and cleanup logic.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RTCAgentClient } from './client.js';
 import type { RTCAgentClientOptions } from './types.js';
 

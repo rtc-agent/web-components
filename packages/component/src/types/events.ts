@@ -39,9 +39,9 @@ export interface RtcAgentEventDetailMap {
   // ── Lifecycle ──
 
   /** Component first render complete; safe to set agentConfig / registry */
-  'rtc-agent-ready': void;
+  'rtc-agent-ready': undefined;
   /** Component is about to be removed from DOM (fires before disconnectedCallback cleanup) */
-  'rtc-before-destroy': void;
+  'rtc-before-destroy': undefined;
   /** Theme changed (triggered by attribute change or 'system' following system preference) */
   'rtc-theme-change': { theme: 'light' | 'dark' | 'system' };
 
@@ -55,17 +55,17 @@ export interface RtcAgentEventDetailMap {
   // ── Connection & Auth ──
 
   /** User clicks the retry button */
-  'rtc-connection-retry': void;
+  'rtc-connection-retry': undefined;
   /** Connection state transitions (disconnected → connecting → connected, etc.) */
   'rtc-connection-state-change': { state: ConnectionState; reason?: string };
   /** User requests login (login dialog submitted) */
-  'rtc-auth-login-requested': void;
+  'rtc-auth-login-requested': undefined;
   /** Login successful (covers initial load, token refresh, manual login, external token set) */
   'rtc-auth-login': { userId: string };
   /** Auth token refresh failed */
-  'rtc-auth-refresh-failed': void;
+  'rtc-auth-refresh-failed': undefined;
   /** User logs out */
-  'rtc-auth-logout': void;
+  'rtc-auth-logout': undefined;
   /** User's account has been banned (disconnect code 4501) */
   'rtc-account-banned': { reason?: string };
 
@@ -101,7 +101,7 @@ export interface RtcAgentEventDetailMap {
   /** User selected a command from the command panel */
   'rtc-command-selected': { command: string; args?: string };
   /** Command panel requested to close */
-  'rtc-command-panel-close': void;
+  'rtc-command-panel-close': undefined;
 
   // ── UI: Ask user dialog ──
 

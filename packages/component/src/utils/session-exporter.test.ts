@@ -1,13 +1,13 @@
 // web-components/packages/component/src/utils/session-exporter.test.ts
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { Message, Session } from '../types/index.js';
 import {
   generateFilename,
-  shouldExpand,
-  renderMessageContent,
-  getPreviewText,
   generateSessionHTML,
+  getPreviewText,
+  renderMessageContent,
+  shouldExpand,
 } from './session-exporter.js';
-import type { Session, Message } from '../types/index.js';
 
 describe('session-exporter', () => {
   describe('generateFilename', () => {

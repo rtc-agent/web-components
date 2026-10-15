@@ -21,54 +21,55 @@
  * @csspart send-btn - The send button
  * @csspart voice-btn - The voice input button
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
+import { html, LitElement } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { FloatingPanelController } from '../../utils/floating-panel-controller.js';
-import { styles } from './rtc-input-area.styles.js';
+  FileStorageContext,
+  type FileStorageContextValue,
+} from '../../contexts/file-storage.js';
+import {
+  MessageContext,
+  type MessageContextValue,
+} from '../../contexts/message.js';
 import { ModeContext, type ModeContextValue } from '../../contexts/mode.js';
 import {
   SessionContext,
   type SessionContextValue,
 } from '../../contexts/session.js';
 import {
-  TurnCountContext,
-  type TurnCountContextValue,
-} from '../../contexts/turn-count.js';
-import {
-  MessageContext,
-  type MessageContextValue,
-} from '../../contexts/message.js';
-import { validateMessageContext } from '../../utils/context-validation.js';
-import {
   SettingsContext,
   type SettingsContextValue,
 } from '../../contexts/settings.js';
 import {
-  FileStorageContext,
-  type FileStorageContextValue,
-} from '../../contexts/file-storage.js';
+  TurnCountContext,
+  type TurnCountContextValue,
+} from '../../contexts/turn-count.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import {
   attachIcon,
-  toolIcon,
+  checklistIcon,
+  micIcon,
   sendIcon,
   stopIcon,
-  micIcon,
-  checklistIcon,
+  toolIcon,
 } from '../../icons/index.js';
-import { parseCommand } from '../../utils/command-parser.js';
 import type {
-  ScenarioRef,
   ContentData,
   FileAttachment,
+  ScenarioRef,
 } from '../../types/index.js';
+import { parseCommand } from '../../utils/command-parser.js';
+import { validateMessageContext } from '../../utils/context-validation.js';
+import { FloatingPanelController } from '../../utils/floating-panel-controller.js';
+import { styles } from './rtc-input-area.styles.js';
 import '../overlay/rtc-mode-panel.js';
 import '../overlay/rtc-command-panel.js';
 import '../overlay/rtc-scenario-panel.js';
@@ -302,12 +303,16 @@ export class RtcInputArea extends LitElement {
     }
 
     // Extract token-related fields
-    this._tokenEstimatedNext = session.tokenEstimation?.estimatedNextRoundTokens ?? 0;
+    this._tokenEstimatedNext =
+      session.tokenEstimation?.estimatedNextRoundTokens ?? 0;
     this._tokenTotalTokens = session.tokenUsage?.totalTokens ?? 0;
     this._tokenTotalCostUsd = session.tokenUsage?.totalCostUsd ?? 0;
-    this._tokenCompressionThreshold = session.tokenEstimation?.compressionThreshold ?? 0;
-    this._tokenCompressionProgress = session.tokenEstimation?.compressionProgress ?? 0;
-    this._tokenRoundsUntilCompression = session.tokenEstimation?.roundsUntilCompression ?? -1;
+    this._tokenCompressionThreshold =
+      session.tokenEstimation?.compressionThreshold ?? 0;
+    this._tokenCompressionProgress =
+      session.tokenEstimation?.compressionProgress ?? 0;
+    this._tokenRoundsUntilCompression =
+      session.tokenEstimation?.roundsUntilCompression ?? -1;
 
     // Build details object
     if (
@@ -1141,7 +1146,9 @@ export class RtcInputArea extends LitElement {
     // Catches type mismatches early (e.g., if provider sends malformed data).
     // Only validate in dev mode to avoid production overhead.
     if (!validateMessageContext(this._messageCtx)) {
-      log.warn('MessageContext validation failed, input may not function correctly');
+      log.warn(
+        'MessageContext validation failed, input may not function correctly',
+      );
       // Don't block rendering - just log the warning
     }
 

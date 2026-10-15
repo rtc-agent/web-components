@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import type { ContentData } from '@rtc-agent/protocol';
+import { describe, expect, it } from 'vitest';
+import { getLocale } from '../core/i18n.js';
 import {
-  formatTimestampCompact,
   extractTextContent,
   formatCurrency,
+  formatTimestampCompact,
 } from './format.js';
-import type { ContentData } from '@rtc-agent/protocol';
-import { getLocale } from '../core/i18n.js';
 
 describe('formatTimestampCompact', () => {
   // ── Falsy inputs ──

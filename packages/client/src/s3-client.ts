@@ -10,25 +10,27 @@
  * (with progress tracking and abort support) is tightly coupled to the credential
  * refresh mechanism. Splitting would scatter the S3 protocol flow across files.
  *
- * ⚠️ 安全提示（2026-10-13）：
+ * ⚠️ 安全提示（2026-10-14 P1 修复后更新）：
  * 1. 客户端扩展名校验为纵深防御措施，后端必须独立验证文件扩展名、Content-Type 和 Magic Number
  * 2. 临时凭证缓存在内存中，建议后端配置较短的有效期（15 分钟）
  * 3. 凭证通过 SharedWorker 共享，增加暴露面，建议实施凭证使用审计
  * 4. 所有安全相关的客户端校验均可被绕过，后端验证是关键
+ * 5. **[P1 新增]** 文件大小限制：100MB 上限（客户端校验，后端必须独立验证）
+ * 6. **[P1 新增]** Content-Type 一致性检查：检测扩展名与 MIME type 不匹配（警告日志）
  */
 
 import {
+  AbortMultipartUploadCommand,
   S3Client as AWSS3Client,
-  PutObjectCommand,
-  GetObjectCommand,
+  CompleteMultipartUploadCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsCommand,
-  CreateMultipartUploadCommand,
-  UploadPartCommand,
-  CompleteMultipartUploadCommand,
-  AbortMultipartUploadCommand,
   ListPartsCommand,
+  PutObjectCommand,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import type { TemporaryCredentialsResponse } from '@rtc-agent/protocol';
@@ -46,6 +48,127 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 /**
+ * MIME type to file extension mapping (common types).
+ *
+ * SECURITY: Used for Content-Type consistency validation to detect mismatches
+ * between declared file extension and actual content type.
+ * This is a defense-in-depth measure; the backend MUST independently validate.
+ */
+const EXTENSION_TO_MIME: Readonly<Record<string, string>> = {
+  // Images
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  tiff: 'image/tiff',
+  tif: 'image/tiff',
+  // Documents
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // Text / Data
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+  xml: 'application/xml',
+  yaml: 'application/x-yaml',
+  yml: 'application/x-yaml',
+  md: 'text/markdown',
+  rtf: 'application/rtf',
+  // Archives
+  zip: 'application/zip',
+  gz: 'application/gzip',
+  tar: 'application/x-tar',
+  bz2: 'application/x-bzip2',
+  '7z': 'application/x-7z-compressed',
+  rar: 'application/vnd.rar',
+  // Media
+  mp3: 'audio/mpeg',
+  mp4: 'video/mp4',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  webm: 'video/webm',
+  avi: 'video/x-msvideo',
+  mov: 'video/quicktime',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
+  m4a: 'audio/mp4',
+  // Code (treated as text/plain)
+  py: 'text/x-python',
+  go: 'text/x-go',
+  java: 'text/x-java-source',
+  c: 'text/x-c',
+  cpp: 'text/x-c++',
+  h: 'text/x-c',
+  rs: 'text/x-rust',
+  rb: 'text/x-ruby',
+  sql: 'text/x-sql',
+  // Misc
+  bin: 'application/octet-stream',
+  dat: 'application/octet-stream',
+  wasm: 'application/wasm',
+};
+
+/**
+ * Infer MIME type from file extension.
+ *
+ * @param ext - File extension (without dot, lowercase)
+ * @returns Inferred MIME type, or 'application/octet-stream' if unknown
+ */
+function inferMimeType(ext: string): string {
+  return EXTENSION_TO_MIME[ext.toLowerCase()] || 'application/octet-stream';
+}
+
+/**
+ * Check if two MIME types are compatible.
+ *
+ * Handles cases where:
+ * - Exact match (image/png === image/png)
+ * - Generic type match (text/plain matches text/x-python)
+ * - Octet-stream is always compatible (fallback type)
+ *
+ * @param mime1 - First MIME type
+ * @param mime2 - Second MIME type
+ * @returns true if compatible
+ */
+function areMimeTypesCompatible(mime1: string, mime2: string): boolean {
+  // Exact match
+  if (mime1 === mime2) return true;
+
+  // Octet-stream is always compatible (it's a fallback)
+  if (
+    mime1 === 'application/octet-stream' ||
+    mime2 === 'application/octet-stream'
+  ) {
+    return true;
+  }
+
+  // Same top-level type (e.g., both are text/* or both are image/*)
+  const type1 = mime1.split('/')[0];
+  const type2 = mime2.split('/')[0];
+  if (type1 === type2) return true;
+
+  // Special case: JSON is often served as text/plain or application/text
+  if (
+    (mime1 === 'application/json' &&
+      (mime2 === 'text/plain' || mime2 === 'application/text')) ||
+    (mime2 === 'application/json' &&
+      (mime1 === 'text/plain' || mime1 === 'application/text'))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Default safe file extensions allowed for upload.
  *
  * SECURITY: Defense-in-depth measure to prevent uploading executable content types
@@ -57,21 +180,76 @@ const CREDENTIAL_REFRESH_MARGIN_MS = 5 * 60 * 1000;
  * (empty array) throws an Error — validation cannot be disabled.
  */
 const DEFAULT_SAFE_EXTENSIONS: ReadonlySet<string> = new Set([
-  // Images
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff', 'tif',
+  // Images (non-executable raster formats only)
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'bmp',
+  'ico',
+  'tiff',
+  'tif',
   // Documents
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'odt',
+  'ods',
+  'odp',
   // Text / Data
-  'txt', 'csv', 'json', 'xml', 'yaml', 'yml', 'md', 'rtf',
+  'txt',
+  'csv',
+  'json',
+  'xml',
+  'yaml',
+  'yml',
+  'md',
+  'rtf',
   // Archives
-  'zip', 'gz', 'tar', 'bz2', '7z', 'rar',
+  'zip',
+  'gz',
+  'tar',
+  'bz2',
+  '7z',
+  'rar',
   // Media
-  'mp3', 'mp4', 'wav', 'ogg', 'webm', 'avi', 'mov', 'flac', 'aac', 'm4a',
-  // Code / Config (common for AI agent file exchanges)
-  'py', 'js', 'ts', 'go', 'java', 'c', 'cpp', 'h', 'rs', 'rb', 'sh', 'sql',
-  'html', 'css', 'tsx', 'jsx', 'vue', 'svelte',
+  'mp3',
+  'mp4',
+  'wav',
+  'ogg',
+  'webm',
+  'avi',
+  'mov',
+  'flac',
+  'aac',
+  'm4a',
+  // Code / Data (non-executable data formats for AI agent file exchanges)
+  'py',
+  'go',
+  'java',
+  'c',
+  'cpp',
+  'h',
+  'rs',
+  'rb',
+  'sql',
   // Misc
-  'bin', 'dat', 'wasm',
+  'bin',
+  'dat',
+  'wasm',
+  // SECURITY (2026-10-14 P0 fix): Executable/script types deliberately EXCLUDED:
+  // - html, js, ts, jsx, tsx, vue, svelte — can execute arbitrary scripts in browser
+  // - css — can exfiltrate data via @import / url()
+  // - svg — can embed <script> tags, execute JS when rendered
+  // - sh, bash — shell scripts, executable on server-side
+  // - exe, dll, msi, app — native executables
+  // If callers need these types, they must provide an explicit allowedExtensions
+  // list AND ensure the backend validates Content-Type + Magic Number independently.
 ]);
 
 /**
@@ -162,7 +340,10 @@ export interface UploadedPart {
  * - 详见文件顶部安全提示和 credentials 字段注释
  */
 export class S3Client {
-  private readonly options: Omit<Required<S3ClientOptions>, 'getToken' | 'allowedExtensions'> & {
+  private readonly options: Omit<
+    Required<S3ClientOptions>,
+    'getToken' | 'allowedExtensions'
+  > & {
     getToken: () => string | Promise<string>;
   };
 
@@ -265,6 +446,26 @@ export class S3Client {
       );
     }
 
+    // P1 修复 (2026-10-14): Content-Type consistency validation
+    // Check if the provided/declared Content-Type matches the file extension.
+    // This is a defense-in-depth measure; the backend MUST independently validate.
+    const resolvedContentType =
+      options?.contentType ?? (file instanceof File ? file.type : undefined);
+
+    if (resolvedContentType && ext) {
+      const inferredType = inferMimeType(ext);
+      if (!areMimeTypesCompatible(resolvedContentType, inferredType)) {
+        // P1 修复：Content-Type 不匹配时发出警告日志
+        // 不阻止上传（可能是合理的特殊情况），但记录用于审计
+        log.warn(
+          `Content-Type mismatch detected: ` +
+            `extension '${ext}' suggests '${inferredType}', ` +
+            `but declared type is '${resolvedContentType}'. ` +
+            `This may indicate a file type mismatch or misconfiguration.`,
+        );
+      }
+    }
+
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
 
@@ -282,9 +483,7 @@ export class S3Client {
           Bucket: this.options.bucket,
           Key: key,
           Body: new Uint8Array(await file.arrayBuffer()),
-          ContentType:
-            options?.contentType ??
-            (file instanceof File ? file.type : undefined),
+          ContentType: resolvedContentType,
         }),
         { abortSignal: options?.signal },
       );
@@ -310,9 +509,7 @@ export class S3Client {
             Bucket: this.options.bucket,
             Key: key,
             Body: file instanceof File ? file.stream() : file,
-            ContentType:
-              options?.contentType ??
-              (file instanceof File ? file.type : undefined),
+            ContentType: resolvedContentType,
           },
           queueSize: 4,
           partSize: 5 * 1024 * 1024, // 5MB per part (S3 minimum)
@@ -321,7 +518,7 @@ export class S3Client {
 
         if (options?.onProgress) {
           upload.on('httpUploadProgress', (progress) => {
-            options.onProgress!(
+            options.onProgress?.(
               progress.loaded ?? 0,
               progress.total ?? file.size,
             );
@@ -820,7 +1017,12 @@ export class S3Client {
   private buildKey(userId: string, md5Hash: string, ext: string): string {
     // Validate userId (UUID format: 8-4-4-4-12 hex digits, e.g., "550e8400-e29b-41d4-a716-446655440000")
     // RFC 4122 compliant UUID pattern
-    if (!userId || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(userId)) {
+    if (
+      !userId ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        userId,
+      )
+    ) {
       throw new Error(
         `Invalid userId: must be a valid UUID format (8-4-4-4-12 hex digits, e.g., "550e8400-e29b-41d4-a716-446655440000")`,
       );
@@ -841,19 +1043,23 @@ export class S3Client {
     }
 
     // SECURITY: Validate extension against allowedExtensions allowlist.
-    // Defense-in-depth: prevents uploading executable content types (.html, .js, etc.)
-    // that could be served back and executed in a browser context.
     //
-    // IMPORTANT: This client-side validation is defense-in-depth only.
-    // The backend MUST independently validate the extension before accepting uploads.
-    // Never trust client-side validation alone — attackers can bypass it by:
+    // ⚠️ 此校验仅为 UX 优化（Defense-in-Depth），后端必须独立验证：
+    //   1. 扩展名白名单（与本客户端独立维护，不信任前端传入值）
+    //   2. Content-Type 与扩展名一致性检查
+    //   3. 文件 Magic Number 校验（高风险场景）
+    //
+    // Never rely on client-side checks alone — attackers can bypass them by:
     // 1. Calling the backend API directly (bypassing this client)
     // 2. Modifying the client code (if open-source or reverse-engineered)
     // 3. Using tools like curl or Postman to send arbitrary requests
     //
     // Backend validation ensures security even if all client-side checks are bypassed.
     const extLower = ext.toLowerCase();
-    if (this.allowedExtensions.size > 0 && !this.allowedExtensions.has(extLower)) {
+    if (
+      this.allowedExtensions.size > 0 &&
+      !this.allowedExtensions.has(extLower)
+    ) {
       throw new Error(
         `Invalid extension: '${ext}' is not in the allowed extensions list`,
       );
@@ -978,7 +1184,9 @@ export class S3Client {
         const maxValidityMs = 24 * 60 * 60 * 1000; // 24 hours
         const validityMs = expiresAt.getTime() - Date.now();
         if (validityMs <= 0) {
-          throw new Error('Credential refresh failed: credentials already expired');
+          throw new Error(
+            'Credential refresh failed: credentials already expired',
+          );
         }
         // Warn if credentials have an unusually short remaining validity (< 5 minutes).
         // This helps detect clock skew or backend misconfiguration before the credentials
@@ -987,7 +1195,7 @@ export class S3Client {
         if (validityMs < minValidityMs) {
           log.warn(
             `Credentials will expire in ${Math.round(validityMs / 1000)}s ` +
-            `(< ${minValidityMs / 1000}s minimum). Consider refreshing.`,
+              `(< ${minValidityMs / 1000}s minimum). Consider refreshing.`,
           );
         }
         if (validityMs > maxValidityMs) {
@@ -1026,7 +1234,7 @@ export class S3Client {
         // connectivity issues, not permanent failures.
         if (attempt < maxRetries) {
           const retryDelay =
-            S3Client.CREDENTIAL_REFRESH_RETRY_DELAY_MS * Math.pow(2, attempt);
+            S3Client.CREDENTIAL_REFRESH_RETRY_DELAY_MS * 2 ** attempt;
           log.debug(
             `credential refresh network error, retrying in ${retryDelay}ms`,
             err instanceof Error ? err.message : String(err),

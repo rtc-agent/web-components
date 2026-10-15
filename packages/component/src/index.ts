@@ -8,18 +8,7 @@ export { RtcAgent } from './components/rtc-agent/rtc-agent.js';
 
 // ===== Host Integration (Recommended Entry Points) =====
 
-/**
- * Wait for the component module to load and initialize (ES module-style ready signal)
- *
- * @example
- * ```ts
- * import { whenReady } from '@rtc-agent/component';
- * await whenReady();
- * const agent = document.querySelector<RtcAgent>('#agent')!;
- * agent.agentConfig = { persona: '...', functions: [...] };
- * ```
- */
-export { whenReady } from './core/ready.js';
+export type { LocaleContextValue, SupportedLocale } from './core/i18n.js';
 
 /**
  * Internationalization API -- switch language at runtime
@@ -32,17 +21,28 @@ export { whenReady } from './core/ready.js';
  * ```
  */
 export {
-  switchLocale,
-  initLocale,
   getLocale,
+  initLocale,
+  isValidLocale,
+  localeContext,
   persistLocale,
   sourceLocale,
+  switchLocale,
   targetLocales,
-  localeContext,
-  isValidLocale,
 } from './core/i18n.js';
-export type { SupportedLocale, LocaleContextValue } from './core/i18n.js';
-
+/**
+ * Wait for the component module to load and initialize (ES module-style ready signal)
+ *
+ * @example
+ * ```ts
+ * import { whenReady } from '@rtc-agent/component';
+ * await whenReady();
+ * const agent = document.querySelector<RtcAgent>('#agent')!;
+ * agent.agentConfig = { persona: '...', functions: [...] };
+ * ```
+ */
+export { whenReady } from './core/ready.js';
+export type { Theme } from './core/theme.js';
 /**
  * Theme API -- switch theme at runtime
  *
@@ -54,13 +54,12 @@ export type { SupportedLocale, LocaleContextValue } from './core/i18n.js';
  * ```
  */
 export {
-  switchTheme,
-  initTheme,
   getEffectiveTheme,
   getStoredTheme,
+  initTheme,
   persistTheme,
+  switchTheme,
 } from './core/theme.js';
-export type { Theme } from './core/theme.js';
 
 /**
  * Agent declarative configuration types
@@ -87,6 +86,12 @@ export type { RtcAgentEventDetailMap } from './types/events.js';
 import './elements.js';
 
 /**
+ * ConnectionState type
+ *
+ * Used by the `connectionStateChange` callback in EventCallbacks.
+ */
+export type { ConnectionState } from '@rtc-agent/client';
+/**
  * Factory function -- declaratively create an <rtc-agent> instance
  *
  * @example
@@ -102,124 +107,110 @@ import './elements.js';
  */
 export { createRtcAgent } from './factory.js';
 export type {
-  RtcAgentConfig,
-  RtcAgentWithLifecycle,
-  AuthConfig,
-  AuthProvider,
-  EventCallbacks,
-} from './types/factory.js';
-
-/**
- * Session and Message types
- *
- * Needed for EventCallbacks — consumers use these to type callback parameters.
- */
-export type { Session, Message } from './types/index.js';
-
-/**
- * ConnectionState type
- *
- * Used by the `connectionStateChange` callback in EventCallbacks.
- */
-export type { ConnectionState } from '@rtc-agent/client';
-
-/**
- * Window and ActivityBar configuration types
- *
- * Used by `RtcAgentConfig.window` and `RtcAgentConfig.activityBar`.
- */
-export type { WindowConfig } from './types/window-config.js';
-export type {
-  ActivityBarConfig,
   Activity,
+  ActivityBarConfig,
   ResolvedActivityBarConfig,
 } from './types/activity-bar-config.js';
 export {
   DEFAULT_ACTIVITY_BAR_CONFIG,
   resolveActivityBarConfig,
 } from './types/activity-bar-config.js';
+export type {
+  AuthConfig,
+  AuthProvider,
+  EventCallbacks,
+  RtcAgentConfig,
+  RtcAgentWithLifecycle,
+} from './types/factory.js';
+/**
+ * Session and Message types
+ *
+ * Needed for EventCallbacks — consumers use these to type callback parameters.
+ */
+export type { Message, Session } from './types/index.js';
+/**
+ * Window and ActivityBar configuration types
+ *
+ * Used by `RtcAgentConfig.window` and `RtcAgentConfig.activityBar`.
+ */
+export type { WindowConfig } from './types/window-config.js';
 
 // ===== Skill System (Advanced API) =====
 
-export {
-  defineRegistry,
-  FunctionRegistry,
-  FunctionGroup,
-} from './core/function-registry.js';
-export {
-  loadScenariosFromURL,
-  loadScenariosContent,
-  parseFrontmatter,
-} from './core/scenario-loader.js';
-export {
-  generateFunctionMd,
-  generateFunctionsIndex,
-  generateScenariosIndex,
-  generateAgentMd,
-} from './core/markdown-generator.js';
-export { EventBus, eventBus, createEventBus } from './core/event-bus.js';
-export type {
-  EventHandler,
-  DefaultEventMap,
-  FunctionRegistryEventMap,
-} from './core/event-bus.js';
-export { SkillController } from './controllers/skill.controller.js';
+export type { SkillContextValue } from './contexts/skill.js';
+export { DEFAULT_SKILL_STATE, SkillContext } from './contexts/skill.js';
 export type {
   SkillActions,
   SkillControllerConfig,
 } from './controllers/skill.controller.js';
-export { SkillContext, DEFAULT_SKILL_STATE } from './contexts/skill.js';
-export type { SkillContextValue } from './contexts/skill.js';
-
+export { SkillController } from './controllers/skill.controller.js';
+// Event Types
+export type {
+  DefaultEventMap,
+  EventHandler,
+  FunctionErrorEvent,
+  FunctionProgressEvent,
+  FunctionRegistryEventMap,
+  FunctionStartEvent,
+  FunctionSuccessEvent,
+} from './core/event-bus.js';
+export { createEventBus, EventBus, eventBus } from './core/event-bus.js';
+export {
+  defineRegistry,
+  FunctionGroup,
+  FunctionRegistry,
+} from './core/function-registry.js';
+export {
+  generateAgentMd,
+  generateFunctionMd,
+  generateFunctionsIndex,
+  generateScenariosIndex,
+} from './core/markdown-generator.js';
+export {
+  loadScenariosContent,
+  loadScenariosFromURL,
+  parseFrontmatter,
+} from './core/scenario-loader.js';
 // Skill Types
 export type {
-  OpenAPISchema,
-  ParameterDef,
-  ReturnDef,
-  VisualHooks,
   FunctionDef,
   FunctionGroupDef,
+  OpenAPISchema,
+  ParameterDef,
   RegistryConfig,
+  ReturnDef,
   ScenarioDef,
   ScenarioManifest,
+  VisualHooks,
 } from './types/skill.js';
-
 // Skill Classes
 export { CancelledError } from './types/skill.js';
 
-// Event Types
-export type {
-  FunctionStartEvent,
-  FunctionSuccessEvent,
-  FunctionErrorEvent,
-  FunctionProgressEvent,
-} from './core/event-bus.js';
-
 // ===== Validation (Zod Integration) =====
 
-export {
-  z,
-  validateParams,
-  formatValidationError,
-  buildValidator,
-  withValidation,
-  zodToParams,
-  zodToOpenAPISchema,
-  openApiToZod,
-  withMeta,
-} from './validation/index.js';
 export type {
   ValidationError,
   ValidationResult,
+} from './validation/index.js';
+export {
+  buildValidator,
+  formatValidationError,
+  openApiToZod,
+  validateParams,
+  withMeta,
+  withValidation,
+  z,
+  zodToOpenAPISchema,
+  zodToParams,
 } from './validation/index.js';
 
 // ===== Function Debugger Types =====
 
 export type {
-  LogLevel,
-  LogEntry,
-  ExecutionStatus,
   DebugHistoryItem,
+  ExecutionStatus,
   FunctionDebugState,
   HistoryPaginationState,
+  LogEntry,
+  LogLevel,
 } from './types/functions-debug.js';

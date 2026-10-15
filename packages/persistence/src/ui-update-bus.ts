@@ -1,9 +1,9 @@
-import type { UpdateEntity, UpdateAction } from '@rtc-agent/protocol';
+import type { UpdateAction, UpdateEntity } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/protocol';
 import {
   getDatabase,
-  type UIUpdateQueueInput,
   type UIUpdateQueueEntry,
+  type UIUpdateQueueInput,
 } from './database.js';
 
 const log = createLogger('UIUpdateBus');
@@ -246,7 +246,9 @@ export class UIUpdateBus {
       log.warn(`endBatch(${id}): not in batch mode, ignoring`);
       return;
     }
-    log.debug(`endBatch(${id}): exiting batch mode, collected ${this._batchEvents.length} events`);
+    log.debug(
+      `endBatch(${id}): exiting batch mode, collected ${this._batchEvents.length} events`,
+    );
     this._batchMode = false;
 
     // Emit bulk update with all collected entities
@@ -344,16 +346,16 @@ export class UIUpdateBus {
         // We log at error level to surface this for immediate investigation.
         log.error(
           `CRITICAL: _processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
-          `Bypassing limit for system-critical event (account banned) to prevent security risk. ` +
-          `This indicates extreme memory pressure — investigate listener performance or event storms. ` +
-          `Event: ${event.entity}:${event.entityId}`,
+            `Bypassing limit for system-critical event (account banned) to prevent security risk. ` +
+            `This indicates extreme memory pressure — investigate listener performance or event storms. ` +
+            `Event: ${event.entity}:${event.entityId}`,
         );
         // Fall through to process the event despite the limit
       } else {
         log.error(
           `_processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
-          `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
-          `This indicates a serious issue: either listeners are too slow, or there's an event storm.`,
+            `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
+            `This indicates a serious issue: either listeners are too slow, or there's an event storm.`,
         );
         return; // Reject the new chain to prevent unbounded growth
       }
@@ -430,7 +432,7 @@ export class UIUpdateBus {
     promise: Promise<T> | void,
     timeoutMs: number,
     contextKey: string,
-  ): Promise<T | void> {
+  ): Promise<T | undefined> {
     if (!promise) return;
 
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
@@ -489,8 +491,8 @@ export class UIUpdateBus {
     }
     set.add(listener);
     return () => {
-      set!.delete(listener);
-      if (set!.size === 0) {
+      set?.delete(listener);
+      if (set?.size === 0) {
         this.entityListeners.delete(entity);
       }
     };

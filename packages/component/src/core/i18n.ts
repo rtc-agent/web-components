@@ -1,13 +1,13 @@
-import { configureLocalization } from '@lit/localize';
 import { createContext } from '@lit/context';
 import type { LocaleModule } from '@lit/localize';
+import { configureLocalization } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { STORAGE_KEYS } from '../config/auth.js';
+import { clearFormatterCaches } from '../utils/format.js';
 import {
   safeLocalStorageGet,
   safeLocalStorageSet,
 } from '../utils/safe-local-storage.js';
-import { clearFormatterCaches } from '../utils/format.js';
-import { createLogger } from '@rtc-agent/protocol';
-import { STORAGE_KEYS } from '../config/auth.js';
 
 const log = createLogger('i18n');
 
@@ -41,7 +41,7 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
         `[i18n] Unknown locale: "${locale}". Available: ${available}. Falling back to source locale: ${sourceLocale}`,
       );
       // Fallback to source locale instead of throwing
-      return localeModules[sourceLocale]!();
+      return localeModules[sourceLocale]?.();
     }
     try {
       return await loader();
@@ -54,7 +54,7 @@ export const { getLocale, setLocale: _setLocale } = configureLocalization({
         `[i18n] Failed to load locale "${locale}": ${err instanceof Error ? err.message : String(err)}. Falling back to source locale: ${sourceLocale}`,
       );
       // Fallback to source locale instead of throwing
-      return localeModules[sourceLocale]!();
+      return localeModules[sourceLocale]?.();
     }
   },
 });

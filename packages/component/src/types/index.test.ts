@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
+  AuthState,
   Message,
-  Session,
   Mode,
+  Session,
   ToolCall,
   WindowState,
-  AuthState,
 } from './index.js';
 
 describe('Type Definitions', () => {

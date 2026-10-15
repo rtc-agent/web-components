@@ -1,11 +1,11 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provideContext } from '../../test-context-helpers.js';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-login-page.js';
-import type { RtcLoginPage } from './rtc-login-page.js';
-import { AuthContext } from '../../contexts/auth.js';
 import type { AuthContextValue } from '../../contexts/auth.js';
+import { AuthContext } from '../../contexts/auth.js';
+import type { RtcLoginPage } from './rtc-login-page.js';
 
 const mockAuthCtx: AuthContextValue = {
   state: { isLoggedIn: false },
@@ -30,8 +30,8 @@ describe('<rtc-login-page>', () => {
       { setup: (host) => provideContext(host, AuthContext, mockAuthCtx) },
     );
     await nextFrame();
-    const name = el.shadowRoot!.querySelector('.app-name');
-    expect(name!.textContent!.trim()).toBe('My App');
+    const name = el.shadowRoot?.querySelector('.app-name');
+    expect(name?.textContent?.trim()).toBe('My App');
   });
 
   it('should default app name to "RTC Agent"', async () => {
@@ -40,8 +40,8 @@ describe('<rtc-login-page>', () => {
       { setup: (host) => provideContext(host, AuthContext, mockAuthCtx) },
     );
     await nextFrame();
-    const name = el.shadowRoot!.querySelector('.app-name');
-    expect(name!.textContent!.trim()).toBe('RTC Agent');
+    const name = el.shadowRoot?.querySelector('.app-name');
+    expect(name?.textContent?.trim()).toBe('RTC Agent');
   });
 
   it('should show provider button when not loading', async () => {
@@ -53,7 +53,7 @@ describe('<rtc-login-page>', () => {
     await el.updateComplete;
     await nextFrame();
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.provider-btn');
+    const btn = el.shadowRoot?.querySelector('.provider-btn');
     expect(btn).not.toBeNull();
   });
 
@@ -63,9 +63,9 @@ describe('<rtc-login-page>', () => {
       { setup: (host) => provideContext(host, AuthContext, mockAuthCtx) },
     );
     await nextFrame();
-    const loading = el.shadowRoot!.querySelector('.loading-text');
+    const loading = el.shadowRoot?.querySelector('.loading-text');
     expect(loading).not.toBeNull();
-    expect(loading!.textContent).toContain('授权中');
+    expect(loading?.textContent).toContain('授权中');
   });
 
   it('should show error message when error provided', async () => {
@@ -74,9 +74,9 @@ describe('<rtc-login-page>', () => {
       { setup: (host) => provideContext(host, AuthContext, mockAuthCtx) },
     );
     await nextFrame();
-    const err = el.shadowRoot!.querySelector('.error-text');
+    const err = el.shadowRoot?.querySelector('.error-text');
     expect(err).not.toBeNull();
-    expect(err!.textContent).toContain('Auth failed');
+    expect(err?.textContent).toContain('Auth failed');
   });
 
   it('should dispatch rtc-auth-login-requested on provider button click', async () => {
@@ -91,7 +91,7 @@ describe('<rtc-login-page>', () => {
     const handler = vi.fn();
     el.addEventListener('rtc-auth-login-requested', handler);
     // Find the button with "Mock" text (provider order may vary)
-    const buttons = el.shadowRoot!.querySelectorAll('.provider-btn');
+    const buttons = el.shadowRoot?.querySelectorAll('.provider-btn');
     let mockBtn: HTMLElement | null = null;
     for (const btn of buttons) {
       if (btn.textContent?.includes('Mock')) {
@@ -111,7 +111,7 @@ describe('<rtc-login-page>', () => {
       { setup: (host) => provideContext(host, AuthContext, mockAuthCtx) },
     );
     await nextFrame();
-    const logo = el.shadowRoot!.querySelector('.logo');
+    const logo = el.shadowRoot?.querySelector('.logo');
     expect(logo).not.toBeNull();
   });
 });

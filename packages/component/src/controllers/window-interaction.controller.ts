@@ -25,11 +25,12 @@
  * controller.actions.enable();
  * ```
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import interact from 'interactjs';
-import type { InteractEvent } from '@interactjs/core/InteractEvent';
+
 import type { ResizeEvent } from '@interactjs/actions/resize/plugin';
+import type { InteractEvent } from '@interactjs/core/InteractEvent';
 import { createLogger } from '@rtc-agent/protocol';
+import interact from 'interactjs';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
 
 const log = createLogger('WindowInteractionController');
 
@@ -414,8 +415,8 @@ export class WindowInteractionController implements ReactiveController {
     this._ghostDragOffset.y += event.dy;
 
     // Compute constrained offset
-    let offsetX = this._ghostDragOffset.x;
-    let offsetY = this._ghostDragOffset.y;
+    const offsetX = this._ghostDragOffset.x;
+    const offsetY = this._ghostDragOffset.y;
 
     const { left, top, width, height } = this._ghostStartRect;
     const newLeft = left + offsetX;
@@ -558,16 +559,17 @@ export class WindowInteractionController implements ReactiveController {
     if (!this._windowElement) return 20;
     const styles = getComputedStyle(this._windowElement);
     const value = styles.getPropertyValue('--rtc-window-margin');
-    return parseInt(value) || 20;
+    return parseInt(value, 10) || 20;
   }
 
   private _getMinSize(): { width: number; height: number } {
     if (!this._windowElement) return { width: 350, height: 520 };
     const styles = getComputedStyle(this._windowElement);
     return {
-      width: parseInt(styles.getPropertyValue('--rtc-window-min-width')) || 350,
+      width:
+        parseInt(styles.getPropertyValue('--rtc-window-min-width'), 10) || 350,
       height:
-        parseInt(styles.getPropertyValue('--rtc-window-min-height')) || 520,
+        parseInt(styles.getPropertyValue('--rtc-window-min-height'), 10) || 520,
     };
   }
 

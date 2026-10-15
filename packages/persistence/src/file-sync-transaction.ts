@@ -1,13 +1,16 @@
 // FileSyncTransaction — Atomic file sync state transitions
 
-import {
-  FileCacheRepository,
-  type CachedFileInfo,
-  type FileSyncStatus,
-} from './file-cache-repository.js';
-import { FileOpCoordinator } from './file-op-coordinator.js';
-import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type {
+  CachedFileInfo,
+  FileCacheRepository,
+  FileSyncStatus,
+} from './file-cache-repository.js';
+import type { FileOpCoordinator } from './file-op-coordinator.js';
+import {
+  LifecycleClosedError,
+  type LifecycleGuard,
+} from './lifecycle-guard.js';
 
 const log = createLogger('FileSyncTransaction');
 

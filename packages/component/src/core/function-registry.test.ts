@@ -1,18 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FunctionRegistry, FunctionGroup } from './function-registry.js';
-import { CancelledError } from '../types/skill.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FunctionDef, RegistryConfig } from '../types/skill.js';
+import { CancelledError } from '../types/skill.js';
+import { FunctionGroup, FunctionRegistry } from './function-registry.js';
 
-// Mock virtualFS
-vi.mock('@rtc-agent/persistence', () => ({
-  virtualFS: {
-    write: vi.fn().mockResolvedValue(undefined),
-    remove: vi.fn().mockResolvedValue(undefined),
-    read: vi.fn().mockResolvedValue(''),
-    queryByType: vi.fn().mockResolvedValue([]),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+// Mock virtualFS using shared factory (dynamic import to handle vi.mock hoisting)
+vi.mock('@rtc-agent/persistence', async () => {
+  const { createMinimalMockPersistenceModule } = await import(
+    '../test-helpers.js'
+  );
+  return createMinimalMockPersistenceModule();
+});
 
 describe('FunctionRegistry', () => {
   let registry: FunctionRegistry;

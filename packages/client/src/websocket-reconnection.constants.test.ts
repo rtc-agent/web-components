@@ -8,7 +8,7 @@
  * Note: These are unit tests for constants and type contracts,
  * not integration tests with actual WebSocket connections.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { ConnectionState, TokenExpiredAction } from './types.js';
 
 describe('WebSocket Reconnection Constants', () => {

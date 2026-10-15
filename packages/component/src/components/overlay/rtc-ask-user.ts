@@ -13,20 +13,21 @@
  * @fires rtc-ask-user-dismiss - User cancelled / dismissed
  *   detail: { clientId: string }
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
+import type { LocalRtc } from '@rtc-agent/persistence';
+import { createLogger } from '@rtc-agent/protocol';
+import type { PropertyValues } from 'lit';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import type { PropertyValues } from 'lit';
 import { styles } from './rtc-ask-user.styles.js';
-import type { LocalRtc } from '@rtc-agent/persistence';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('AskUser');
 
@@ -208,7 +209,7 @@ export class RtcAskUser extends LitElement {
       const sel = this._selections[qi] || [];
       const previewOpt = sel
         .map((i) => (i === OTHER_INDEX ? null : q.options[i]))
-        .find((o) => o && o.preview);
+        .find((o) => o?.preview);
       if (previewOpt?.preview) {
         annotations[q.question] = { preview: previewOpt.preview };
       }
@@ -226,7 +227,7 @@ export class RtcAskUser extends LitElement {
       new CustomEvent('rtc-ask-user-submit', {
         bubbles: true,
         composed: true,
-        detail: { clientId: this.rtc!.client_id, payload },
+        detail: { clientId: this.rtc?.client_id, payload },
       }),
     );
   }
@@ -341,7 +342,9 @@ export class RtcAskUser extends LitElement {
 
     if (options.length === 0) return;
 
-    const currentIndex = options.indexOf(target.closest('.option') as HTMLElement);
+    const currentIndex = options.indexOf(
+      target.closest('.option') as HTMLElement,
+    );
     if (currentIndex === -1) return;
 
     let nextIndex: number;

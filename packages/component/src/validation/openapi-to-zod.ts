@@ -4,7 +4,7 @@
  * Converts OpenAPI Schema to Zod schema for backward compatibility with existing OpenAPI Schema registration
  */
 
-import { z, type ZodType } from 'zod';
+import { type ZodType, z } from 'zod';
 import type { OpenAPISchema, ParameterDef } from '../types/skill.js';
 
 /**

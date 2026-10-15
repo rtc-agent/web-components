@@ -21,15 +21,16 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-input-area>`
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type {
-  TurnCountContextValue,
-  TurnCountState,
-  TurnCountActions,
-} from '../contexts/turn-count.js';
-import { DEFAULT_TURN_COUNT_STATE } from '../contexts/turn-count.js';
+
 import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type {
+  TurnCountActions,
+  TurnCountContextValue,
+  TurnCountState,
+} from '../contexts/turn-count.js';
+import { DEFAULT_TURN_COUNT_STATE } from '../contexts/turn-count.js';
 
 const log = createLogger('TurnCountController');
 

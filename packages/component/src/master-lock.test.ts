@@ -8,23 +8,19 @@
  * - release() branches: "queueing" vs "already held"
  * - onAcquire/onRelease callback timing
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock logger to avoid noise
-vi.mock('@rtc-agent/protocol', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+// Mock logger to avoid noise (dynamic import to handle vi.mock hoisting)
+vi.mock('@rtc-agent/protocol', async () => {
+  const { createMockProtocolModule } = await import('./test-helpers.js');
+  return createMockProtocolModule();
+});
 
 // Dynamic import after mocks
 const { MasterLock } = await import('./master-lock.js');
 
 describe('MasterLock', () => {
-  let originalNavigatorLocks: any;
+  let originalNavigatorLocks: LockManager | undefined;
 
   beforeEach(() => {
     // Save original navigator.locks
@@ -46,14 +42,14 @@ describe('MasterLock', () => {
   const mockLocksRequest = (
     impl?: (
       name: string,
-      options: any,
+      options: LockOptions,
       callback: () => Promise<void>,
     ) => Promise<void>,
   ) => {
     const requestMock = vi.fn(
       async (
         name: string,
-        options: any,
+        options: LockOptions,
         callback: () => Promise<void>,
       ): Promise<void> => {
         if (impl) {
@@ -74,15 +70,19 @@ describe('MasterLock', () => {
   };
 
   const removeLocksAPI = () => {
-    // Delete the property entirely so 'locks' in navigator returns false
+    // Simulate a browser environment without the Web Locks API (e.g., Firefox, Safari).
+    // `navigator.locks` is typed as `LockManager | undefined` in modern lib.dom.d.ts,
+    // but the `delete` operator requires a property access on `any` because TypeScript's
+    // Navigator type declares `locks` as non-optional. The `as any` cast is necessary
+    // to test the fallback code path in MasterLock that handles missing Web Locks.
     Object.defineProperty(navigator, 'locks', {
       value: undefined,
       writable: true,
       configurable: true,
       enumerable: false, // 'in' operator checks existence, not enumerability
     });
-    // Actually delete it
-    delete (navigator as any).locks;
+    // Actually delete it so `'locks' in navigator` returns false
+    delete (navigator as any).locks; // eslint-disable-line @typescript-eslint/no-explicit-any -- intentional: simulating missing API
   };
 
   describe('acquire() — basic behavior', () => {
@@ -167,12 +167,12 @@ describe('MasterLock', () => {
 
   describe('release() — queueing vs held', () => {
     it('aborts the queue when release() is called before lock is acquired', async () => {
-      let capturedCallback: (() => Promise<void>) | undefined;
+      let _capturedCallback: (() => Promise<void>) | undefined;
       let capturedSignal: AbortSignal | undefined;
 
-      const requestMock = mockLocksRequest(
+      const _requestMock = mockLocksRequest(
         async (_name, options, callback) => {
-          capturedCallback = callback;
+          _capturedCallback = callback;
           capturedSignal = options.signal;
           // Simulate lock never acquired (promise never resolves until abort)
           return new Promise<void>((_, reject) => {
@@ -212,11 +212,11 @@ describe('MasterLock', () => {
     });
 
     it('releases the lock when release() is called after acquiring', async () => {
-      let heldCallback: (() => Promise<void>) | undefined;
+      let _heldCallback: (() => Promise<void>) | undefined;
 
-      const requestMock = mockLocksRequest(
+      const _requestMock = mockLocksRequest(
         async (_name, _options, callback) => {
-          heldCallback = callback;
+          _heldCallback = callback;
           // Invoke callback (lock acquired)
           await callback();
         },
@@ -274,10 +274,10 @@ describe('MasterLock', () => {
     });
 
     it('onRelease is called when lock is actively released', async () => {
-      let heldCallback: (() => Promise<void>) | undefined;
+      let _heldCallback: (() => Promise<void>) | undefined;
 
       mockLocksRequest(async (_name, _options, callback) => {
-        heldCallback = callback;
+        _heldCallback = callback;
         await callback();
       });
 
@@ -347,10 +347,10 @@ describe('MasterLock', () => {
 
   describe('state transitions', () => {
     it('transitions: initial -> controlled -> master -> released', async () => {
-      let heldCallback: (() => Promise<void>) | undefined;
+      let _heldCallback: (() => Promise<void>) | undefined;
 
       mockLocksRequest(async (_name, _options, callback) => {
-        heldCallback = callback;
+        _heldCallback = callback;
         await callback();
       });
 

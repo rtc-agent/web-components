@@ -125,7 +125,7 @@ sharedSelf.onconnect = (e: MessageEvent): void => {
 
     // Lifecycle
     close: (cb?: WorkerCallbacks) => core.close(cb),
-    flushAll: () => core.flushAll(),
+    flushAll: (confirm?: boolean) => core.flushAll(confirm),
 
     // Additional capabilities
     initializeVirtualFS: (

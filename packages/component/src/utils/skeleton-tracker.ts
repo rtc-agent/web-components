@@ -199,7 +199,7 @@ export class SkeletonTracker {
     for (const skeleton of this._skeletons.values()) {
       const element = elementMap.get(skeleton.index);
 
-      if (element && element.isConnected) {
+      if (element?.isConnected) {
         const rect = element.getBoundingClientRect();
         skeleton.y = rect.top - containerRect.top + scrollContainer.scrollTop;
       } else {

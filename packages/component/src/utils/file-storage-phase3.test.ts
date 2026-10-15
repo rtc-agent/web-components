@@ -1,13 +1,9 @@
 /**
  * Phase 3: FileStorage list(), AbortController, and progress semantics tests.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  FileStorage,
-  getFileExtension,
-  generateFilename,
-} from './file-storage.js';
+import { describe, expect, it, vi } from 'vitest';
 import type { WorkerBridge } from '../worker-bridge.js';
+import { FileStorage } from './file-storage.js';
 
 function createMockBridge(overrides: Partial<WorkerBridge> = {}): WorkerBridge {
   return {

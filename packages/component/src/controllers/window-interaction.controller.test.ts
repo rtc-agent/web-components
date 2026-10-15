@@ -10,7 +10,7 @@
  * - Multiple enable calls don't create duplicate interact instances
  * - Already enabled state is detected
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WindowInteractionController } from './window-interaction.controller.js';
 
 describe('WindowInteractionController', () => {
@@ -76,7 +76,7 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Verify state is enabled
-      expect(controller['value'].state).toBeDefined();
+      expect(controller.value.state).toBeDefined();
 
       // The key test: calling enable multiple times should not throw
       // and should not create duplicate interact instances
@@ -142,7 +142,7 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Simulate drag start
-      controller['_state'] = { ...controller['_state'], isDragging: true };
+      controller._state = { ...controller._state, isDragging: true };
 
       // Spy on _initInteractions
       const initSpy = vi.spyOn(controller as any, '_initInteractions');
@@ -155,26 +155,26 @@ describe('WindowInteractionController', () => {
       expect(controller.draggable).toBe(true); // Still true
 
       // Should store pending config
-      expect(controller['_pendingConfig']).toEqual({ draggable: false });
+      expect(controller._pendingConfig).toEqual({ draggable: false });
     });
 
     it('should apply pending config after drag ends', () => {
       controller.value.actions.enable();
 
       // Simulate drag start
-      controller['_state'] = { ...controller['_state'], isDragging: true };
+      controller._state = { ...controller._state, isDragging: true };
 
       // Set config during drag
       controller.setConfig({ draggable: false });
 
       // Verify pending config is stored
-      expect(controller['_pendingConfig']).toEqual({ draggable: false });
+      expect(controller._pendingConfig).toEqual({ draggable: false });
 
       // Simulate drag end
-      controller['_onDragEnd']();
+      controller._onDragEnd();
 
       // Pending config should be cleared
-      expect(controller['_pendingConfig']).toBeUndefined();
+      expect(controller._pendingConfig).toBeUndefined();
 
       // Config should now be applied
       expect(controller.draggable).toBe(false);
@@ -184,7 +184,7 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Simulate resize start
-      controller['_state'] = { ...controller['_state'], isResizing: true };
+      controller._state = { ...controller._state, isResizing: true };
 
       // Spy on _initInteractions
       const initSpy = vi.spyOn(controller as any, '_initInteractions');
@@ -197,26 +197,26 @@ describe('WindowInteractionController', () => {
       expect(controller.resizable).toBe(true); // Still true
 
       // Should store pending config
-      expect(controller['_pendingConfig']).toEqual({ resizable: false });
+      expect(controller._pendingConfig).toEqual({ resizable: false });
     });
 
     it('should apply pending config after resize ends', () => {
       controller.value.actions.enable();
 
       // Simulate resize start
-      controller['_state'] = { ...controller['_state'], isResizing: true };
+      controller._state = { ...controller._state, isResizing: true };
 
       // Set config during resize
       controller.setConfig({ resizable: false });
 
       // Verify pending config is stored
-      expect(controller['_pendingConfig']).toEqual({ resizable: false });
+      expect(controller._pendingConfig).toEqual({ resizable: false });
 
       // Simulate resize end
-      controller['_onResizeEnd']();
+      controller._onResizeEnd();
 
       // Pending config should be cleared
-      expect(controller['_pendingConfig']).toBeUndefined();
+      expect(controller._pendingConfig).toBeUndefined();
 
       // Config should now be applied
       expect(controller.resizable).toBe(false);
@@ -263,14 +263,14 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Simulate drag
-      controller['_state'] = { ...controller['_state'], isDragging: true };
+      controller._state = { ...controller._state, isDragging: true };
 
       // Set multiple configs during drag
       controller.setConfig({ draggable: false });
       controller.setConfig({ draggable: true, resizable: false });
 
       // Only the last config should be pending
-      expect(controller['_pendingConfig']).toEqual({
+      expect(controller._pendingConfig).toEqual({
         draggable: true,
         resizable: false,
       });
@@ -280,11 +280,11 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Simulate drag
-      controller['_state'] = { ...controller['_state'], isDragging: true };
+      controller._state = { ...controller._state, isDragging: true };
 
       // Set pending config
       controller.setConfig({ draggable: false });
-      expect(controller['_pendingConfig']).toBeDefined();
+      expect(controller._pendingConfig).toBeDefined();
 
       // Destroy
       controller.destroy();
@@ -325,16 +325,16 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Start drag
-      controller['_onDragStart']();
-      expect(controller['_state'].isDragging).toBe(true);
+      controller._onDragStart();
+      expect(controller._state.isDragging).toBe(true);
 
       // Try to change config during drag
       controller.setConfig({ draggable: false });
       expect(controller.draggable).toBe(true); // Not yet applied
 
       // End drag
-      controller['_onDragEnd']();
-      expect(controller['_state'].isDragging).toBe(false);
+      controller._onDragEnd();
+      expect(controller._state.isDragging).toBe(false);
       expect(controller.draggable).toBe(false); // Now applied
     });
 
@@ -342,16 +342,16 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Start resize
-      controller['_onResizeStart']();
-      expect(controller['_state'].isResizing).toBe(true);
+      controller._onResizeStart();
+      expect(controller._state.isResizing).toBe(true);
 
       // Try to change config during resize
       controller.setConfig({ resizable: false });
       expect(controller.resizable).toBe(true); // Not yet applied
 
       // End resize
-      controller['_onResizeEnd']();
-      expect(controller['_state'].isResizing).toBe(false);
+      controller._onResizeEnd();
+      expect(controller._state.isResizing).toBe(false);
       expect(controller.resizable).toBe(false); // Now applied
     });
 
@@ -359,8 +359,8 @@ describe('WindowInteractionController', () => {
       controller.value.actions.enable();
 
       // Simulate both flags set (shouldn't happen in practice)
-      controller['_state'] = {
-        ...controller['_state'],
+      controller._state = {
+        ...controller._state,
         isDragging: true,
         isResizing: true,
       };
@@ -369,19 +369,19 @@ describe('WindowInteractionController', () => {
       controller.setConfig({ draggable: false });
 
       // Should defer
-      expect(controller['_pendingConfig']).toBeDefined();
+      expect(controller._pendingConfig).toBeDefined();
 
       // End drag (but resize is still in progress)
-      controller['_onDragEnd']();
+      controller._onDragEnd();
 
       // Should NOT apply yet because resize is still in progress
-      expect(controller['_pendingConfig']).toBeDefined();
+      expect(controller._pendingConfig).toBeDefined();
 
       // End resize
-      controller['_onResizeEnd']();
+      controller._onResizeEnd();
 
       // Now should apply
-      expect(controller['_pendingConfig']).toBeUndefined();
+      expect(controller._pendingConfig).toBeUndefined();
       expect(controller.draggable).toBe(false);
     });
   });

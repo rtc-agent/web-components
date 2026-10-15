@@ -1,6 +1,6 @@
 // S3 Client 单元测试（Mock）
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { S3Client } from './s3-client.js';
 
 // Mock fetch

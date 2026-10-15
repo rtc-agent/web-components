@@ -10,26 +10,27 @@
  * @fires rtc-session-tab-bar-activate - Switch tab (detail: { sessionId })
  * @fires rtc-session-tab-bar-close - Close tab (detail: { sessionId })
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-session-tab-bar.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   SessionTabContext,
   type SessionTabContextValue,
 } from '../../contexts/session-tab.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import { plusIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-session-tab-bar.styles.js';
 
 // Sub-components (side-effect imports)
 import './rtc-session-tab.js';

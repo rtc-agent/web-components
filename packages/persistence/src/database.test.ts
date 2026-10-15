@@ -1,10 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
-  getDatabase,
   closeDatabase,
-  flushAll,
-  RTCAgentDatabase,
   DB_NAME_PREFIX,
+  flushAll,
+  getDatabase,
+  RTCAgentDatabase,
 } from './database.js';
 
 describe('database', () => {
@@ -116,7 +116,7 @@ describe('database', () => {
       expect(await db.offsets.count()).toBe(1);
 
       // Flush
-      await flushAll();
+      await flushAll(true);
 
       // Verify all cleared
       expect(await db.sessions.count()).toBe(0);

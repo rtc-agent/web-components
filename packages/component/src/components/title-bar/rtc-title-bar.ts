@@ -15,26 +15,27 @@
  * @csspart status-dot - The connection status indicator dot
  * @csspart retry-btn - The connection retry button
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-title-bar.styles.js';
-import type { WindowMode } from '../../types/index.js';
+import { localized, msg } from '@lit/localize';
 import type { ConnectionState } from '@rtc-agent/client';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  minimizeIcon,
-  maximizeIcon,
-  restoreIcon,
-  retryIcon,
-} from '../../icons/index.js';
-import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/protocol';
+import {
+  maximizeIcon,
+  minimizeIcon,
+  restoreIcon,
+  retryIcon,
+} from '../../icons/index.js';
+import type { WindowMode } from '../../types/index.js';
+import { styles } from './rtc-title-bar.styles.js';
 
 const log = createLogger('TitleBar');
 

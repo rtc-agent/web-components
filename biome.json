@@ -31,12 +31,37 @@
     "rules": {
       "preset": "recommended",
       "suspicious": {
-        "noExplicitAny": "off", // TODO: Gradual migration strategy — this rule is temporarily disabled to allow incremental type improvements. Target: enable by end of 2026.
+        "noExplicitAny": "off",
         "noUnknownAtRules": "off"
       },
       "correctness": {
         "useUniqueElementIds": "off",
         "useExhaustiveDependencies": "off"
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["@rtc-agent/protocol/**"],
+                "message": "Use the barrel export: import from '@rtc-agent/protocol' instead of sub-module paths."
+              },
+              {
+                "group": ["@rtc-agent/persistence/**"],
+                "message": "Use the barrel export: import from '@rtc-agent/persistence' instead of sub-module paths."
+              },
+              {
+                "group": ["@rtc-agent/client/**"],
+                "message": "Use the barrel export: import from '@rtc-agent/client' instead of sub-module paths."
+              },
+              {
+                "group": ["@rtc-agent/worker/**"],
+                "message": "Use the barrel export: import from '@rtc-agent/worker' instead of sub-module paths."
+              }
+            ]
+          }
+        }
       },
       "a11y": {
         "noStaticElementInteractions": "off",

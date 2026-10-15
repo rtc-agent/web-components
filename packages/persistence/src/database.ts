@@ -1,6 +1,6 @@
+import type { Message, Rtc, Session, Turn } from '@rtc-agent/protocol';
+import { createLogger, type SyncStatus } from '@rtc-agent/protocol';
 import Dexie, { type Table } from 'dexie';
-import type { Session, Turn, Message, Rtc } from '@rtc-agent/protocol';
-import { createLogger, SyncStatus } from '@rtc-agent/protocol';
 
 const log = createLogger('Database');
 
@@ -447,7 +447,12 @@ export class RTCAgentDatabase extends Dexie {
         // This ensures old data remains available for recovery until all new data is written.
 
         const BATCH_SIZE = 1000;
-        const TABLES_TO_MIGRATE = ['sessions', 'turns', 'messages', 'rtcs'] as const;
+        const TABLES_TO_MIGRATE = [
+          'sessions',
+          'turns',
+          'messages',
+          'rtcs',
+        ] as const;
 
         // Phase 1: Add new records for all tables (old records remain until Phase 3)
         // Track migration counts per table for integrity verification
@@ -470,8 +475,8 @@ export class RTCAgentDatabase extends Dexie {
 
           for (const row of sessionBatch) {
             const r = row as Record<string, unknown>;
-            const oldId = r['id'] as string | undefined;
-            const oldClientId = r['client_id'] as string | undefined;
+            const oldId = r.id as string | undefined;
+            const oldClientId = r.client_id as string | undefined;
 
             const newClientId = oldClientId || oldId || crypto.randomUUID();
             if (oldId) {
@@ -479,9 +484,9 @@ export class RTCAgentDatabase extends Dexie {
             }
 
             const newRow: Record<string, unknown> = { ...r };
-            newRow['client_id'] = newClientId;
-            newRow['server_id'] = oldId;
-            delete newRow['id'];
+            newRow.client_id = newClientId;
+            newRow.server_id = oldId;
+            delete newRow.id;
 
             await sessionsTable.add(newRow);
             totalSessionsMigrated++;
@@ -491,7 +496,9 @@ export class RTCAgentDatabase extends Dexie {
         }
 
         migrationCounts.set('sessions', totalSessionsMigrated);
-        log.info(`[DB Migration v2] Sessions: migrated ${totalSessionsMigrated} records`);
+        log.info(
+          `[DB Migration v2] Sessions: migrated ${totalSessionsMigrated} records`,
+        );
 
         // 1b. Migrate turns, messages, rtcs (all depend on sessionIdMap from sessions)
         for (const name of ['turns', 'messages', 'rtcs'] as const) {
@@ -510,26 +517,26 @@ export class RTCAgentDatabase extends Dexie {
 
             for (const row of batch) {
               const r = row as Record<string, unknown>;
-              const oldId = r['id'] as string | undefined;
-              const oldClientId = r['client_id'] as string | undefined;
-              const oldSessionId = r['session_id'] as string | undefined;
+              const oldId = r.id as string | undefined;
+              const oldClientId = r.client_id as string | undefined;
+              const oldSessionId = r.session_id as string | undefined;
 
               const newRow: Record<string, unknown> = { ...r };
 
               // client_id: prefer old value, fall back to crypto.randomUUID() to avoid empty PK collision
-              newRow['client_id'] = oldClientId || oldId || crypto.randomUUID();
+              newRow.client_id = oldClientId || oldId || crypto.randomUUID();
               // server_id: preserve old server UUID
-              newRow['server_id'] = oldId;
-              delete newRow['id'];
+              newRow.server_id = oldId;
+              delete newRow.id;
 
               // session_id -> session_client_id: resolve via session mapping
               if (oldSessionId) {
                 const sessionClientId = sessionIdMap.get(oldSessionId);
-                newRow['session_client_id'] = sessionClientId || oldSessionId;
+                newRow.session_client_id = sessionClientId || oldSessionId;
               } else {
-                newRow['session_client_id'] = '';
+                newRow.session_client_id = '';
               }
-              delete newRow['session_id'];
+              delete newRow.session_id;
 
               await table.add(newRow);
               totalMigrated++;
@@ -539,7 +546,9 @@ export class RTCAgentDatabase extends Dexie {
           }
 
           migrationCounts.set(name, totalMigrated);
-          log.info(`[DB Migration v2] ${name}: migrated ${totalMigrated} records`);
+          log.info(
+            `[DB Migration v2] ${name}: migrated ${totalMigrated} records`,
+          );
         }
 
         // Phase 2: Verify migration integrity before clearing old data
@@ -554,14 +563,14 @@ export class RTCAgentDatabase extends Dexie {
           if (migratedCount > actualCount) {
             throw new Error(
               `[DB Migration v2] Integrity check failed for ${name}: ` +
-              `migrated (${migratedCount}) > total in table (${actualCount}). ` +
-              `This indicates a bug in migration logic. Transaction will rollback.`
+                `migrated (${migratedCount}) > total in table (${actualCount}). ` +
+                `This indicates a bug in migration logic. Transaction will rollback.`,
             );
           }
 
           log.info(
             `[DB Migration v2] ${name}: original=${originalCount}, migrated=${migratedCount}, ` +
-            `total_before_clear=${actualCount}`
+              `total_before_clear=${actualCount}`,
           );
         }
 
@@ -572,7 +581,7 @@ export class RTCAgentDatabase extends Dexie {
         }
 
         log.info(
-          `[DB Migration v2] Migration complete. Cleared old data from ${TABLES_TO_MIGRATE.length} tables.`
+          `[DB Migration v2] Migration complete. Cleared old data from ${TABLES_TO_MIGRATE.length} tables.`,
         );
       });
 

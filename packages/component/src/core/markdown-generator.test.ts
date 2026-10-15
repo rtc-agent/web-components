@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { generateFunctionMd } from './markdown-generator.js';
-import { withMeta } from '../validation/zod-to-openapi.js';
 import type { FunctionDef } from '../types/skill.js';
+import { withMeta } from '../validation/zod-to-openapi.js';
+import { generateFunctionMd } from './markdown-generator.js';
 
 describe('generateFunctionMd with zodSchema', () => {
   it('should generate parameters table from zodSchema', () => {

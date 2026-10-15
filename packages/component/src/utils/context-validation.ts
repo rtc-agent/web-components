@@ -24,11 +24,11 @@
  */
 
 import { createLogger } from '@rtc-agent/protocol';
+import type { ActivityContextValue } from '../contexts/activity.js';
 import type { AuthContextValue } from '../contexts/auth.js';
-import type { SessionContextValue } from '../contexts/session.js';
 import type { MessageContextValue } from '../contexts/message.js';
 import type { ModeContextValue } from '../contexts/mode.js';
-import type { ActivityContextValue } from '../contexts/activity.js';
+import type { SessionContextValue } from '../contexts/session.js';
 
 const log = createLogger('ContextValidation');
 

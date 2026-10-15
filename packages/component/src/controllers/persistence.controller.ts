@@ -13,30 +13,32 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: other controllers (via `persistence.layer`)
  */
-import type { ReactiveController } from 'lit';
-import type { Remote } from 'comlink';
-import {
-  type IPersistenceLayer,
-  type PersistenceConfig,
-  type LocalSession,
-  type LocalMessage,
-  type LocalRtc,
-  type OffsetManager,
-  type AgentMdConfig,
+
+import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
+import type {
+  AgentMdConfig,
+  IPersistenceLayer,
+  LocalMessage,
+  LocalRtc,
+  LocalSession,
+  OffsetManager,
+  PersistenceConfig,
 } from '@rtc-agent/persistence';
 import type { ContentData } from '@rtc-agent/protocol';
-import { createLogger, MessageRole } from '@rtc-agent/protocol';
-import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
+import { createLogger, type MessageRole } from '@rtc-agent/protocol';
 import type { WorkerPersistenceCore } from '@rtc-agent/worker';
-import type { AuthController } from './auth.controller.js';
-import { maskUserID } from '../utils/mask.js';
+import type { Remote } from 'comlink';
+import type { ReactiveController } from 'lit';
 import { AUTH_CONFIG } from '../config/auth.js';
+import { maskUserID } from '../utils/mask.js';
+import type { AuthController } from './auth.controller.js';
 
 const log = createLogger('PersistenceController');
-import { getOrCreateDeviceId } from '../utils/device.js';
-import { WorkerBridge } from '../worker-bridge.js';
+
 import { MasterLock } from '../master-lock.js';
+import { getOrCreateDeviceId } from '../utils/device.js';
 import { FileStorage } from '../utils/file-storage.js';
+import { WorkerBridge } from '../worker-bridge.js';
 
 /**
  * Worker adapter for IPersistenceLayer
@@ -581,14 +583,14 @@ export class PersistenceController implements ReactiveController {
           // Exponential backoff: 2s, 4s, 8s + jitter
           const baseDelay =
             PersistenceController.CONNECT_RETRY_BASE_DELAY_MS *
-            Math.pow(2, attempt - 1);
+            2 ** (attempt - 1);
           const jitter =
             Math.random() * PersistenceController.CONNECT_RETRY_JITTER_MS;
           const delay = baseDelay + jitter;
 
           log.warn(
             `Retrying connection (attempt ${attempt + 1}/${PersistenceController.MAX_CONNECT_RETRIES + 1}) ` +
-            `after ${delay.toFixed(0)}ms...`,
+              `after ${delay.toFixed(0)}ms...`,
           );
           await this._delay(delay);
         }
@@ -695,7 +697,9 @@ export class PersistenceController implements ReactiveController {
       // Without this, MasterLock would be created on a disconnected controller,
       // and the WebSocket connection would remain open without any owner.
       if (this._workerBridge !== bridge) {
-        log.warn('disconnect() fired during bridge.core.connect(), tearing down');
+        log.warn(
+          'disconnect() fired during bridge.core.connect(), tearing down',
+        );
         this._layer = undefined; // Clear layer we just set (disconnect already cleared its copy)
         await bridge.destroy().catch(() => {});
         return;
@@ -717,7 +721,9 @@ export class PersistenceController implements ReactiveController {
         // undefined (the old value), so our new lock would be orphaned — never released,
         // leaking the Web Lock. Detect this race and self-correct by releasing immediately.
         if (this._workerBridge !== bridge) {
-          log.warn('disconnect() fired before MasterLock creation, releasing orphaned lock');
+          log.warn(
+            'disconnect() fired before MasterLock creation, releasing orphaned lock',
+          );
           masterLock.release();
           return;
         }
@@ -731,7 +737,9 @@ export class PersistenceController implements ReactiveController {
         // This handles the React StrictMode double-mount scenario where disconnect() can fire
         // between synchronous operations.
         if (this._masterLock !== masterLock) {
-          log.warn('disconnect() fired after MasterLock assignment, releasing orphaned lock');
+          log.warn(
+            'disconnect() fired after MasterLock assignment, releasing orphaned lock',
+          );
           masterLock.release();
           return;
         }
@@ -800,7 +808,8 @@ export class PersistenceController implements ReactiveController {
     // This is critical: if disconnect() interrupts an in-flight connection, the old promise's finally block
     // must not clear the new _connecting.
     // Fix: Add overflow protection to prevent precision loss at Number.MAX_SAFE_INTEGER.
-    this._connectGeneration = (this._connectGeneration + 1) % Number.MAX_SAFE_INTEGER;
+    this._connectGeneration =
+      (this._connectGeneration + 1) % Number.MAX_SAFE_INTEGER;
     const gen = this._connectGeneration;
 
     // Clear the _connecting promise to allow a new connection attempt.
@@ -882,7 +891,9 @@ export class PersistenceController implements ReactiveController {
     // Reject any pending waitForReady() callers
     if (this._readyReject) {
       this._readyReject(
-        new Error('[PersistenceController] destroy() called while waiting for ready'),
+        new Error(
+          '[PersistenceController] destroy() called while waiting for ready',
+        ),
       );
       this._readyResolve = undefined;
       this._readyReject = undefined;

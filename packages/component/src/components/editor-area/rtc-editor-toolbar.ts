@@ -20,36 +20,37 @@
  * ## Styling
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg, str } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-editor-toolbar.styles.js';
-import type { EditorViewMode } from '../../types/index.js';
 import {
-  saveIcon,
-  undoIcon,
-  redoIcon,
   boldIcon,
-  italicIcon,
   codeIcon,
-  linkIcon,
-  eyeIcon,
   columnsIcon,
   editIcon,
+  eyeIcon,
+  italicIcon,
+  linkIcon,
+  redoIcon,
   refreshIcon,
+  saveIcon,
+  undoIcon,
 } from '../../icons/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { EditorViewMode } from '../../types/index.js';
+import { styles } from './rtc-editor-toolbar.styles.js';
 
 const log = createLogger('EditorToolbar');
 

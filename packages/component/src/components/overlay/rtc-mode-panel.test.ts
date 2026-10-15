@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-mode-panel.js';
 
 describe('<rtc-mode-panel>', () => {
@@ -19,7 +19,7 @@ describe('<rtc-mode-panel>', () => {
       html`<rtc-mode-panel .modes=${modes} current-mode="manual"></rtc-mode-panel>`,
     );
     await nextFrame();
-    const items = el.shadowRoot!.querySelectorAll('.mode-item');
+    const items = el.shadowRoot?.querySelectorAll('.mode-item');
     expect(items.length).toBe(4);
   });
 
@@ -29,8 +29,8 @@ describe('<rtc-mode-panel>', () => {
       html`<rtc-mode-panel .modes=${modes} current-mode="edit"></rtc-mode-panel>`,
     );
     await nextFrame();
-    const active = el.shadowRoot!.querySelector('.mode-item.active');
-    expect(active!.textContent!.trim()).toContain('编辑');
+    const active = el.shadowRoot?.querySelector('.mode-item.active');
+    expect(active?.textContent?.trim()).toContain('编辑');
   });
 
   it('should dispatch rtc-mode-selected on item click', async () => {
@@ -41,7 +41,7 @@ describe('<rtc-mode-panel>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-mode-selected', handler);
-    const items = el.shadowRoot!.querySelectorAll('.mode-item');
+    const items = el.shadowRoot?.querySelectorAll('.mode-item');
     (items[1] as HTMLElement).click();
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail.mode).toBe('edit');

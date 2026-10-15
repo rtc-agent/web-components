@@ -10,13 +10,13 @@
  * Consumed by: <rtc-editor-toolbar>, <rtc-editor-area>
  */
 import type { ReactiveControllerHost } from 'lit';
-import type { EditorViewMode } from '../types/index.js';
 import {
-  type EditorState,
-  type EditorActions,
   DEFAULT_EDITOR_STATE,
+  type EditorActions,
+  type EditorState,
 } from '../contexts/editor.js';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { EditorViewMode } from '../types/index.js';
 
 export class EditorController extends CachedContextController<
   EditorState,

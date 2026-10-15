@@ -1,11 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PersistenceLayer } from './index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeDatabase, getDatabase } from './database.js';
+import { initFileCacheRepository } from './file-cache-repository.js';
 import type { PersistenceConfig } from './index.js';
-import { getDatabase, closeDatabase } from './database.js';
-import {
-  getFileCacheRepository,
-  initFileCacheRepository,
-} from './file-cache-repository.js';
+import { PersistenceLayer } from './index.js';
 
 /**
  * Wait for a condition to be true with timeout.
@@ -144,7 +141,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       expect(persistence.pendingSyncTaskCount).toBe(1);
 
       // Reject the task
-      rejectTask!(new Error('Sync failed'));
+      rejectTask?.(new Error('Sync failed'));
 
       // Wait for the task to fail and be removed using polling
       await waitForSyncTasks(persistence);
@@ -298,7 +295,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       expect(persistence.pendingSyncTaskCount).toBe(1);
 
       // Resolve the mocked sendMessage
-      resolveSendMessage!();
+      resolveSendMessage?.();
 
       await promise;
 

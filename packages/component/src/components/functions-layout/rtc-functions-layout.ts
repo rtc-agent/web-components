@@ -11,13 +11,13 @@
  *
  * @attr {string} [theme=system] - Theme: 'light' | 'dark' | 'system'
  */
-import { LitElement, html } from 'lit';
+import { html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { styles } from './rtc-functions-layout.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-functions-layout.styles.js';
 
 import '../drawer/rtc-drawer.js';
 import '../function-tree/rtc-function-tree.js';

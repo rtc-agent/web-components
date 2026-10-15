@@ -5,10 +5,10 @@
  * including authentication flows, event integration, and error recovery.
  */
 
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { eventBus } from './core/event-bus.js';
 import { createRtcAgent } from './factory.js';
 import { cleanupFixtures } from './test-helpers.js';
-import { eventBus } from './core/event-bus.js';
 
 // Register the custom element
 import './components/rtc-agent/rtc-agent.js';
@@ -123,14 +123,14 @@ describe('createRtcAgent integration', () => {
 
       // Verify pending auth provider BEFORE mount
       expect(agent._pendingAuthProvider).toBeDefined();
-      expect(agent._pendingAuthProvider!.getToken).toBe(authProvider.getToken);
-      expect(agent._pendingAuthProvider!.refreshToken).toBe(
+      expect(agent._pendingAuthProvider?.getToken).toBe(authProvider.getToken);
+      expect(agent._pendingAuthProvider?.refreshToken).toBe(
         authProvider.refreshToken,
       );
-      expect(agent._pendingAuthProvider!.isLoggedIn).toBe(
+      expect(agent._pendingAuthProvider?.isLoggedIn).toBe(
         authProvider.isLoggedIn,
       );
-      expect(agent._pendingAuthProvider!.logout).toBe(authProvider.logout);
+      expect(agent._pendingAuthProvider?.logout).toBe(authProvider.logout);
 
       document.body.appendChild(agent);
 
@@ -292,7 +292,7 @@ describe('createRtcAgent integration', () => {
       expect(agent._beforeMessageSendHook).toBeDefined();
 
       const detail = { message: { content: 'test message' } };
-      const result = await agent._beforeMessageSendHook!(detail);
+      const result = await agent._beforeMessageSendHook?.(detail);
 
       expect(beforeMessageSend).toHaveBeenCalledWith(detail);
       expect(result).toBe(true);
@@ -310,7 +310,7 @@ describe('createRtcAgent integration', () => {
       document.body.appendChild(agent);
 
       const detail = { message: { content: 'async test' } };
-      const result = await agent._beforeMessageSendHook!(detail);
+      const result = await agent._beforeMessageSendHook?.(detail);
 
       expect(beforeMessageSend).toHaveBeenCalledWith(detail);
       expect(result).toBe(true);
@@ -328,7 +328,7 @@ describe('createRtcAgent integration', () => {
       document.body.appendChild(agent);
 
       const detail = { message: { content: 'cancelled message' } };
-      const result = await agent._beforeMessageSendHook!(detail);
+      const result = await agent._beforeMessageSendHook?.(detail);
 
       expect(beforeMessageSend).toHaveBeenCalledWith(detail);
       expect(result).toBe(false);
@@ -427,7 +427,7 @@ describe('createRtcAgent integration', () => {
       expect(agent.databaseName).toBe('integration-db');
       expect(agent.scenariosURL).toBe('/scenarios');
       expect(agent._pendingAuthProvider).toBeDefined();
-      expect(agent._pendingAuthProvider!.getToken).toBeDefined();
+      expect(agent._pendingAuthProvider?.getToken).toBeDefined();
 
       document.body.appendChild(agent);
 

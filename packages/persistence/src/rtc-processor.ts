@@ -1,10 +1,10 @@
-import type { IPersistenceLayer } from './index.js';
+import { createLogger } from '@rtc-agent/protocol';
 import type { LocalRtc } from './database.js';
+import type { IPersistenceLayer } from './index.js';
 import type { Mode } from './permission.js';
 import { permissionChecker } from './permission.js';
 import { toolRegistry } from './tools/index.js';
 import type { ToolName, ToolParams } from './tools/types.js';
-import { createLogger } from '@rtc-agent/protocol';
 import { getUIUpdateBus } from './ui-update-bus.js';
 
 const log = createLogger('RtcProcessor');
@@ -344,7 +344,7 @@ export class RtcProcessor {
         // This ensures users are aware when RTC result submission fails after retries.
         console.error(
           `[RtcProcessor] submitRtcResult failed for RTC ${rtc.client_id} ` +
-          `(retry ${retryCount + 1}/${MAX_SUBMIT_RETRY_COUNT}):`,
+            `(retry ${retryCount + 1}/${MAX_SUBMIT_RETRY_COUNT}):`,
           err,
         );
 
@@ -366,7 +366,10 @@ export class RtcProcessor {
           });
         } catch (publishErr) {
           // UIUpdateBus publish failure is non-fatal, but log it
-          log.error('Failed to publish RTC submit error to UIUpdateBus:', publishErr);
+          log.error(
+            'Failed to publish RTC submit error to UIUpdateBus:',
+            publishErr,
+          );
         }
 
         throw err;
@@ -440,7 +443,7 @@ export class RtcProcessor {
           );
         });
 
-        let toolResult;
+        let toolResult: Awaited<ReturnType<typeof toolRegistry.execute>>;
         try {
           toolResult = await Promise.race([
             toolExecutionPromise,
@@ -479,7 +482,7 @@ export class RtcProcessor {
         log.error('submitRtcResult failed:', err);
         console.error(
           `[RtcProcessor] submitRtcResult failed for RTC ${rtc.client_id} ` +
-          `(tool: ${rtc.tool_name}, success: ${success}):`,
+            `(tool: ${rtc.tool_name}, success: ${success}):`,
           err,
         );
 
@@ -501,7 +504,10 @@ export class RtcProcessor {
           });
         } catch (publishErr) {
           // UIUpdateBus publish failure is non-fatal, but log it
-          log.error('Failed to publish RTC submit error to UIUpdateBus:', publishErr);
+          log.error(
+            'Failed to publish RTC submit error to UIUpdateBus:',
+            publishErr,
+          );
         }
       }
     }
@@ -569,7 +575,7 @@ export class RtcProcessor {
    * Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (capped).
    */
   private calculateBackoff(retryCount: number): number {
-    return Math.min(1000 * Math.pow(2, retryCount), 30000);
+    return Math.min(1000 * 2 ** retryCount, 30000);
   }
 
   /**
@@ -646,14 +652,22 @@ export class RtcProcessor {
     }
 
     // Check for WebSocket-specific errors
-    if (err.message.includes('WebSocket') || err.message.includes('centrifuge')) {
+    if (
+      err.message.includes('WebSocket') ||
+      err.message.includes('centrifuge')
+    ) {
       return true;
     }
 
     // Check for common connection-related keywords in error message
     // This is a fallback for errors that don't have a specific type
-    const connectionKeywords = ['connection', 'disconnected', 'network', 'offline'];
+    const connectionKeywords = [
+      'connection',
+      'disconnected',
+      'network',
+      'offline',
+    ];
     const lowerMessage = err.message.toLowerCase();
-    return connectionKeywords.some(keyword => lowerMessage.includes(keyword));
+    return connectionKeywords.some((keyword) => lowerMessage.includes(keyword));
   }
 }

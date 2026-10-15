@@ -8,19 +8,20 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-title-bar>`, `<rtc-content-wrapper>`
  */
+
+import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveControllerHost } from 'lit';
-import type {
-  WindowState,
-  WindowStateActions,
-  WindowMode,
-} from '../types/index.js';
+import { STORAGE_KEYS } from '../config/auth.js';
 import type { WindowStateContextValue } from '../contexts/window-state.js';
 import { DEFAULT_WINDOW_STATE } from '../contexts/window-state.js';
-import { STORAGE_KEYS } from '../config/auth.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
+import type {
+  WindowMode,
+  WindowState,
+  WindowStateActions,
+} from '../types/index.js';
 import type { ResolvedWindowConfig } from '../types/window-config.js';
 import { DEFAULT_WINDOW_CONFIG } from '../types/window-config.js';
-import { createLogger } from '@rtc-agent/protocol';
-import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('WindowStateController');
 
@@ -336,8 +337,10 @@ export class WindowStateController extends CachedContextController<
       return this._bubbleSizeCache;
     }
     this._bubbleSizeCache =
-      parseInt(getComputedStyle(el).getPropertyValue('--rtc-bubble-size')) ||
-      40;
+      parseInt(
+        getComputedStyle(el).getPropertyValue('--rtc-bubble-size'),
+        10,
+      ) || 40;
     return this._bubbleSizeCache;
   }
 

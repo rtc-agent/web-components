@@ -53,7 +53,7 @@ function generateCodeVerifier(): string {
   // 32 bytes base64url-encoded = 43 characters (no padding)
   if (verifier.length < 43 || verifier.length > 128) {
     throw new Error(
-      `PKCE code verifier length out of bounds: ${verifier.length} characters (expected 43-128)`
+      `PKCE code verifier length out of bounds: ${verifier.length} characters (expected 43-128)`,
     );
   }
 
@@ -125,7 +125,9 @@ export class OAuth2Client {
     try {
       new URL(options.serverURL);
     } catch {
-      throw new Error(`OAuth2Client: invalid serverURL format: ${options.serverURL}`);
+      throw new Error(
+        `OAuth2Client: invalid serverURL format: ${options.serverURL}`,
+      );
     }
 
     this.serverURL = options.serverURL.replace(/\/$/, '');
@@ -237,11 +239,14 @@ export class OAuth2Client {
    * (e.g. from its own identity provider), which is exchanged for an RTC JWT
    * that can be used for WebSocket connection.
    *
-   * Retry strategy: Up to 1 retry (2 total attempts) with 1s delay on 502, 503, 504, 429 (network errors).
-   * 4xx errors are NOT retried (client error, not transient).
+   * Retry strategy: Up to 1 retry (2 total attempts) with exponential backoff.
+   * - 502/503/504: Transient server errors, safe to retry.
+   * - 429: Rate limit signal, should retry (respect Retry-After header if present).
+   * - 4xx errors: Client errors (invalid request, unauthorized), NOT retried.
+   * - Network errors: Transient connectivity issues, safe to retry.
    *
-   * SECURITY: Retry limit is intentionally low (max 1 retry) to prevent resource exhaustion
-   * attacks. If the external JWT is invalid or expired, retries would waste resources;
+   * SECURITY: Retry limit is intentionally low (max 1 retry) to prevent resource exhaustion.
+   * If the external JWT is invalid or expired, retries would waste resources;
    * the caller should handle the error and prompt the user to re-authenticate.
    *
    * @param params Token exchange request parameters
@@ -388,22 +393,22 @@ export class OAuth2Client {
     // Exponential backoff with jitter to prevent thundering herd
     // Base delay: 1000ms, multiplier: 2^attempt (1000ms, 2000ms, 4000ms, ...)
     // Add random jitter (0-500ms) to distribute retry attempts
-    const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * Math.pow(2, attempt);
+    const baseDelay = OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt;
     const jitter = Math.random() * 500;
     const retryDelay = baseDelay + jitter;
 
     if (statusCode > 0) {
       log.debug(
         `tokenExchange: retryable error ${statusCode}, ` +
-        `attempt ${attempt + 1}/${maxRetries + 1}, ` +
-        `retrying in ${Math.round(retryDelay)}ms`
+          `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+          `retrying in ${Math.round(retryDelay)}ms`,
       );
     } else {
       log.debug(
         `tokenExchange: network error, ` +
-        `attempt ${attempt + 1}/${maxRetries + 1}, ` +
-        `retrying in ${Math.round(retryDelay)}ms`,
-        err instanceof Error ? err.message : String(err)
+          `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+          `retrying in ${Math.round(retryDelay)}ms`,
+        err instanceof Error ? err.message : String(err),
       );
     }
 

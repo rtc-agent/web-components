@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  RtcProcessor,
-  type ConfirmDialogFn,
-  type AskUserDialogFn,
-  type MasterLike,
-} from './rtc-processor.js';
-import type { PersistenceLayer } from './index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalRtc } from './database.js';
+import type { PersistenceLayer } from './index.js';
+import {
+  type AskUserDialogFn,
+  type ConfirmDialogFn,
+  type MasterLike,
+  RtcProcessor,
+} from './rtc-processor.js';
 import type { ToolResult } from './tools/types.js';
 
 // ============================================================
@@ -1154,7 +1154,7 @@ describe('RtcProcessor', () => {
 
       // Now processLoop is waiting on the second getNextRtcToProcess call.
       // Resolve it, then cancel.
-      resolveNextRtc!(undefined);
+      resolveNextRtc?.(undefined);
 
       // Cancel should cause processLoop to exit
       processor.cancel();
@@ -1243,7 +1243,7 @@ describe('RtcProcessor', () => {
       processor.cancel();
 
       // Now resolve getNextRtcToProcess — the loop will check abort flag and exit
-      resolveGetNext!(undefined);
+      resolveGetNext?.(undefined);
       await vi.runAllTimersAsync();
       await p1;
 
@@ -1274,7 +1274,7 @@ describe('RtcProcessor', () => {
       processor.cancel();
 
       // Resolve to let the loop check abort flag and exit
-      resolveGetNext!(undefined);
+      resolveGetNext?.(undefined);
       await vi.runAllTimersAsync();
       await p1;
 
@@ -1474,7 +1474,7 @@ describe('RtcProcessor', () => {
       processor.cancel();
 
       // Tool finishes AFTER cancel
-      resolveTool!({ success: true, data: 'done' });
+      resolveTool?.({ success: true, data: 'done' });
 
       await vi.runAllTimersAsync();
       await processPromise;
@@ -1517,7 +1517,7 @@ describe('RtcProcessor', () => {
       processor.cancel();
 
       // User approves AFTER cancel
-      resolveConfirm!(true);
+      resolveConfirm?.(true);
 
       await vi.runAllTimersAsync();
       await processPromise;
@@ -1572,7 +1572,7 @@ describe('RtcProcessor', () => {
       processor.cancel();
 
       // Resolve the pending getNextRtcToProcess
-      resolveFirstGet!(rtc1);
+      resolveFirstGet?.(rtc1);
       mockNeedsConfirm.mockReturnValue(false);
       mockToolExecute.mockResolvedValue({ success: true, data: {} });
 

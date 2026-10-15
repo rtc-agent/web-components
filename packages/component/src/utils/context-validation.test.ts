@@ -4,13 +4,13 @@
  * Validates that the context-validation module correctly identifies
  * valid and invalid Context values, catching type mismatches early.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  validateActivityContext,
   validateAuthContext,
-  validateSessionContext,
   validateMessageContext,
   validateModeContext,
-  validateActivityContext,
+  validateSessionContext,
 } from './context-validation.js';
 
 // Mock the logger to avoid polluting test output

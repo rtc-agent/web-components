@@ -1,11 +1,11 @@
 // Upload Progress Repository — IndexedDB multipart upload progress management
 
+import { createLogger } from '@rtc-agent/protocol';
 import {
   getDatabase,
-  type UploadProgressEntry,
   type UploadPartRecord,
+  type UploadProgressEntry,
 } from './database.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('UploadProgressRepository');
 

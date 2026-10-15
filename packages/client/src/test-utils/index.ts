@@ -34,25 +34,24 @@
  * @module test-utils
  */
 
+export type {
+  MockCentrifugeOptions,
+  MockClientEvent,
+  MockConnectedContext,
+  MockConnectingContext,
+  MockConnectionState,
+  MockDisconnectedContext,
+  MockErrorContext,
+  MockPublicationContext,
+  MockSubscribedContext,
+  MockSubscriptionEvent,
+  MockSubscriptionOptions,
+  MockSubscriptionState,
+} from './centrifuge-mock.js';
 export {
-  MockCentrifugeClient,
-  MockSubscription,
   createCentrifugeMock,
   isMockCentrifugeClient,
   isMockSubscription,
-} from './centrifuge-mock.js';
-
-export type {
-  MockConnectionState,
-  MockSubscriptionState,
-  MockClientEvent,
-  MockSubscriptionEvent,
-  MockConnectingContext,
-  MockConnectedContext,
-  MockDisconnectedContext,
-  MockErrorContext,
-  MockSubscribedContext,
-  MockPublicationContext,
-  MockCentrifugeOptions,
-  MockSubscriptionOptions,
+  MockCentrifugeClient,
+  MockSubscription,
 } from './centrifuge-mock.js';

@@ -24,10 +24,10 @@ import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
 import { createLogger } from '@rtc-agent/protocol';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
-import type { Session, Message } from '../../../types/index.js';
+import type { Message, Session } from '../../../types/index.js';
 import { exportSession } from '../../../utils/session-exporter.js';
-import { showExportDialog } from './dialog-helpers.js';
 import type { ExportOptions } from '../../overlay/rtc-export-dialog.js';
+import { showExportDialog } from './dialog-helpers.js';
 
 const log = createLogger('CommandHandler');
 

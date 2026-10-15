@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { MessageController } from './message.controller.js';
-import type { ContentData, Message } from '../types/index.js';
 import type { LocalMessage } from '@rtc-agent/persistence';
+import { describe, expect, it, vi } from 'vitest';
+import type { ContentData, Message } from '../types/index.js';
+import { MessageController } from './message.controller.js';
 
 class MockHost {
   updateCount = 0;

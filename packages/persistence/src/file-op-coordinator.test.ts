@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { FileOpCoordinator } from './file-op-coordinator.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FileSyncStatus } from './file-cache-repository.js';
+import { FileOpCoordinator } from './file-op-coordinator.js';
 
 describe('FileOpCoordinator', () => {
   let coordinator: FileOpCoordinator;
@@ -111,10 +111,34 @@ describe('FileOpCoordinator', () => {
       }
 
       expect(listener).toHaveBeenCalledTimes(4);
-      expect(listener).toHaveBeenNthCalledWith(1, 'md5-1', 'txt', 'pending', undefined);
-      expect(listener).toHaveBeenNthCalledWith(2, 'md5-1', 'txt', 'uploading', undefined);
-      expect(listener).toHaveBeenNthCalledWith(3, 'md5-1', 'txt', 'synced', undefined);
-      expect(listener).toHaveBeenNthCalledWith(4, 'md5-1', 'txt', 'failed', undefined);
+      expect(listener).toHaveBeenNthCalledWith(
+        1,
+        'md5-1',
+        'txt',
+        'pending',
+        undefined,
+      );
+      expect(listener).toHaveBeenNthCalledWith(
+        2,
+        'md5-1',
+        'txt',
+        'uploading',
+        undefined,
+      );
+      expect(listener).toHaveBeenNthCalledWith(
+        3,
+        'md5-1',
+        'txt',
+        'synced',
+        undefined,
+      );
+      expect(listener).toHaveBeenNthCalledWith(
+        4,
+        'md5-1',
+        'txt',
+        'failed',
+        undefined,
+      );
     });
   });
 

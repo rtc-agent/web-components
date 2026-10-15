@@ -9,13 +9,13 @@
  * Provided by: <rtc-agent> (root)
  */
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type { FileNode } from '../types/index.js';
 import {
-  type FileExplorerState,
+  DEFAULT_FILE_EXPLORER_STATE,
   type FileExplorerActions,
   type FileExplorerContextValue,
-  DEFAULT_FILE_EXPLORER_STATE,
+  type FileExplorerState,
 } from '../contexts/file-explorer.js';
+import type { FileNode } from '../types/index.js';
 
 export class FileExplorerController implements ReactiveController {
   private _host: ReactiveControllerHost;
@@ -191,7 +191,7 @@ export class FileExplorerController implements ReactiveController {
       });
       // Check if any child nodes were updated
       const hasUpdate = newChildren.some(
-        (child, i) => child !== node.children![i],
+        (child, i) => child !== node.children?.[i],
       );
       if (hasUpdate) {
         return { ...node, children: newChildren };

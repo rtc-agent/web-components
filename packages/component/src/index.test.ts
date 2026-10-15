@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { fixture, cleanupFixtures, nextFrame } from './test-helpers.js';
 import { html } from 'lit';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from './test-helpers.js';
 
 describe('Test Infrastructure', () => {
   afterEach(() => cleanupFixtures());

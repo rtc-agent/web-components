@@ -12,10 +12,10 @@
  * - `debug-api.ts` — This file: entry point + installDebugAPI()
  */
 import { setGlobalLogLevel } from '@rtc-agent/protocol';
-import type { RtcAgentDebugAPI } from './debug-api-types.js';
-import { log, installLogCapture } from './debug-api-helpers.js';
 import { buildCoreAPI } from './debug-api-core.js';
 import { buildExtAPI } from './debug-api-ext.js';
+import { installLogCapture, log } from './debug-api-helpers.js';
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
 
 export type { RtcAgentDebugAPI } from './debug-api-types.js';
 

@@ -25,33 +25,34 @@
  *
  * Future enhancements may include vector clocks or CRDTs if concurrent edit frequency increases.
  */
-import {
-  getDatabase,
-  type LocalSession,
-  type LocalTurn,
-  type LocalMessage,
-  type LocalRtc,
-  type SyncStatus,
-} from './database.js';
-import { getUIUpdateBus } from './ui-update-bus.js';
-import { nowRFC3339 } from './time-utils.js';
+
 import type {
   Update,
-  UpdateItem,
-  UpdateEntity,
   UpdateAction,
+  UpdateEntity,
+  UpdateItem,
 } from '@rtc-agent/protocol';
 import {
-  isValidSession,
-  isValidTurn,
-  isValidMessage,
-  isValidRtc,
+  createLogger,
   extractClientId,
   extractStringField,
+  isValidMessage,
+  isValidRtc,
+  isValidSession,
+  isValidTurn,
 } from '@rtc-agent/protocol';
 import Dexie, { type Table } from 'dexie';
 import diff from 'microdiff';
-import { createLogger } from '@rtc-agent/protocol';
+import {
+  getDatabase,
+  type LocalMessage,
+  type LocalRtc,
+  type LocalSession,
+  type LocalTurn,
+  type SyncStatus,
+} from './database.js';
+import { nowRFC3339 } from './time-utils.js';
+import { getUIUpdateBus } from './ui-update-bus.js';
 
 const log = createLogger('EntityRepository');
 
@@ -230,7 +231,11 @@ async function emitUIUpdates(
   const cloneableBefore = before ? safeClone(before) : undefined;
 
   // Collect all field changes into a single batch event
-  const changes: Array<{ field: string; oldValue: unknown; newValue: unknown }> = [];
+  const changes: Array<{
+    field: string;
+    oldValue: unknown;
+    newValue: unknown;
+  }> = [];
 
   if (!cloneableBefore) {
     // Create: emit a CREATE event with all top-level fields as changes
@@ -307,7 +312,7 @@ function estimateSize(
   obj: unknown,
   maxDepth: number = 10,
   currentDepth: number = 0,
-  visited: WeakSet<object> = new WeakSet()
+  visited: WeakSet<object> = new WeakSet(),
 ): number {
   // P1-FIX: Prevent stack overflow on deeply nested objects
   if (currentDepth >= maxDepth) {
@@ -331,12 +336,19 @@ function estimateSize(
   }
 
   if (Array.isArray(obj)) {
-    return obj.reduce((sum, item) => sum + estimateSize(item, maxDepth, currentDepth + 1, visited), 8);
+    return obj.reduce(
+      (sum, item) =>
+        sum + estimateSize(item, maxDepth, currentDepth + 1, visited),
+      8,
+    );
   }
   if (typeof obj === 'object') {
     return Object.entries(obj).reduce(
-      (sum, [k, v]) => sum + k.length * 2 + estimateSize(v, maxDepth, currentDepth + 1, visited),
-      8
+      (sum, [k, v]) =>
+        sum +
+        k.length * 2 +
+        estimateSize(v, maxDepth, currentDepth + 1, visited),
+      8,
     );
   }
   return 8;
@@ -377,8 +389,8 @@ function safeClone(obj: object): Record<string, unknown> {
       if (duration > 10) {
         log.warn(
           `safeClone: slow structuredClone detected (${duration.toFixed(2)}ms, ` +
-          `estimated size: ${estimateSize(obj)} bytes). ` +
-          `Consider optimizing data structure or reducing update frequency.`,
+            `estimated size: ${estimateSize(obj)} bytes). ` +
+            `Consider optimizing data structure or reducing update frequency.`,
         );
       }
 
@@ -397,8 +409,8 @@ function safeClone(obj: object): Record<string, unknown> {
     if (duration > 10) {
       log.warn(
         `safeClone: slow JSON clone detected (${duration.toFixed(2)}ms, ` +
-        `estimated size: ${estimateSize(obj)} bytes). ` +
-        `Consider optimizing data structure or reducing update frequency.`,
+          `estimated size: ${estimateSize(obj)} bytes). ` +
+          `Consider optimizing data structure or reducing update frequency.`,
       );
     }
 
@@ -470,7 +482,7 @@ export class EntityRepository {
         ) {
           log.warn(
             `upsertSession: concurrent write detected for ${session.client_id}, ` +
-            `existing updated_at=${existing.updated_at}, incoming updated_at=${session.updated_at}`
+              `existing updated_at=${existing.updated_at}, incoming updated_at=${session.updated_at}`,
           );
         }
 
@@ -857,7 +869,7 @@ export class EntityRepository {
         ) {
           log.warn(
             `upsertMessage: concurrent write detected for ${message.client_id}, ` +
-            `existing updated_at=${existing.updated_at}, incoming updated_at=${message.updated_at}`
+              `existing updated_at=${existing.updated_at}, incoming updated_at=${message.updated_at}`,
           );
         }
 
@@ -1120,7 +1132,7 @@ export class EntityRepository {
         ) {
           log.warn(
             `upsertRtc: concurrent write detected for ${rtc.client_id}, ` +
-            `existing updated_at=${existing.updated_at}, incoming updated_at=${rtc.updated_at}`
+              `existing updated_at=${existing.updated_at}, incoming updated_at=${rtc.updated_at}`,
           );
         }
 
@@ -1398,7 +1410,7 @@ export class EntityRepository {
           // 7d. bulkPut writes
           // P0-FIX: Validate data before bulkPut to prevent runtime errors
           if (merged.sessions.length > 0) {
-            const validSessions = merged.sessions.filter(s => {
+            const validSessions = merged.sessions.filter((s) => {
               if (!s.client_id) {
                 log.warn('bulkPut: session missing client_id, skipping');
                 return false;
@@ -1409,7 +1421,7 @@ export class EntityRepository {
               await db.sessions.bulkPut(validSessions as LocalSession[]);
           }
           if (merged.turns.length > 0) {
-            const validTurns = merged.turns.filter(t => {
+            const validTurns = merged.turns.filter((t) => {
               if (!t.client_id) {
                 log.warn('bulkPut: turn missing client_id, skipping');
                 return false;
@@ -1420,7 +1432,7 @@ export class EntityRepository {
               await db.turns.bulkPut(validTurns as LocalTurn[]);
           }
           if (merged.messages.length > 0) {
-            const validMessages = merged.messages.filter(m => {
+            const validMessages = merged.messages.filter((m) => {
               if (!m.client_id) {
                 log.warn('bulkPut: message missing client_id, skipping');
                 return false;
@@ -1431,7 +1443,7 @@ export class EntityRepository {
               await db.messages.bulkPut(validMessages as LocalMessage[]);
           }
           if (merged.rtcs.length > 0) {
-            const validRtcs = merged.rtcs.filter(r => {
+            const validRtcs = merged.rtcs.filter((r) => {
               if (!r.client_id) {
                 log.warn('bulkPut: rtc missing client_id, skipping');
                 return false;
@@ -1445,7 +1457,8 @@ export class EntityRepository {
           // 7e. bulkDelete deletes
           if (deletes.sessions.length > 0)
             await db.sessions.bulkDelete(deletes.sessions);
-          if (deletes.turns.length > 0) await db.turns.bulkDelete(deletes.turns);
+          if (deletes.turns.length > 0)
+            await db.turns.bulkDelete(deletes.turns);
           if (deletes.messages.length > 0)
             await db.messages.bulkDelete(deletes.messages);
           if (deletes.rtcs.length > 0) await db.rtcs.bulkDelete(deletes.rtcs);
@@ -1459,8 +1472,8 @@ export class EntityRepository {
         if (txElapsed > 5000) {
           log.warn(
             `[applyUpdates] Small batch transaction took ${txElapsed.toFixed(1)}ms ` +
-            `(>${5000}ms threshold). Consider if batch size should be reduced. ` +
-            `Items: ${totalWriteItems}`,
+              `(>${5000}ms threshold). Consider if batch size should be reduced. ` +
+              `Items: ${totalWriteItems}`,
           );
         }
       } else {
@@ -1482,7 +1495,7 @@ export class EntityRepository {
         if (readMergeElapsed > 5000) {
           log.warn(
             `[applyUpdates] Large batch read-merge took ${readMergeElapsed.toFixed(1)}ms ` +
-            `(>${5000}ms threshold). Items: ${totalWriteItems}`,
+              `(>${5000}ms threshold). Items: ${totalWriteItems}`,
           );
         }
 
@@ -1490,9 +1503,13 @@ export class EntityRepository {
         // This record tracks the batch operation and enables proper compensation.
         const batchId = crypto.randomUUID();
         const entityTypesInvolved = [
-          merged.sessions.length > 0 || deletes.sessions.length > 0 ? 'sessions' : null,
+          merged.sessions.length > 0 || deletes.sessions.length > 0
+            ? 'sessions'
+            : null,
           merged.turns.length > 0 || deletes.turns.length > 0 ? 'turns' : null,
-          merged.messages.length > 0 || deletes.messages.length > 0 ? 'messages' : null,
+          merged.messages.length > 0 || deletes.messages.length > 0
+            ? 'messages'
+            : null,
           merged.rtcs.length > 0 || deletes.rtcs.length > 0 ? 'rtcs' : null,
         ].filter(Boolean) as string[];
 
@@ -1512,7 +1529,7 @@ export class EntityRepository {
 
         log.info(
           `[applyUpdates] Created batch intent ${batchId} for ${totalWriteItems} items ` +
-          `across ${entityTypesInvolved.length} entity types`,
+            `across ${entityTypesInvolved.length} entity types`,
         );
 
         // P0-FIX: Track successfully written entity types for compensation on failure.
@@ -1535,10 +1552,14 @@ export class EntityRepository {
           // This reduces transaction scope and timeout risk for large datasets
           if (merged.sessions.length > 0 || deletes.sessions.length > 0) {
             const txStart = performance.now();
-            const sessionClientIds = merged.sessions.map((s) => s.client_id!).filter(Boolean);
+            const sessionClientIds = merged.sessions
+              .map((s) => s.client_id!)
+              .filter(Boolean);
             await db.transaction('rw', [db.sessions], async () => {
               if (merged.sessions.length > 0) {
-                const validSessions = merged.sessions.filter(s => s.client_id);
+                const validSessions = merged.sessions.filter(
+                  (s) => s.client_id,
+                );
                 if (validSessions.length > 0)
                   await db.sessions.bulkPut(validSessions as LocalSession[]);
               }
@@ -1546,26 +1567,36 @@ export class EntityRepository {
                 await db.sessions.bulkDelete(deletes.sessions);
             });
             if (merged.sessions.length > 0) {
-              completedWrites.push({ entityType: 'sessions', clientIds: sessionClientIds, operation: 'upsert' });
+              completedWrites.push({
+                entityType: 'sessions',
+                clientIds: sessionClientIds,
+                operation: 'upsert',
+              });
             }
             if (deletes.sessions.length > 0) {
-              completedWrites.push({ entityType: 'sessions', clientIds: deletes.sessions, operation: 'delete' });
+              completedWrites.push({
+                entityType: 'sessions',
+                clientIds: deletes.sessions,
+                operation: 'delete',
+              });
             }
             const elapsed = performance.now() - txStart;
             if (elapsed > 5000) {
               log.warn(
                 `[applyUpdates] Sessions write transaction took ${elapsed.toFixed(1)}ms ` +
-                `(>${5000}ms threshold). Items: ${merged.sessions.length + deletes.sessions.length}`,
+                  `(>${5000}ms threshold). Items: ${merged.sessions.length + deletes.sessions.length}`,
               );
             }
           }
 
           if (merged.turns.length > 0 || deletes.turns.length > 0) {
             const txStart = performance.now();
-            const turnClientIds = merged.turns.map((t) => t.client_id!).filter(Boolean);
+            const turnClientIds = merged.turns
+              .map((t) => t.client_id!)
+              .filter(Boolean);
             await db.transaction('rw', [db.turns], async () => {
               if (merged.turns.length > 0) {
-                const validTurns = merged.turns.filter(t => t.client_id);
+                const validTurns = merged.turns.filter((t) => t.client_id);
                 if (validTurns.length > 0)
                   await db.turns.bulkPut(validTurns as LocalTurn[]);
               }
@@ -1573,26 +1604,38 @@ export class EntityRepository {
                 await db.turns.bulkDelete(deletes.turns);
             });
             if (merged.turns.length > 0) {
-              completedWrites.push({ entityType: 'turns', clientIds: turnClientIds, operation: 'upsert' });
+              completedWrites.push({
+                entityType: 'turns',
+                clientIds: turnClientIds,
+                operation: 'upsert',
+              });
             }
             if (deletes.turns.length > 0) {
-              completedWrites.push({ entityType: 'turns', clientIds: deletes.turns, operation: 'delete' });
+              completedWrites.push({
+                entityType: 'turns',
+                clientIds: deletes.turns,
+                operation: 'delete',
+              });
             }
             const elapsed = performance.now() - txStart;
             if (elapsed > 5000) {
               log.warn(
                 `[applyUpdates] Turns write transaction took ${elapsed.toFixed(1)}ms ` +
-                `(>${5000}ms threshold). Items: ${merged.turns.length + deletes.turns.length}`,
+                  `(>${5000}ms threshold). Items: ${merged.turns.length + deletes.turns.length}`,
               );
             }
           }
 
           if (merged.messages.length > 0 || deletes.messages.length > 0) {
             const txStart = performance.now();
-            const messageClientIds = merged.messages.map((m) => m.client_id!).filter(Boolean);
+            const messageClientIds = merged.messages
+              .map((m) => m.client_id!)
+              .filter(Boolean);
             await db.transaction('rw', [db.messages], async () => {
               if (merged.messages.length > 0) {
-                const validMessages = merged.messages.filter(m => m.client_id);
+                const validMessages = merged.messages.filter(
+                  (m) => m.client_id,
+                );
                 if (validMessages.length > 0)
                   await db.messages.bulkPut(validMessages as LocalMessage[]);
               }
@@ -1600,26 +1643,36 @@ export class EntityRepository {
                 await db.messages.bulkDelete(deletes.messages);
             });
             if (merged.messages.length > 0) {
-              completedWrites.push({ entityType: 'messages', clientIds: messageClientIds, operation: 'upsert' });
+              completedWrites.push({
+                entityType: 'messages',
+                clientIds: messageClientIds,
+                operation: 'upsert',
+              });
             }
             if (deletes.messages.length > 0) {
-              completedWrites.push({ entityType: 'messages', clientIds: deletes.messages, operation: 'delete' });
+              completedWrites.push({
+                entityType: 'messages',
+                clientIds: deletes.messages,
+                operation: 'delete',
+              });
             }
             const elapsed = performance.now() - txStart;
             if (elapsed > 5000) {
               log.warn(
                 `[applyUpdates] Messages write transaction took ${elapsed.toFixed(1)}ms ` +
-                `(>${5000}ms threshold). Items: ${merged.messages.length + deletes.messages.length}`,
+                  `(>${5000}ms threshold). Items: ${merged.messages.length + deletes.messages.length}`,
               );
             }
           }
 
           if (merged.rtcs.length > 0 || deletes.rtcs.length > 0) {
             const txStart = performance.now();
-            const rtcClientIds = merged.rtcs.map((r) => r.client_id!).filter(Boolean);
+            const rtcClientIds = merged.rtcs
+              .map((r) => r.client_id!)
+              .filter(Boolean);
             await db.transaction('rw', [db.rtcs], async () => {
               if (merged.rtcs.length > 0) {
-                const validRtcs = merged.rtcs.filter(r => r.client_id);
+                const validRtcs = merged.rtcs.filter((r) => r.client_id);
                 if (validRtcs.length > 0)
                   await db.rtcs.bulkPut(validRtcs as LocalRtc[]);
               }
@@ -1627,16 +1680,24 @@ export class EntityRepository {
                 await db.rtcs.bulkDelete(deletes.rtcs);
             });
             if (merged.rtcs.length > 0) {
-              completedWrites.push({ entityType: 'rtcs', clientIds: rtcClientIds, operation: 'upsert' });
+              completedWrites.push({
+                entityType: 'rtcs',
+                clientIds: rtcClientIds,
+                operation: 'upsert',
+              });
             }
             if (deletes.rtcs.length > 0) {
-              completedWrites.push({ entityType: 'rtcs', clientIds: deletes.rtcs, operation: 'delete' });
+              completedWrites.push({
+                entityType: 'rtcs',
+                clientIds: deletes.rtcs,
+                operation: 'delete',
+              });
             }
             const elapsed = performance.now() - txStart;
             if (elapsed > 5000) {
               log.warn(
                 `[applyUpdates] RTcs write transaction took ${elapsed.toFixed(1)}ms ` +
-                `(>${5000}ms threshold). Items: ${merged.rtcs.length + deletes.rtcs.length}`,
+                  `(>${5000}ms threshold). Items: ${merged.rtcs.length + deletes.rtcs.length}`,
               );
             }
           }
@@ -1657,7 +1718,7 @@ export class EntityRepository {
               if (elapsed > 5000) {
                 log.warn(
                   `[applyUpdates] Turn count writeback took ${elapsed.toFixed(1)}ms ` +
-                  `(>${5000}ms threshold). Items: ${merged.turns.length}`,
+                    `(>${5000}ms threshold). Items: ${merged.turns.length}`,
                 );
               }
             } catch (writebackError) {
@@ -1683,7 +1744,7 @@ export class EntityRepository {
 
           log.info(
             `[applyUpdates] Batch ${batchId} completed successfully ` +
-            `(${completedWrites.length} entity types written)`,
+              `(${completedWrites.length} entity types written)`,
           );
 
           // P0-1-FIX: Clean up batch intent record on successful completion.
@@ -1718,7 +1779,8 @@ export class EntityRepository {
               await db.batchIntents.update(batchId, {
                 status: 'failed',
                 updatedAt: Date.now(),
-                errorMessage: error instanceof Error ? error.message : String(error),
+                errorMessage:
+                  error instanceof Error ? error.message : String(error),
               });
             });
           } catch (intentUpdateError) {
@@ -1740,13 +1802,19 @@ export class EntityRepository {
             const COMPENSATION_RETRY_DELAY_MS = 100;
 
             let lastError: unknown;
-            for (let retryAttempt = 0; retryAttempt <= MAX_COMPENSATION_RETRIES; retryAttempt++) {
+            for (
+              let retryAttempt = 0;
+              retryAttempt <= MAX_COMPENSATION_RETRIES;
+              retryAttempt++
+            ) {
               try {
                 if (retryAttempt > 0) {
                   log.info(
                     `[applyUpdates] Compensation retry attempt ${retryAttempt}/${MAX_COMPENSATION_RETRIES} for ${write.entityType}`,
                   );
-                  await new Promise(resolve => setTimeout(resolve, COMPENSATION_RETRY_DELAY_MS));
+                  await new Promise((resolve) =>
+                    setTimeout(resolve, COMPENSATION_RETRY_DELAY_MS),
+                  );
                 }
 
                 if (write.operation === 'upsert') {
@@ -1777,7 +1845,7 @@ export class EntityRepository {
                     await table.bulkPut(beforeRecords as any[]);
                     log.info(
                       `[applyUpdates] Compensation: restored ${beforeRecords.length} ` +
-                      `${write.entityType} updates from snapshots`,
+                        `${write.entityType} updates from snapshots`,
                     );
                   }
 
@@ -1786,7 +1854,7 @@ export class EntityRepository {
                     await table.bulkDelete(newClientIds);
                     log.info(
                       `[applyUpdates] Compensation: deleted ${newClientIds.length} ` +
-                      `new ${write.entityType} creates`,
+                        `new ${write.entityType} creates`,
                     );
                   }
                 } else {
@@ -1802,7 +1870,7 @@ export class EntityRepository {
                     } else {
                       log.warn(
                         `[applyUpdates] Compensation: cannot restore deleted ${write.entityType} ` +
-                        `record ${clientId} (no before snapshot available)`,
+                          `record ${clientId} (no before snapshot available)`,
                       );
                     }
                   }
@@ -1815,7 +1883,7 @@ export class EntityRepository {
                     await table.bulkAdd(recordsToRestore as any[]);
                     log.info(
                       `[applyUpdates] Compensation: restored ${recordsToRestore.length} ` +
-                      `${write.entityType} deletes from snapshots`,
+                        `${write.entityType} deletes from snapshots`,
                     );
                   }
                 }
@@ -1828,7 +1896,9 @@ export class EntityRepository {
                 // Log error at error level for visibility
                 log.error(
                   `[applyUpdates] Compensation rollback failed for ${write.entityType}` +
-                  (retryAttempt < MAX_COMPENSATION_RETRIES ? `, will retry` : `, no more retries`),
+                    (retryAttempt < MAX_COMPENSATION_RETRIES
+                      ? `, will retry`
+                      : `, no more retries`),
                   rollbackError,
                 );
               }
@@ -1838,7 +1908,7 @@ export class EntityRepository {
             if (lastError !== undefined) {
               log.error(
                 `[applyUpdates] Compensation rollback exhausted all retries for ${write.entityType}. ` +
-                `Data may be in inconsistent state.`,
+                  `Data may be in inconsistent state.`,
                 lastError,
               );
             }
@@ -1912,7 +1982,7 @@ export class EntityRepository {
           const data = update.data_list?.[i] as
             | Record<string, unknown>
             | undefined;
-          const clientId = data?.['client_id'] as string | undefined;
+          const clientId = data?.client_id as string | undefined;
 
           if (clientId) {
             this.pushDelete(deletes, item.entity, clientId);
@@ -1922,8 +1992,8 @@ export class EntityRepository {
               deletes._pendingDeleteServerIds.set(item.entity, []);
             }
             deletes._pendingDeleteServerIds
-              .get(item.entity)!
-              .push(item.entity_id);
+              .get(item.entity)
+              ?.push(item.entity_id);
           }
           continue;
         }
@@ -1933,15 +2003,14 @@ export class EntityRepository {
           | undefined;
         if (!data) continue;
 
-        const clientId =
-          (data['client_id'] as string) || (data['id'] as string);
+        const clientId = (data.client_id as string) || (data.id as string);
         if (!clientId) continue; // Invalid data without client_id, skip
 
         if (!upserts.has(item.entity)) {
           upserts.set(item.entity, new Map());
         }
         // Last occurrence wins (same client_id multiple updates, take the last one)
-        upserts.get(item.entity)!.set(clientId, { item, data });
+        upserts.get(item.entity)?.set(clientId, { item, data });
       }
     }
 
@@ -2030,8 +2099,8 @@ export class EntityRepository {
     const batchSessions = upserts.get('session') ?? [];
     for (const { data } of batchSessions) {
       const raw = data as Record<string, unknown>;
-      const serverId = raw['id'] as string;
-      const clientId = (raw['client_id'] as string) || serverId;
+      const serverId = raw.id as string;
+      const clientId = (raw.client_id as string) || serverId;
 
       // Build a partial session object for mapping
       const session: Partial<LocalSession> = {
@@ -2102,8 +2171,8 @@ export class EntityRepository {
     // Sessions
     for (const { data } of upserts.get('session') ?? []) {
       const raw = data as Record<string, unknown>;
-      const serverId = raw['id'] as string;
-      const clientId = (raw['client_id'] as string) || serverId;
+      const serverId = raw.id as string;
+      const clientId = (raw.client_id as string) || serverId;
 
       // Fill defaults first, then override with incoming data
       const { id: _id, ...rest } = raw as Partial<LocalSession> & {
@@ -2130,9 +2199,9 @@ export class EntityRepository {
     // Turns
     for (const { data } of upserts.get('turn') ?? []) {
       const raw = data as Record<string, unknown>;
-      const serverId = raw['id'] as string;
-      const clientId = (raw['client_id'] as string) || serverId;
-      const sessionId = raw['session_id'] as string | undefined;
+      const serverId = raw.id as string;
+      const clientId = (raw.client_id as string) || serverId;
+      const sessionId = raw.session_id as string | undefined;
 
       // Use destructuring to remove protocol-layer fields
       const {
@@ -2165,10 +2234,10 @@ export class EntityRepository {
     // Messages
     for (const { data } of upserts.get('message') ?? []) {
       const raw = data as Record<string, unknown>;
-      const serverId = raw['id'] as string;
-      const clientId = (raw['client_id'] as string) || serverId;
-      const sessionId = raw['session_id'] as string | undefined;
-      const parentMsgId = raw['parent_message_id'] as string | undefined;
+      const serverId = raw.id as string;
+      const clientId = (raw.client_id as string) || serverId;
+      const sessionId = raw.session_id as string | undefined;
+      const parentMsgId = raw.parent_message_id as string | undefined;
 
       // Use destructuring to remove protocol-layer fields
       const {
@@ -2220,9 +2289,9 @@ export class EntityRepository {
     // Rtcs
     for (const { data } of upserts.get('rtc') ?? []) {
       const raw = data as Record<string, unknown>;
-      const serverId = raw['id'] as string;
-      const clientId = (raw['client_id'] as string) || serverId;
-      const sessionId = raw['session_id'] as string | undefined;
+      const serverId = raw.id as string;
+      const clientId = (raw.client_id as string) || serverId;
+      const sessionId = raw.session_id as string | undefined;
 
       let sessionClientId: string | undefined;
       let sessionDeviceId: string | undefined;
@@ -2712,7 +2781,12 @@ export class EntityRepository {
         if (prev) {
           // If entity has updated_at, use timestamp-based conflict resolution
           if (item.updated_at && prev.updated_at) {
-            const { isConflict } = resolveByTimestamp(item, prev, entityName, cid);
+            const { isConflict } = resolveByTimestamp(
+              item,
+              prev,
+              entityName,
+              cid,
+            );
             if (isConflict) {
               // Conflict already logged by resolveByTimestamp with structured resolution
               // Return existing unchanged (not merged with incoming)
@@ -2728,7 +2802,7 @@ export class EntityRepository {
       });
     };
 
-   /**
+    /**
      * Message-specific merge with TWO checks in strict priority order:
      *
      * ## Conflict Resolution Priority (highest to lowest)
@@ -2806,7 +2880,12 @@ export class EntityRepository {
           // Only applies if both have updated_at
           // Only reached if Check 1 passed (no streaming regression)
           if (item.updated_at && prev.updated_at) {
-            const { isConflict } = resolveByTimestamp(item, prev, 'message', cid);
+            const { isConflict } = resolveByTimestamp(
+              item,
+              prev,
+              'message',
+              cid,
+            );
             if (isConflict) {
               // Conflict already logged by resolveByTimestamp with structured resolution
               // Return existing unchanged (not merged with incoming)

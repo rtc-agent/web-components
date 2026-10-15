@@ -12,9 +12,9 @@
  * - Offline download (cache hit): returns immediately, onProgress not triggered
  */
 
-import type { WorkerBridge } from '../worker-bridge.js';
 import type { FileCacheEntry } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import type { WorkerBridge } from '../worker-bridge.js';
 
 const log = createLogger('FileStorage');
 
@@ -220,6 +220,11 @@ export interface ListResult {
 /**
  * Extract file extension from filename.
  *
+ * SECURITY NOTE: This function is purely a filename parser — it performs NO validation.
+ * Actual extension validation (against a safe allowlist) happens in S3Client.buildKey().
+ * This is defense-in-depth only; the backend MUST independently validate file extensions,
+ * Content-Type, and Magic Numbers before accepting or serving uploads.
+ *
  * @param filename - Filename to extract extension from
  * @returns Extension without dot, or 'bin' if no extension found
  *
@@ -303,6 +308,14 @@ export class FileStorage {
 
   /**
    * Upload a file with automatic MD5 calculation.
+   *
+   * SECURITY: Client-side extension validation in S3Client is UX optimization only.
+   * The backend MUST independently validate:
+   *   1. File extension against its own safe allowlist
+   *   2. Content-Type matches the file extension
+   *   3. File Magic Number matches the declared type (optional, high-risk scenarios)
+   * Never rely on client-side checks alone — attackers can bypass them by calling
+   * the backend API directly or modifying client code.
    *
    * Flow:
    * 1. Check abort signal (fail fast if already aborted)

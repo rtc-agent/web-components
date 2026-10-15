@@ -14,33 +14,34 @@
  * @element rtc-function-tree
  * @fires function-select - User clicks a function (detail: { functionName })
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { STORAGE_KEYS } from '../../config/auth.js';
 import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-function-tree.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+  FunctionDebugContext,
+  type FunctionDebugContextValue,
+} from '../../contexts/function-debug.js';
 import {
   FunctionsContext,
   type FunctionsContextValue,
 } from '../../contexts/functions.js';
 import {
-  FunctionDebugContext,
-  type FunctionDebugContextValue,
-} from '../../contexts/function-debug.js';
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { chevronDownIcon, chevronRightIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type { FunctionDef } from '../../types/skill.js';
-import { chevronRightIcon, chevronDownIcon } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
-import { STORAGE_KEYS } from '../../config/auth.js';
+import { styles } from './rtc-function-tree.styles.js';
 
 const log = createLogger('FunctionTree');
 
@@ -100,7 +101,7 @@ function buildTreeFromFunctions(functions: FunctionDef[]): TreeNode[] {
       // Function belongs to a group
       const groupName = parts[0];
       const group = groupNodes.get(groupName);
-      if (group && group.children) {
+      if (group?.children) {
         // Use the function name without group prefix for display
         const displayName = parts.slice(1).join('.');
         group.children.push({

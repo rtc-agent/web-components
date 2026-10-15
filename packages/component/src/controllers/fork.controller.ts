@@ -9,10 +9,11 @@
  *
  * No context — fork state is consumed only by the root component internally.
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+
 import { msg, str } from '@lit/localize';
-import type { ContentData } from '../types/index.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ContentData } from '../types/index.js';
 
 const log = createLogger('ForkController');
 
@@ -98,7 +99,7 @@ export class ForkController implements ReactiveController {
     _content: string,
   ) {
     const truncatedContent =
-      _content.length > 30 ? _content.slice(0, 30) + '...' : _content;
+      _content.length > 30 ? `${_content.slice(0, 30)}...` : _content;
 
     this._state = {
       oldSessionClientId,

@@ -1,10 +1,10 @@
 // File Cache Repository — IndexedDB file cache management
 
+import { createLogger, type FileSyncStatus } from '@rtc-agent/protocol';
 import Dexie from 'dexie';
-import { getDatabase, type FileCacheEntry } from './database.js';
-import { createLogger, FileSyncStatus } from '@rtc-agent/protocol';
 import SparkMD5 from 'spark-md5';
-import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
+import { type FileCacheEntry, getDatabase } from './database.js';
+import { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
 import { ResourceScope } from './resource-scope.js';
 
 const log = createLogger('FileCacheRepository');
@@ -102,7 +102,7 @@ export interface CacheStats {
  * @returns Delay in milliseconds
  */
 function getRetryDelay(retryCount: number): number {
-  return Math.pow(2, retryCount) * 1000;
+  return 2 ** retryCount * 1000;
 }
 
 /**
@@ -227,11 +227,19 @@ export class FileCacheRepository {
     // Pending/failed files use extended TTL to prevent data loss
     const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
     if (now > extendedExpiry) {
-      return { expired: true, safeToDelete: true, extendedExpiry: new Date(extendedExpiry) };
+      return {
+        expired: true,
+        safeToDelete: true,
+        extendedExpiry: new Date(extendedExpiry),
+      };
     }
 
     // Still within extended TTL - preserve the file
-    return { expired: false, safeToDelete: false, extendedExpiry: new Date(extendedExpiry) };
+    return {
+      expired: false,
+      safeToDelete: false,
+      extendedExpiry: new Date(extendedExpiry),
+    };
   }
 
   async get(md5: string, ext: string): Promise<CachedFileInfo | null> {
@@ -247,14 +255,20 @@ export class FileCacheRepository {
     const expiryCheck = this._isEntryExpired(entry);
 
     if (expiryCheck.expired && expiryCheck.safeToDelete) {
-      const statusNote = entry.syncStatus === 'synced' ? '' : ` (pending/failed, exceeded 30-day TTL)`;
+      const statusNote =
+        entry.syncStatus === 'synced'
+          ? ''
+          : ` (pending/failed, exceeded 30-day TTL)`;
       log.debug(`cache expired${statusNote}: ${md5}.${ext}`);
       // Defer cleanup to idle time to avoid blocking the main thread during cache reads.
       // The entry is already treated as "not found" (returning null), so the delete
       // is purely housekeeping — safe to defer without affecting correctness.
       scheduleIdleTask(() => {
         db.fileCache.delete([md5, ext]).catch((err) => {
-          log.warn(`Failed to clean up expired cache entry ${md5}.${ext}:`, err);
+          log.warn(
+            `Failed to clean up expired cache entry ${md5}.${ext}:`,
+            err,
+          );
         });
       });
       return null;
@@ -264,7 +278,7 @@ export class FileCacheRepository {
     if (entry.syncStatus !== 'synced' && expiryCheck.extendedExpiry) {
       log.warn(
         `[FileCache] Skipping cleanup of unsynced file (${entry.syncStatus}): ${md5}.${ext}. ` +
-        `File will be preserved until extended TTL (30 days) expires on ${expiryCheck.extendedExpiry.toISOString()}.`,
+          `File will be preserved until extended TTL (30 days) expires on ${expiryCheck.extendedExpiry.toISOString()}.`,
       );
     }
 
@@ -446,7 +460,10 @@ export class FileCacheRepository {
 
     if (!worker) {
       // Create a new worker if pool is not full
-      if (FileCacheRepository._md5WorkerPool.length < FileCacheRepository.MAX_MD5_WORKERS) {
+      if (
+        FileCacheRepository._md5WorkerPool.length <
+        FileCacheRepository.MAX_MD5_WORKERS
+      ) {
         worker = FileCacheRepository._createMD5Worker();
         FileCacheRepository._md5WorkerPool.push(worker);
         log.debug(
@@ -476,7 +493,9 @@ export class FileCacheRepository {
 
         if (!worker) {
           FileCacheRepository._pendingMd5Tasks--;
-          throw new Error('MD5 worker pool exhausted (all workers busy for 5s)');
+          throw new Error(
+            'MD5 worker pool exhausted (all workers busy for 5s)',
+          );
         }
       }
     }
@@ -501,8 +520,8 @@ export class FileCacheRepository {
 
         const onMessage = (e: MessageEvent) => {
           clearTimeout(timeout);
-          worker!.removeEventListener('message', onMessage);
-          worker!.removeEventListener('error', onError);
+          worker?.removeEventListener('message', onMessage);
+          worker?.removeEventListener('error', onError);
 
           if (e.data.success) {
             resolve(e.data.hash);
@@ -513,8 +532,8 @@ export class FileCacheRepository {
 
         const onError = (err: ErrorEvent) => {
           clearTimeout(timeout);
-          worker!.removeEventListener('message', onMessage);
-          worker!.removeEventListener('error', onError);
+          worker?.removeEventListener('message', onMessage);
+          worker?.removeEventListener('error', onError);
           reject(new Error(`Worker error: ${err.message || 'Unknown error'}`));
         };
 
@@ -750,7 +769,9 @@ export class FileCacheRepository {
 
     // H3-FIX: Deduplicate concurrent calls - return existing promise if one is in flight
     if (this._recoverStaleSyncingPromise) {
-      log.debug('recoverStaleSyncing: already in progress, returning existing promise');
+      log.debug(
+        'recoverStaleSyncing: already in progress, returning existing promise',
+      );
       return this._recoverStaleSyncingPromise;
     }
 
@@ -813,7 +834,9 @@ export class FileCacheRepository {
     }
 
     if (staleKeys.length === 0) {
-      log.debug('recoverStaleSyncing: no stale syncing entries found (all within threshold)');
+      log.debug(
+        'recoverStaleSyncing: no stale syncing entries found (all within threshold)',
+      );
       return 0;
     }
 
@@ -926,10 +949,10 @@ export class FileCacheRepository {
     if (newChainLength > CHAIN_LENGTH_HARD_LIMIT) {
       throw new Error(
         `withSyncLock: Promise chain length for ${key} exceeded hard limit ` +
-        `(${newChainLength} > ${CHAIN_LENGTH_HARD_LIMIT}). ` +
-        `Rejecting operation to prevent memory exhaustion. ` +
-        `This indicates a serious memory leak or extremely high concurrency. ` +
-        `Investigate why cleanup is not working correctly.`
+          `(${newChainLength} > ${CHAIN_LENGTH_HARD_LIMIT}). ` +
+          `Rejecting operation to prevent memory exhaustion. ` +
+          `This indicates a serious memory leak or extremely high concurrency. ` +
+          `Investigate why cleanup is not working correctly.`,
       );
     }
 
@@ -938,8 +961,8 @@ export class FileCacheRepository {
     if (newChainLength > CHAIN_LENGTH_WARNING_THRESHOLD) {
       log.warn(
         `withSyncLock: Promise chain length for ${key} is ${newChainLength} ` +
-        `(threshold: ${CHAIN_LENGTH_WARNING_THRESHOLD}). ` +
-        `This may indicate a memory leak if cleanup is not working correctly.`,
+          `(threshold: ${CHAIN_LENGTH_WARNING_THRESHOLD}). ` +
+          `This may indicate a memory leak if cleanup is not working correctly.`,
       );
     }
 

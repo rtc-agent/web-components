@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { SessionContext, DEFAULT_SESSION_STATE } from './session.js';
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_SESSION_STATE, SessionContext } from './session.js';
 
 describe('SessionContext', () => {
   it('should export a context key', () => {

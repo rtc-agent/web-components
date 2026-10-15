@@ -9,14 +9,15 @@
  * @fires rtc-scenario-panel-close - User pressed Escape or clicked outside
  * @csspart list - The scenario list container
  */
-import { LitElement, html } from 'lit';
-import { customElement, state, property } from 'lit/decorators.js';
-import { classMap } from 'lit/directives/class-map.js';
+
 import { localized, msg } from '@lit/localize';
-import { styles } from './rtc-scenario-panel.styles.js';
-import { virtualFS, type FileSystemEntry } from '@rtc-agent/persistence';
-import type { ScenarioRef } from '../../types/index.js';
+import { type FileSystemEntry, virtualFS } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
+import type { ScenarioRef } from '../../types/index.js';
+import { styles } from './rtc-scenario-panel.styles.js';
 
 const log = createLogger('ScenarioPanel');
 

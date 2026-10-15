@@ -1,26 +1,24 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { FunctionRegistry } from './function-registry.js';
-import { eventBus, createEventBus } from './event-bus.js';
-import { parseFrontmatter } from './scenario-loader.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FunctionDef } from '../types/skill.js';
 import type {
+  FunctionErrorEvent,
   FunctionStartEvent,
   FunctionSuccessEvent,
-  FunctionErrorEvent,
 } from './event-bus.js';
+import { createEventBus, eventBus } from './event-bus.js';
+import { FunctionRegistry } from './function-registry.js';
+import { parseFrontmatter } from './scenario-loader.js';
 
-// Mock @rtc-agent/persistence - factory is hoisted, so no outer-scope references allowed.
-vi.mock('@rtc-agent/persistence', () => ({
-  virtualFS: {
-    write: vi.fn().mockResolvedValue(undefined),
-    remove: vi.fn().mockResolvedValue(undefined),
-    read: vi.fn().mockResolvedValue(''),
-    queryByType: vi.fn().mockResolvedValue([]),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+// Mock @rtc-agent/persistence using shared factory (dynamic import to handle vi.mock hoisting)
+vi.mock('@rtc-agent/persistence', async () => {
+  const { createMinimalMockPersistenceModule } = await import(
+    '../test-helpers.js'
+  );
+  return createMinimalMockPersistenceModule();
+});
 
 import { virtualFS } from '@rtc-agent/persistence';
+
 const mockVirtualFS = vi.mocked(virtualFS);
 
 describe('Skill System Integration', () => {
@@ -121,8 +119,8 @@ description: "A complete checkout flow"
         (c: unknown[]) => c[0] === '/scenarios/order-checkout.md',
       );
       expect(scenarioWrite).toBeDefined();
-      expect(scenarioWrite![1]).toContain('Order Checkout');
-      expect(scenarioWrite![1]).toContain('ecommerce');
+      expect(scenarioWrite?.[1]).toContain('Order Checkout');
+      expect(scenarioWrite?.[1]).toContain('ecommerce');
     });
 
     it('should slugify CJK titles', async () => {

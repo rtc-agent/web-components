@@ -1,21 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type { Update, UpdateItem } from '@rtc-agent/protocol';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  EntityRepository,
-  initEntityRepository,
-  getEntityRepository,
-} from './entity-repository.js';
-import {
-  getDatabase,
   closeDatabase,
-  flushAll,
   DB_NAME_PREFIX,
+  flushAll,
+  getDatabase,
 } from './database.js';
 import {
-  getUIUpdateBus,
+  EntityRepository,
+  getEntityRepository,
+  initEntityRepository,
+} from './entity-repository.js';
+import {
   closeUIUpdateBus,
+  getUIUpdateBus,
   type UIUpdateEvent,
 } from './ui-update-bus.js';
-import type { Update, UpdateItem } from '@rtc-agent/protocol';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-entity-repository`;
 const TEST_DEVICE_ID = 'test-device-001';
@@ -27,7 +27,7 @@ describe('entity-repository', () => {
   beforeEach(async () => {
     // Reset singleton state
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
     closeUIUpdateBus();
 
     // Re-initialize entity repository (reset internal singleton)
@@ -73,7 +73,7 @@ describe('entity-repository', () => {
         title: 'New',
       });
 
-      expect(result.before!.title).toBe('Old');
+      expect(result.before?.title).toBe('Old');
       expect(result.after.title).toBe('New');
       expect(result.after.client_id).toBe('s1');
     });
@@ -170,7 +170,21 @@ describe('entity-repository', () => {
       expect(list.map((s) => s.client_id)).toEqual(['s3', 's1']);
     });
 
-    it('should return all sessions by default (no limit)', async () => {
+    it('should return all sessions when large limit is passed', async () => {
+      // Create 100 sessions
+      for (let i = 0; i < 100; i++) {
+        await repo.upsertSession({
+          client_id: `s-${i}`,
+          title: `Session ${i}`,
+          updated_at: new Date(Date.now() - i * 1000).toISOString(),
+        });
+      }
+
+      const list = await repo.listSessions(undefined, 10000);
+      expect(list.length).toBe(103); // 100 new + 3 existing
+    });
+
+    it('should default to limit of 100', async () => {
       // Create 100 sessions
       for (let i = 0; i < 100; i++) {
         await repo.upsertSession({
@@ -181,7 +195,7 @@ describe('entity-repository', () => {
       }
 
       const list = await repo.listSessions();
-      expect(list.length).toBe(103); // 100 new + 3 existing
+      expect(list.length).toBe(100); // Default limit of 100
     });
 
     it('should paginate with limit', async () => {
@@ -258,7 +272,7 @@ describe('entity-repository', () => {
         client_id: 't1',
         status: 'running',
       });
-      expect(result.before!.status).toBe('pending');
+      expect(result.before?.status).toBe('pending');
       expect(result.after.status).toBe('running');
     });
 
@@ -344,7 +358,7 @@ describe('entity-repository', () => {
         client_id: 'm1',
         content: 'new',
       });
-      expect(result.before!.content).toBe('old');
+      expect(result.before?.content).toBe('old');
       expect(result.after.content).toBe('new');
     });
 
@@ -443,7 +457,7 @@ describe('entity-repository', () => {
         client_id: 'r1',
         status: 'completed',
       });
-      expect(result.before!.status).toBe('pending');
+      expect(result.before?.status).toBe('pending');
       expect(result.after.status).toBe('completed');
     });
   });
@@ -657,8 +671,8 @@ describe('entity-repository', () => {
 
       const s = await repo.getClientSession('c-s1');
       expect(s).toBeDefined();
-      expect(s!.server_id).toBe('srv-s1');
-      expect(s!.owner_kind).toBe('user');
+      expect(s?.server_id).toBe('srv-s1');
+      expect(s?.owner_kind).toBe('user');
     });
 
     it('should apply a turn update and aggregate counts to session', async () => {
@@ -692,11 +706,11 @@ describe('entity-repository', () => {
 
       const t = await repo.getClientTurn('c-t1');
       expect(t).toBeDefined();
-      expect(t!.session_client_id).toBe('s1');
+      expect(t?.session_client_id).toBe('s1');
 
       // Session should have pending_turn_count=1
       const s = await repo.getClientSession('s1');
-      expect(s!.pending_turn_count).toBe(1);
+      expect(s?.pending_turn_count).toBe(1);
     });
 
     it('should apply a message update with parent resolution', async () => {
@@ -740,8 +754,8 @@ describe('entity-repository', () => {
 
       const m = await repo.getClientMessage('c-m1');
       expect(m).toBeDefined();
-      expect(m!.session_client_id).toBe('s1');
-      expect(m!.parent_client_id).toBe('parent-msg');
+      expect(m?.session_client_id).toBe('s1');
+      expect(m?.parent_client_id).toBe('parent-msg');
     });
 
     it('should write RTC with session_device_id even for a different device', async () => {
@@ -780,9 +794,9 @@ describe('entity-repository', () => {
       // RTC should be written (lenient mode), with session_device_id stored
       const r = await repo.getClientRtc('c-r1');
       expect(r).toBeDefined();
-      expect(r!.session_client_id).toBe('s-other');
-      expect(r!.session_device_id).toBe('other-device');
-      expect(r!.sync_status).toBe('pending');
+      expect(r?.session_client_id).toBe('s-other');
+      expect(r?.session_device_id).toBe('other-device');
+      expect(r?.sync_status).toBe('pending');
     });
 
     it('should apply RTC for local device with sync_status=pending', async () => {
@@ -819,9 +833,9 @@ describe('entity-repository', () => {
 
       const r = await repo.getClientRtc('c-r1');
       expect(r).toBeDefined();
-      expect(r!.sync_status).toBe('pending');
-      expect(r!.session_client_id).toBe('s1');
-      expect(r!.session_device_id).toBe(TEST_DEVICE_ID);
+      expect(r?.sync_status).toBe('pending');
+      expect(r?.session_client_id).toBe('s1');
+      expect(r?.session_device_id).toBe(TEST_DEVICE_ID);
     });
 
     it('should skip items without data_list entry', async () => {

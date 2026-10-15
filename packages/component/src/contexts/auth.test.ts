@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { AuthContext } from './auth.js';
+import { describe, expect, it } from 'vitest';
 import type { AuthState } from '../types/index.js';
+import { AuthContext } from './auth.js';
 
 describe('AuthContext', () => {
   it('should export a context key', () => {

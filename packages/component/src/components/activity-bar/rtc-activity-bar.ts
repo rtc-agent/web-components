@@ -14,20 +14,21 @@
  * ## Styling
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-activity-bar.styles.js';
-import type { Activity } from '../../types/index.js';
-import { filesIcon, chatIcon, gearIcon, codeIcon } from '../../icons/index.js';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { chatIcon, codeIcon, filesIcon, gearIcon } from '../../icons/index.js';
+import type { Activity } from '../../types/index.js';
+import { styles } from './rtc-activity-bar.styles.js';
 
 const log = createLogger('ActivityBar');
 

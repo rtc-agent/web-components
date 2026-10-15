@@ -8,11 +8,11 @@
  * @element rtc-content-area
  * @csspart container - The content container
  */
-import { LitElement, html } from 'lit';
+import { html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { cache } from 'lit/directives/cache.js';
-import { styles } from './rtc-content-area.styles.js';
 import type { MessageController } from '../../controllers/message.controller.js';
+import { styles } from './rtc-content-area.styles.js';
 import './rtc-message-list.js';
 import '../empty-state/rtc-empty-state.js';
 

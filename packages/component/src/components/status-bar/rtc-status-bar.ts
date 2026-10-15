@@ -17,23 +17,24 @@
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  * VS Code style: blue background with white text, same colors in both themes.
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg, str } from '@lit/localize';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-status-bar.styles.js';
-import type { StatusBarInfo } from '../../types/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { StatusBarInfo } from '../../types/index.js';
+import { styles } from './rtc-status-bar.styles.js';
 
 const log = createLogger('StatusBar');
 

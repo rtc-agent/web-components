@@ -4,8 +4,8 @@
  * Determines whether user confirmation is required based on tool name and mode.
  */
 
-import type { ToolName } from './tools/types.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ToolName } from './tools/types.js';
 
 const log = createLogger('PermissionChecker');
 

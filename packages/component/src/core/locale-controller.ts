@@ -1,5 +1,5 @@
-import { type ReactiveControllerHost } from 'lit';
 import { ContextConsumer } from '@lit/context';
+import type { ReactiveControllerHost } from 'lit';
 import { localeContext, sourceLocale, targetLocales } from './i18n.js';
 
 /**

@@ -674,9 +674,9 @@ export class WorkerCore implements WorkerPersistenceCore {
     }, 60_000);
   }
 
-  async flushAll(): Promise<void> {
+  async flushAll(confirm: boolean = false): Promise<void> {
     const layer = this.ensureLayer();
-    return layer.flushAll();
+    return layer.flushAll(confirm);
   }
 
   async initializeVirtualFS(config: AgentMdConfig = {}): Promise<void> {

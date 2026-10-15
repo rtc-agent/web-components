@@ -20,27 +20,23 @@
  * @fires rtc-fork-initiated - Fork request orchestration complete (detail: { oldSessionClientId, oldMessageClientId, newSessionClientId, content })
  * @fires rtc-new-session - New session (including auto-create after all tabs closed)
  */
-import { LitElement, html, type PropertyValues } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { repeat } from 'lit/directives/repeat.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, type PropertyValues } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { repeat } from 'lit/directives/repeat.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ChatLayout');
-import { styles } from './rtc-chat-layout.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
-import { STORAGE_KEYS } from '../../config/auth.js';
 
+import { STORAGE_KEYS } from '../../config/auth.js';
 // Contexts
 import {
   SessionContext,
@@ -50,6 +46,11 @@ import {
   SessionTabContext,
   type SessionTabContextValue,
 } from '../../contexts/session-tab.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-chat-layout.styles.js';
 
 // Child components
 import '../session-tree/rtc-session-tree.js';
@@ -411,7 +412,7 @@ export class RtcChatLayout extends LitElement {
     const handles = this.shadowRoot?.querySelectorAll(
       '.resize-handle.dragging',
     );
-    handles?.forEach((h) => h.classList.remove('dragging'));
+    if (handles) for (const h of handles) h.classList.remove('dragging');
 
     // Restore global styles
     document.body.style.cursor = '';
@@ -443,7 +444,7 @@ export class RtcChatLayout extends LitElement {
       const stored = window.localStorage.getItem(STORAGE_KEYS.inputAreaHeight);
       if (!stored) return null;
       const height = parseInt(stored, 10);
-      if (isNaN(height)) return null;
+      if (Number.isNaN(height)) return null;
       // Ensure within valid range
       return Math.max(
         RtcChatLayout.MIN_INPUT_HEIGHT,
@@ -532,7 +533,7 @@ export class RtcChatLayout extends LitElement {
       return;
     }
     const truncatedContent =
-      content.length > 30 ? content.slice(0, 30) + '...' : content;
+      content.length > 30 ? `${content.slice(0, 30)}...` : content;
     const newSessionClientId = this._ensureUnsavedSession({
       initialInputValue: content,
       noticeMessage: msg(str`🔀 从「${truncatedContent}」分叉`),

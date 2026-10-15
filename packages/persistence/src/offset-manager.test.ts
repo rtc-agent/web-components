@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeDatabase, DB_NAME_PREFIX, getDatabase } from './database.js';
 import { OffsetManager } from './offset-manager.js';
-import { getDatabase, closeDatabase, DB_NAME_PREFIX } from './database.js';
 
 describe('OffsetManager', () => {
   const TEST_DB_NAME = `${DB_NAME_PREFIX}test-offset-manager`;
@@ -367,7 +367,7 @@ describe('OffsetManager', () => {
     it('should handle DB read errors gracefully', async () => {
       // Create a manager that will fail on DB read
       const db = getDatabase();
-      const originalGet = db.offsets.get.bind(db.offsets);
+      const _originalGet = db.offsets.get.bind(db.offsets);
 
       // Mock DB to throw error
       vi.spyOn(db.offsets, 'get').mockRejectedValueOnce(

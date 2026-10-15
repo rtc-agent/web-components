@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-title-bar.js';
 import type { RtcTitleBar } from './rtc-title-bar.js';
 
@@ -19,9 +19,9 @@ describe('<rtc-title-bar>', () => {
       html`<rtc-title-bar app-label="My App"></rtc-title-bar>`,
     );
     await nextFrame();
-    const label = el.shadowRoot!.querySelector('.app-label');
+    const label = el.shadowRoot?.querySelector('.app-label');
     expect(label).not.toBeNull();
-    expect(label!.textContent!.trim()).toBe('My App');
+    expect(label?.textContent?.trim()).toBe('My App');
   });
 
   it('should default app label to "RTC Agent"', async () => {
@@ -29,15 +29,15 @@ describe('<rtc-title-bar>', () => {
       html`<rtc-title-bar></rtc-title-bar>`,
     );
     await nextFrame();
-    const label = el.shadowRoot!.querySelector('.app-label');
-    expect(label!.textContent!.trim()).toBe('RTC Agent');
+    const label = el.shadowRoot?.querySelector('.app-label');
+    expect(label?.textContent?.trim()).toBe('RTC Agent');
   });
 
   it('should render minimize button', async () => {
     const el = await fixture<RtcTitleBar>(
       html`<rtc-title-bar></rtc-title-bar>`,
     );
-    const btn = el.shadowRoot!.querySelector('[data-action="minimize"]');
+    const btn = el.shadowRoot?.querySelector('[data-action="minimize"]');
     expect(btn).not.toBeNull();
   });
 
@@ -45,7 +45,7 @@ describe('<rtc-title-bar>', () => {
     const el = await fixture<RtcTitleBar>(
       html`<rtc-title-bar></rtc-title-bar>`,
     );
-    const btn = el.shadowRoot!.querySelector('[data-action="maximize"]');
+    const btn = el.shadowRoot?.querySelector('[data-action="maximize"]');
     expect(btn).not.toBeNull();
   });
 
@@ -55,7 +55,7 @@ describe('<rtc-title-bar>', () => {
     );
     const handler = vi.fn();
     el.addEventListener('rtc-window-minimize', handler);
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="minimize"]',
     ) as HTMLElement;
     btn.click();
@@ -68,7 +68,7 @@ describe('<rtc-title-bar>', () => {
     );
     const handler = vi.fn();
     el.addEventListener('rtc-window-maximize', handler);
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="maximize"]',
     ) as HTMLElement;
     btn.click();
@@ -80,7 +80,7 @@ describe('<rtc-title-bar>', () => {
       html`<rtc-title-bar window-mode="maximized"></rtc-title-bar>`,
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('[data-action="restore"]');
-    expect(btn!.getAttribute('aria-label')).toBe('Restore');
+    const btn = el.shadowRoot?.querySelector('[data-action="restore"]');
+    expect(btn?.getAttribute('aria-label')).toBe('Restore');
   });
 });

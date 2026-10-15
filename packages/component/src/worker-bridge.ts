@@ -278,7 +278,8 @@ export class WorkerBridge {
    * Note: The WeakRef is kept even after destroy() to detect conflicts with
    * destroyed-but-not-yet-GC'd instances (which would indicate a lifecycle bug).
    */
-  private static _virtualFSProxyInstalledBy: WeakRef<WorkerBridge> | null = null;
+  private static _virtualFSProxyInstalledBy: WeakRef<WorkerBridge> | null =
+    null;
 
   /**
    * Backup of original virtualFS methods, saved before proxy installation.
@@ -424,7 +425,7 @@ export class WorkerBridge {
         if (elapsed > 5) {
           log.warn(
             `onUIUpdate: main-thread processing took ${elapsed.toFixed(2)}ms (>5ms threshold), ` +
-            `entity=${payload.event?.entity}, action=${payload.event?.action}, seq=${payload.seq}`,
+              `entity=${payload.event?.entity}, action=${payload.event?.action}, seq=${payload.seq}`,
           );
         }
       },
@@ -1359,13 +1360,18 @@ export class WorkerBridge {
       const releaseSymbol = Symbol.for('comlink.releaseProxy');
       if (releaseSymbol in (proxyObj as object)) {
         (proxyObj as ComlinkReleasableProxy)[releaseSymbol]();
-        log.debug(`Comlink proxy released successfully${context ? ` for ${context}` : ''}`);
+        log.debug(
+          `Comlink proxy released successfully${context ? ` for ${context}` : ''}`,
+        );
       }
     } catch (err) {
       // Release may fail if the Worker port is already closed or proxy is in a bad state.
       // This is non-fatal — we're destroying the bridge anyway, and GC will eventually
       // collect the proxy and its ports when all references are dropped.
-      log.debug(`Failed to release Comlink proxy${context ? ` for ${context}` : ''} (non-fatal):`, err);
+      log.debug(
+        `Failed to release Comlink proxy${context ? ` for ${context}` : ''} (non-fatal):`,
+        err,
+      );
     }
   }
 
@@ -1427,7 +1433,9 @@ export class WorkerBridge {
     if (WorkerBridge._virtualFSProxyInstalled && existingInstaller) {
       // Check if the existing installer is this instance (idempotent reinstall)
       if (existingInstaller === this) {
-        log.debug('virtualFS proxy already installed by this instance (idempotent)');
+        log.debug(
+          'virtualFS proxy already installed by this instance (idempotent)',
+        );
         return;
       }
       // Different instance is trying to install — multi-instance conflict
@@ -2182,9 +2190,9 @@ export class WorkerBridge {
       if (this._yieldResolves.length >= WorkerBridge.MAX_YIELD_RESOLVES) {
         log.error(
           `CRITICAL: _yieldResolves array exceeded hard limit (${WorkerBridge.MAX_YIELD_RESOLVES}). ` +
-          `This indicates the yield channel is unhealthy but not being rebuilt. ` +
-          `Forcing channel rebuild and resolving all pending promises to prevent memory leak. ` +
-          `This is a serious issue — investigate browser resource pressure or channel lifecycle bugs.`,
+            `This indicates the yield channel is unhealthy but not being rebuilt. ` +
+            `Forcing channel rebuild and resolving all pending promises to prevent memory leak. ` +
+            `This is a serious issue — investigate browser resource pressure or channel lifecycle bugs.`,
         );
         // Mark channel as unhealthy to trigger rebuild
         this._yieldChannelHealthy = false;
@@ -2195,7 +2203,10 @@ export class WorkerBridge {
             const r = this._yieldResolves.shift();
             if (r) r();
           } catch (err) {
-            log.debug('_yieldToMain: failed to resolve pending promise during overflow (non-fatal):', err);
+            log.debug(
+              '_yieldToMain: failed to resolve pending promise during overflow (non-fatal):',
+              err,
+            );
           }
         }
         // After resolving, fall through to create a new channel and resolve the current promise
@@ -2336,7 +2347,7 @@ export class WorkerBridge {
       const stored = sessionStorage.getItem(this._getSessionStorageKey());
       if (stored !== null) {
         const seq = parseInt(stored, 10);
-        if (!isNaN(seq) && seq >= 0) {
+        if (!Number.isNaN(seq) && seq >= 0) {
           log.debug(`Loaded lastProcessedSeq from sessionStorage: ${seq}`);
           return seq;
         } else if (stored !== '') {

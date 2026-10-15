@@ -8,7 +8,7 @@
  * Consumed by: <rtc-session-tree>, <rtc-session-tree-item>
  */
 import { createContext } from '@lit/context';
-import type { SessionTreeState, SessionTreeActions } from '../types/index.js';
+import type { SessionTreeActions, SessionTreeState } from '../types/index.js';
 
 export interface SessionTreeContextValue {
   state: SessionTreeState;

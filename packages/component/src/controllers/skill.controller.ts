@@ -9,12 +9,12 @@
  * - Exposes actions to the host application
  */
 
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import type { FunctionRegistry } from '../core/function-registry.js';
-import { eventBus } from '../core/event-bus.js';
-import type { SkillContextValue } from '../contexts/skill.js';
 import { toolRegistry, virtualFS } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { SkillContextValue } from '../contexts/skill.js';
+import { eventBus } from '../core/event-bus.js';
+import type { FunctionRegistry } from '../core/function-registry.js';
 
 const log = createLogger('SkillController');
 

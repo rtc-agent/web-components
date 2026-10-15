@@ -11,11 +11,11 @@
  * - User-friendly error messages
  * - RTCAgentClient WebSocket error scenarios (invalid token, account banned, message size limit)
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RTCAgentClient } from './client.js';
 import { OAuth2Client } from './oauth2-client.js';
-import { TokenExchangeError } from './types.js';
 import type { RTCAgentClientOptions, TokenExchangeRequest } from './types.js';
+import { TokenExchangeError } from './types.js';
 
 /**
  * Flush pending microtasks (Promise resolutions, etc.).
@@ -207,6 +207,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         ok: false,
         status: 401,
         statusText: 'Unauthorized',
+        text: () => Promise.resolve('Unauthorized'),
       } as Response);
 
       try {
@@ -223,6 +224,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         ok: false,
         status: 403,
         statusText: 'Forbidden',
+        text: () => Promise.resolve('Forbidden'),
       } as Response);
 
       try {
@@ -239,6 +241,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         ok: false,
         status: 404,
         statusText: 'Not Found',
+        text: () => Promise.resolve('Not Found'),
       } as Response);
 
       try {
@@ -255,6 +258,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
+        text: () => Promise.resolve('Internal Server Error'),
       } as Response);
 
       try {
@@ -271,6 +275,7 @@ describe('OAuth2Client: Network Error Handling', () => {
         ok: false,
         status: 503,
         statusText: 'Service Unavailable',
+        text: () => Promise.resolve('Service Unavailable'),
       } as Response);
 
       try {
@@ -443,8 +448,10 @@ describe('OAuth2Client: Network Error Handling', () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     });
 
-    it('should include 1000ms delay between retries', async () => {
+    it('should include delay between retries with exponential backoff', async () => {
       const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+      // Mock Math.random to return 0 for predictable jitter
+      vi.spyOn(Math, 'random').mockReturnValue(0);
 
       vi.mocked(fetch)
         .mockResolvedValueOnce({
@@ -462,7 +469,11 @@ describe('OAuth2Client: Network Error Handling', () => {
       await vi.advanceTimersByTimeAsync(1500);
 
       await resultPromise;
+      // First retry delay should be 1000ms (base) + 0ms (jitter) = 1000ms
       expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+
+      // Restore Math.random
+      vi.restoreAllMocks();
     });
   });
 
@@ -946,22 +957,22 @@ describe('RTCAgentClient: WebSocket Network Error Handling', () => {
       expect(client._isTokenExpired(validToken)).toBe(false);
     });
 
-    it('should return false for malformed JWT (do not block connection)', () => {
+    it('should return true for malformed JWT (treat as expired to trigger refresh)', () => {
       // @ts-expect-error - accessing private method
-      expect(client._isTokenExpired('not-a-jwt')).toBe(false);
+      expect(client._isTokenExpired('not-a-jwt')).toBe(true);
       // @ts-expect-error - accessing private method
-      expect(client._isTokenExpired('a.b')).toBe(false);
+      expect(client._isTokenExpired('a.b')).toBe(true);
       // @ts-expect-error - accessing private method
-      expect(client._isTokenExpired('')).toBe(false);
+      expect(client._isTokenExpired('')).toBe(true);
     });
 
-    it('should return false when JWT payload has no exp claim', () => {
+    it('should return true when JWT payload has no exp claim', () => {
       const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
       const noExpPayload = btoa(JSON.stringify({ sub: 'user-123' }));
       const noExpToken = `${header}.${noExpPayload}.fake-sig`;
 
       // @ts-expect-error - accessing private method
-      expect(client._isTokenExpired(noExpToken)).toBe(false);
+      expect(client._isTokenExpired(noExpToken)).toBe(true);
     });
   });
 

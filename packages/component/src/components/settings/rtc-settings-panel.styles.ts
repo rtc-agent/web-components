@@ -80,6 +80,54 @@ export const styles = css`
         overflow: hidden;
     }
 
+    .settings-section {
+        padding: var(--rtc-spacing-md, 16px);
+        border-bottom: 1px solid var(--rtc-color-border, #3c3c3c);
+    }
+
+    .settings-section h3 {
+        margin: 0 0 var(--rtc-spacing-sm, 8px) 0;
+        font-size: var(--rtc-font-size-md, 14px);
+        font-weight: var(--rtc-font-weight-semibold, 500);
+        color: var(--rtc-color-text-secondary, #858585);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .setting-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--rtc-spacing-md, 16px);
+    }
+
+    .setting-item label {
+        font-size: var(--rtc-font-size-sm, 13px);
+        color: var(--rtc-color-text, #cccccc);
+    }
+
+    .locale-select {
+        min-width: 160px;
+        padding: 6px 10px;
+        font-size: var(--rtc-font-size-sm, 13px);
+        color: var(--rtc-color-text, #cccccc);
+        background: var(--rtc-color-bg-secondary, #2a2d2e);
+        border: 1px solid var(--rtc-color-border, #3c3c3c);
+        border-radius: var(--rtc-border-radius-sm, 4px);
+        cursor: pointer;
+        outline: none;
+        transition: border-color var(--rtc-transition-duration, 0.15s) var(--rtc-transition-timing, ease);
+    }
+
+    .locale-select:hover {
+        border-color: var(--rtc-color-border-hover, #555);
+    }
+
+    .locale-select:focus {
+        border-color: var(--rtc-color-border-focus, #2741fe);
+        box-shadow: 0 0 0 1px var(--rtc-color-border-focus, #2741fe);
+    }
+
     @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }

@@ -1,5 +1,5 @@
-import { getDatabase, type OffsetRecord } from './database.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { getDatabase, type OffsetRecord } from './database.js';
 
 const log = createLogger('OffsetManager');
 

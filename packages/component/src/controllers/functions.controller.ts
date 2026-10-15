@@ -6,16 +6,17 @@
  * Consumed by: <rtc-function-tree>, <rtc-functions-layout>
  * Provided by: <rtc-agent> (root)
  */
+
+import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveControllerHost } from 'lit';
-import type { FunctionRegistry } from '../core/function-registry.js';
 import {
   DEFAULT_FUNCTIONS_STATE,
-  type FunctionsState,
   type FunctionsActions,
   type FunctionsContextValue,
+  type FunctionsState,
 } from '../contexts/functions.js';
-import { createLogger } from '@rtc-agent/protocol';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { FunctionRegistry } from '../core/function-registry.js';
 
 const log = createLogger('FunctionsController');
 

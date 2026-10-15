@@ -15,9 +15,10 @@
  *
  * @csspart logo - The logo container
  */
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
+import { css, html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import { LogoContext, type LogoContextValue } from '../../contexts/logo.js';
 import { renderLogo } from '../../icons/logo.js';
 

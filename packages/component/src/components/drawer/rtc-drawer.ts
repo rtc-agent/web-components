@@ -38,7 +38,7 @@
  * with JS setting left to the Activity Bar width (48px), to position it flush against the right side
  * of the Activity Bar.
  */
-import { LitElement, html } from 'lit';
+import { html, LitElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styles } from './rtc-drawer.styles.js';
 

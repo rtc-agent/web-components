@@ -10,28 +10,29 @@
  * @fires rtc-session-delete-requested - User clicked delete (detail: { sessionId })
  * @csspart list - The session list container
  */
-import { LitElement, html } from 'lit';
+
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { localized, msg } from '@lit/localize';
-import { consume } from '@lit/context';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
-  getLocale,
 } from '../../core/i18n.js';
-import { styles } from './rtc-session-panel.styles.js';
-import type { Session } from '../../types/index.js';
 import {
-  editIcon,
-  deleteIcon,
   checkIcon,
   closeIcon,
+  deleteIcon,
+  editIcon,
 } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import type { Session } from '../../types/index.js';
+import { formatDateTime } from '../../utils/format.js';
+import { styles } from './rtc-session-panel.styles.js';
 
 const log = createLogger('SessionPanel');
 
@@ -190,7 +191,7 @@ export class RtcSessionPanel extends LitElement {
                   : html`
                     <div class="session-text">
                       <span class="session-title">${s.title || msg('未命名')}</span>
-                      <span class="session-time">${new Date(s.updatedAt).toLocaleString(getLocale())}</span>
+                      <span class="session-time">${formatDateTime(s.updatedAt)}</span>
                     </div>
                     <div class="session-actions">
                       <button class="session-action-btn" data-action="rename"

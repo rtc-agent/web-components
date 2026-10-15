@@ -6,42 +6,32 @@
  *
  * @element rtc-function-console
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-function-console.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FunctionDebugContext,
   type FunctionDebugContextValue,
 } from '../../contexts/function-debug.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type { LogEntry } from '../../types/functions-debug.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { formatTimeOnly } from '../../utils/format.js';
+import { styles } from './rtc-function-console.styles.js';
 
 const log = createLogger('FunctionConsole');
-
-/**
- * Format a timestamp to HH:mm:ss.mmm
- */
-function formatTime(timestamp: number): string {
-  const d = new Date(timestamp);
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const s = String(d.getSeconds()).padStart(2, '0');
-  const ms = String(d.getMilliseconds()).padStart(3, '0');
-  return `${h}:${m}:${s}.${ms}`;
-}
 
 @localized()
 @customElement('rtc-function-console')
@@ -105,7 +95,7 @@ export class RtcFunctionConsole extends LitElement {
     if (logs.length === 0) return;
     const text = logs
       .map((entry) => {
-        const time = formatTime(entry.timestamp);
+        const time = formatTimeOnly(entry.timestamp, true);
         const data =
           entry.data !== undefined ? `\n${this._formatData(entry.data)}` : '';
         return `${time} [${entry.level}] ${entry.message}${data}`;
@@ -131,7 +121,7 @@ export class RtcFunctionConsole extends LitElement {
     return html`
             <div class="log-entry">
                 <span class="log-timestamp" title="${new Date(entry.timestamp).toISOString()}">
-                    ${formatTime(entry.timestamp)}
+                    ${formatTimeOnly(entry.timestamp, true)}
                 </span>
                 <span class="log-level ${entry.level}">[${entry.level}]</span>
                 <span class="log-message">

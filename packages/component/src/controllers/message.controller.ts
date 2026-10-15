@@ -11,20 +11,21 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-content-area>`, `<rtc-message-list>`, `<rtc-input-area>`
  */
+
+import type { IPersistenceLayer, LocalMessage } from '@rtc-agent/persistence';
+import { createLogger, isValidContentData } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { MessageContextValue } from '../contexts/message.js';
+import { MESSAGE_PAGE_SIZE, MessageRepository } from '../repositories/index.js';
 import type {
+  ContentData,
   Message,
-  MessageState,
   MessageActions,
   MessageRole,
-  ContentData,
+  MessageState,
+  Session,
 } from '../types/index.js';
-import type { MessageContextValue } from '../contexts/message.js';
-import type { IPersistenceLayer, LocalMessage } from '@rtc-agent/persistence';
 import type { SessionController } from './session.controller.js';
-import type { Session } from '../types/index.js';
-import { MessageRepository, MESSAGE_PAGE_SIZE } from '../repositories/index.js';
-import { createLogger, isValidContentData } from '@rtc-agent/protocol';
 
 const log = createLogger('MessageController');
 
@@ -109,7 +110,8 @@ export class MessageController implements ReactiveController {
         // P1 Fix: Check if the oldest chain is still active before evicting.
         // If it's active (has pending operations), skip eviction to prevent losing updates.
         // The chain will be cleaned up when it settles via the finally() handler.
-        const isActive = oldestChain && this._chainActivityStatus.get(oldestChain) === true;
+        const isActive =
+          oldestChain && this._chainActivityStatus.get(oldestChain) === true;
         if (!isActive) {
           this._sessionUpdateChains.delete(firstKey);
           log.debug(
@@ -213,23 +215,35 @@ export class MessageController implements ReactiveController {
         // Initial load: set both oldest and newest cursors
         this._repository?.setOldestOffset(
           sessionId,
-          this._buildCursor(new Date(messages[0].created_at).getTime(), messages[0].client_id),
+          this._buildCursor(
+            new Date(messages[0].created_at).getTime(),
+            messages[0].client_id,
+          ),
         );
         this._repository?.setNewestOffset(
           sessionId,
-          this._buildCursor(new Date(messages[messages.length - 1].created_at).getTime(), messages[messages.length - 1].client_id),
+          this._buildCursor(
+            new Date(messages[messages.length - 1].created_at).getTime(),
+            messages[messages.length - 1].client_id,
+          ),
         );
       } else if (cursorType === 'oldest') {
         // Backward pagination: update oldest cursor
         this._repository?.setOldestOffset(
           sessionId,
-          this._buildCursor(new Date(messages[0].created_at).getTime(), messages[0].client_id),
+          this._buildCursor(
+            new Date(messages[0].created_at).getTime(),
+            messages[0].client_id,
+          ),
         );
       } else if (cursorType === 'newest') {
         // Forward pagination: update newest cursor
         this._repository?.setNewestOffset(
           sessionId,
-          this._buildCursor(new Date(messages[messages.length - 1].created_at).getTime(), messages[messages.length - 1].client_id),
+          this._buildCursor(
+            new Date(messages[messages.length - 1].created_at).getTime(),
+            messages[messages.length - 1].client_id,
+          ),
         );
       }
     }
@@ -525,10 +539,7 @@ export class MessageController implements ReactiveController {
           this._applyBusUpdate(messageSessionId, entityId, localMsg);
         } catch (err) {
           // Catch synchronous errors from _applyBusUpdate to prevent chain breaking
-          log.error(
-            'bus update apply error, continuing chain:',
-            err,
-          );
+          log.error('bus update apply error, continuing chain:', err);
         }
       })
       .catch((err) => {
@@ -642,7 +653,7 @@ export class MessageController implements ReactiveController {
         if (currentSessionIdAfterReload !== sessionIdBeforeReload) {
           log.warn(
             `Session changed during full reload: was ${sessionIdBeforeReload}, now ${currentSessionIdAfterReload}. ` +
-            `Messages for ${sessionIdBeforeReload} may be stale.`,
+              `Messages for ${sessionIdBeforeReload} may be stale.`,
           );
         }
       }
@@ -679,7 +690,7 @@ export class MessageController implements ReactiveController {
       messages[existingIndex] = newMsg;
       log.debug(
         `[upsert] UPDATE message=${messageId}, session=${sessionId}, ` +
-        `index=${existingIndex}, totalMessages=${messages.length}`
+          `index=${existingIndex}, totalMessages=${messages.length}`,
       );
     } else {
       // New message: insert at correct position (maintain sorted order)
@@ -693,16 +704,26 @@ export class MessageController implements ReactiveController {
       // This prevents race conditions where the same message arrives via multiple paths
       if (insertIndex >= 0) {
         // Check if the previous message has the same clientId (duplicate)
-        if (insertIndex > 0 && messages[insertIndex - 1].clientId === newMsg.clientId) {
-          log.warn(`Duplicate message detected, skipping insert: ${newMsg.clientId}`);
+        if (
+          insertIndex > 0 &&
+          messages[insertIndex - 1].clientId === newMsg.clientId
+        ) {
+          log.warn(
+            `Duplicate message detected, skipping insert: ${newMsg.clientId}`,
+          );
           return;
         }
         messages.splice(insertIndex, 0, newMsg);
       } else {
         // newMsg should be at the end
         // Check if the last message has the same clientId (duplicate)
-        if (messages.length > 0 && messages[messages.length - 1].clientId === newMsg.clientId) {
-          log.warn(`Duplicate message detected, skipping append: ${newMsg.clientId}`);
+        if (
+          messages.length > 0 &&
+          messages[messages.length - 1].clientId === newMsg.clientId
+        ) {
+          log.warn(
+            `Duplicate message detected, skipping append: ${newMsg.clientId}`,
+          );
           return;
         }
         messages.push(newMsg);
@@ -711,7 +732,7 @@ export class MessageController implements ReactiveController {
       const finalIndex = insertIndex >= 0 ? insertIndex : messages.length - 1;
       log.debug(
         `[upsert] INSERT message=${newMsg.clientId}, session=${sessionId}, ` +
-        `index=${finalIndex}, totalMessages=${messages.length}`
+          `index=${finalIndex}, totalMessages=${messages.length}`,
       );
     }
 
@@ -820,10 +841,7 @@ export class MessageController implements ReactiveController {
         // This prevents race conditions where the session changes during the async operation
         const recheckSessionId =
           this._sessionController.value.state.currentSessionId;
-        if (
-          recheckSessionId &&
-          recheckSessionId !== result.session.client_id
-        ) {
+        if (recheckSessionId && recheckSessionId !== result.session.client_id) {
           log.warn(
             `Session changed during _sendMessage: expected ${result.session.client_id}, got ${recheckSessionId}. Skipping update.`,
           );
@@ -948,7 +966,7 @@ export class MessageController implements ReactiveController {
 
     log.debug(
       `_reloadFromDB(${sessionClientId}): existingMessages=${existingMessages.length}, ` +
-      `hasMore=${existing?.hasMore ?? 'N/A'}`
+        `hasMore=${existing?.hasMore ?? 'N/A'}`,
     );
 
     // For new sessions: if messages already exist in repository (loaded by fetchInitialMessages
@@ -956,7 +974,7 @@ export class MessageController implements ReactiveController {
     // This prevents race conditions between _reloadFromDB and concurrent message loading.
     if (existingMessages.length > 0) {
       log.debug(
-        `_reloadFromDB(${sessionClientId}): skipped - messages already loaded (count: ${existingMessages.length})`
+        `_reloadFromDB(${sessionClientId}): skipped - messages already loaded (count: ${existingMessages.length})`,
       );
       return;
     }
@@ -1050,7 +1068,7 @@ export class MessageController implements ReactiveController {
 
     log.debug(
       `[merge] existing=${existing.length}, fresh=${fresh.length}, ` +
-      `merged=${mergedCount}, dedup=${dedupCount}`
+        `merged=${mergedCount}, dedup=${dedupCount}`,
     );
 
     return result;
@@ -1110,7 +1128,7 @@ export class MessageController implements ReactiveController {
             return (contentData.data as string) ?? '';
           } else if (contentData.type === 'user_message') {
             // user_message type: extract from data.text
-            return ((contentData.data as { text?: string })?.text) ?? '';
+            return (contentData.data as { text?: string })?.text ?? '';
           }
         } else {
           // Legacy format: no type field, attempt to extract from known fields

@@ -8,34 +8,35 @@
  * @element rtc-session-header
  * @csspart title - The session title element
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
-import { consume } from '@lit/context';
-import { localized, msg } from '@lit/localize';
+
 import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import {
+  autoUpdate,
   computePosition,
   flip,
-  shift,
   offset,
-  autoUpdate,
+  shift,
 } from '@floating-ui/dom';
-import { styles } from './rtc-session-header.styles.js';
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import {
   SessionContext,
   type SessionContextValue,
 } from '../../contexts/session.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import { checklistIcon, clockIcon, plusIcon } from '../../icons/index.js';
 import { validateSessionContext } from '../../utils/context-validation.js';
-import { clockIcon, plusIcon, checklistIcon } from '../../icons/index.js';
+import { styles } from './rtc-session-header.styles.js';
 import '../overlay/rtc-session-panel.js';
 import '../overlay/rtc-todo-panel.js';
-import type { Session, TodoItem } from '../../types/index.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { Session, TodoItem } from '../../types/index.js';
 
 const log = createLogger('SessionHeader');
 

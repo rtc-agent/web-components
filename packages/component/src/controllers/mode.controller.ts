@@ -8,13 +8,14 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-input-area>`, `<rtc-mode-panel>`
  */
+
+import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveControllerHost } from 'lit';
-import type { Mode, ModeState, ModeActions } from '../types/index.js';
+import { STORAGE_KEYS } from '../config/auth.js';
 import type { ModeContextValue } from '../contexts/mode.js';
 import { DEFAULT_MODE_STATE } from '../contexts/mode.js';
-import { STORAGE_KEYS } from '../config/auth.js';
-import { createLogger } from '@rtc-agent/protocol';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { Mode, ModeActions, ModeState } from '../types/index.js';
 
 const log = createLogger('ModeController');
 

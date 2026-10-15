@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OAuth2Client } from './oauth2-client.js';
-import { TokenExchangeError } from './types.js';
 import type { TokenExchangeRequest } from './types.js';
+import { TokenExchangeError } from './types.js';
 
 /**
  * Test suite for OAuth2Client.tokenExchange() method.

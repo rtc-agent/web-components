@@ -10,11 +10,11 @@
  * - LLM creativity lives in the logic layer -- full pure-computation standard library + rtcAgent API are exposed
  */
 
+import type { TransformOptions } from '@babel/core';
 import { transformSync } from '@babel/core';
 import presetTypescript from '@babel/preset-typescript';
-import type { TransformOptions } from '@babel/core';
-import { virtualFS } from './virtual-fs.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { virtualFS } from './virtual-fs.js';
 
 const log = createLogger('ScriptEngine');
 
@@ -124,8 +124,8 @@ export interface ScriptSandbox {
   // === Parsing and encoding functions ===
   parseInt: typeof parseInt;
   parseFloat: typeof parseFloat;
-  isNaN: typeof isNaN;
-  isFinite: typeof isFinite;
+  isNaN: typeof Number.isNaN;
+  isFinite: typeof Number.isFinite;
   encodeURIComponent: typeof encodeURIComponent;
   decodeURIComponent: typeof decodeURIComponent;
   encodeURI: typeof encodeURI;
@@ -239,8 +239,8 @@ export function createSandbox(
     // Parsing and encoding
     parseInt,
     parseFloat,
-    isNaN,
-    isFinite,
+    isNaN: Number.isNaN,
+    isFinite: Number.isFinite,
     encodeURIComponent,
     decodeURIComponent,
     encodeURI,
@@ -564,7 +564,7 @@ const sandboxPlugin = {
 export function transformTypeScript(code: string, name?: string): string {
   const filename = name ? `${name}.ts` : 'script.ts';
 
-  let result;
+  let result: ReturnType<typeof transformSync> | undefined;
   try {
     result = transformSync(code, {
       presets: cachedPresets,
@@ -650,11 +650,7 @@ export function parseScriptContent(content: string): {
   // Extract all code blocks (M4: support multiple blocks, concatenate all content)
   const codeBlockRegex =
     /```(?:typescript|javascript|ts|js)?\r?\n?([\s\S]*?)\r?\n?```/g;
-  const codeBlocks: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = codeBlockRegex.exec(body)) !== null) {
-    codeBlocks.push(match[1].trim());
-  }
+  const codeBlocks = [...body.matchAll(codeBlockRegex)].map((m) => m[1].trim());
 
   if (codeBlocks.length === 0) {
     // No code blocks found: use body directly (assumed to be pure code)

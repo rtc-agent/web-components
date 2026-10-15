@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   initLocale,
-  switchLocale,
   isValidLocale,
-  sourceLocale,
-  targetLocales,
   persistLocale,
+  sourceLocale,
+  switchLocale,
+  targetLocales,
 } from './i18n.js';
 
 describe('i18n core', () => {

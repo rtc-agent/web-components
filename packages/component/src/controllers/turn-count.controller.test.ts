@@ -3,10 +3,11 @@
  *
  * Tests for the TurnCountController which manages pending_turn_count and running_turn_count.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TurnCountController } from './turn-count.controller.js';
-import type { ReactiveControllerHost } from 'lit';
+
 import type { IPersistenceLayer } from '@rtc-agent/persistence';
+import type { ReactiveControllerHost } from 'lit';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TurnCountController } from './turn-count.controller.js';
 
 // Mock host
 class MockHost implements ReactiveControllerHost {
@@ -118,7 +119,9 @@ describe('TurnCountController', () => {
 
       expect(controller.value.state.pendingTurnCount).toBe(0);
       expect(controller.value.state.runningTurnCount).toBe(0);
-      expect(mockPersistence.getSession).toHaveBeenCalledWith('test-session-id');
+      expect(mockPersistence.getSession).toHaveBeenCalledWith(
+        'test-session-id',
+      );
     });
 
     it('should update state with session turn counts', async () => {
@@ -134,7 +137,9 @@ describe('TurnCountController', () => {
 
       expect(controller.value.state.pendingTurnCount).toBe(3);
       expect(controller.value.state.runningTurnCount).toBe(1);
-      expect(mockPersistence.getSession).toHaveBeenCalledWith('test-session-id');
+      expect(mockPersistence.getSession).toHaveBeenCalledWith(
+        'test-session-id',
+      );
     });
 
     it('should handle errors gracefully', async () => {

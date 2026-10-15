@@ -1,6 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  closeDatabase,
+  DB_NAME_PREFIX,
+  flushAll,
+  getDatabase,
+} from './database';
 import { FileCacheRepository } from './file-cache-repository';
-import { getDatabase, closeDatabase, flushAll, DB_NAME_PREFIX } from './database';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-file-cache-error`;
 
@@ -10,7 +15,7 @@ describe('FileCacheRepository - updateSyncStatus error handling', () => {
   beforeEach(async () => {
     await closeDatabase();
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
     repo = new FileCacheRepository();
   });
 

@@ -99,7 +99,7 @@ export const AUTH_CONFIG = {
   get wsEndpoint(): string {
     const http = getServerUrl();
     // http:// → ws://, https:// → wss://
-    return http.replace(/^http/, 'ws') + '/connection/websocket';
+    return `${http.replace(/^http/, 'ws')}/connection/websocket`;
   },
 
   /** Callback URL (runtime override > dynamically generated from current origin) */

@@ -1,35 +1,36 @@
 // @rtc-agent/client — Communication layer for RTC Agent
 
 export { RTCAgentClient } from './client.js';
-export { OAuth2Client, generatePKCEParams } from './oauth2-client.js';
-export { S3Client } from './s3-client.js';
 export type {
   OAuth2ClientOptions,
   OAuth2ProvidersResponse,
   PKCEParams,
 } from './oauth2-client.js';
+export { generatePKCEParams, OAuth2Client } from './oauth2-client.js';
 export type {
+  HeadObjectResult,
+  ListObjectItem,
+  ListObjectsResult,
   S3ClientOptions,
   UploadOptions,
-  HeadObjectResult,
-  ListObjectsResult,
-  ListObjectItem,
 } from './s3-client.js';
+export { S3Client } from './s3-client.js';
 export type {
-  IRTCAgentClient,
-  RTCAgentClientOptions,
   ConnectionState,
   ConnectionStateEvent,
-  StreamChunk,
-  StreamStart,
-  StreamEnd,
-  EventName,
   EventCallback,
-  Unsubscribe,
-  RTCAgentClientEvents,
+  EventName,
+  IRTCAgentClient,
   PublicationEvent,
-  TokenExpiredAction,
+  RTCAgentClientEvents,
+  RTCAgentClientOptions,
+  StreamChunk,
+  StreamEnd,
+  StreamStart,
   SyncRequiredEvent,
+  TokenExchangeRequest,
+  TokenExchangeResponse,
+  TokenExpiredAction,
+  Unsubscribe,
 } from './types.js';
-export type { TokenExchangeRequest, TokenExchangeResponse } from './types.js';
 export { TokenExchangeError } from './types.js';

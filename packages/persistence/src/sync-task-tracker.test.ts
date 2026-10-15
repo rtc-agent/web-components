@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyncTaskTracker } from './sync-task-tracker.js';
 
 describe('SyncTaskTracker', () => {
@@ -44,7 +44,7 @@ describe('SyncTaskTracker', () => {
       tracker.track(task, 'auto-remove-task');
       expect(tracker.pendingCount).toBe(1);
 
-      resolveTask!();
+      resolveTask?.();
       await task;
 
       // Wait for microtask to complete
@@ -66,7 +66,7 @@ describe('SyncTaskTracker', () => {
       expect(tracker.pendingCount).toBe(1);
 
       const error = new Error('Task failed');
-      rejectTask!(error);
+      rejectTask?.(error);
 
       // Wait for the promise to settle
       await task;
@@ -268,12 +268,12 @@ describe('SyncTaskTracker', () => {
       tracker.track(task2, 'task-2');
       expect(tracker.pendingCount).toBe(2);
 
-      resolveTask1!();
+      resolveTask1?.();
       await task1;
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(tracker.pendingCount).toBe(1);
 
-      resolveTask2!();
+      resolveTask2?.();
       await task2;
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(tracker.pendingCount).toBe(0);

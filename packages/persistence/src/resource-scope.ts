@@ -31,12 +31,12 @@ const log = createLogger('ResourceScope');
  */
 export class ResourceScope {
   private timers = new Set<ReturnType<typeof setTimeout>>();
-  private listeners = new Array<{
+  private listeners = [] as {
     target: EventTarget;
     type: string;
     originalListener: EventListener;
     wrappedListener: EventListener;
-  }>();
+  }[];
   private disposed = false;
 
   /**

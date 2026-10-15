@@ -21,7 +21,7 @@ export class MessageSkeletonGenerator {
     type: 'user' | 'assistant' | 'toolcall' | 'toolcall-reply' | 'error',
     height: number,
   ): string {
-    return this._renderSkeletonContent(type, height);
+    return MessageSkeletonGenerator._renderSkeletonContent(type, height);
   }
 
   /**
@@ -29,7 +29,7 @@ export class MessageSkeletonGenerator {
    * Uses inline styles to bypass Lit's style scoping issues with dynamic DOM insertion.
    */
   static create(msg: Message, height: number): HTMLElement {
-    const skeletonType = this._getSkeletonType(msg);
+    const skeletonType = MessageSkeletonGenerator._getSkeletonType(msg);
 
     const skeleton = document.createElement('div');
     // Use inline styles for the container
@@ -44,7 +44,10 @@ export class MessageSkeletonGenerator {
     skeleton.setAttribute('data-client-id', msg.clientId);
 
     // Generate internal structure with inline styles
-    skeleton.innerHTML = this.generate(skeletonType, height);
+    skeleton.innerHTML = MessageSkeletonGenerator.generate(
+      skeletonType,
+      height,
+    );
 
     return skeleton;
   }
@@ -88,7 +91,7 @@ export class MessageSkeletonGenerator {
         return `
                     <div style="${avatarStyle}"></div>
                     <div style="flex: 1; background: var(--rtc-color-bg-secondary, #e8e8e8); border-radius: 12px; padding: 12px; margin-left: auto; max-width: 70%;">
-                        ${this._renderSkeletonLines(finalLineCount, 'right')}
+                        ${MessageSkeletonGenerator._renderSkeletonLines(finalLineCount, 'right')}
                     </div>
                 `;
 
@@ -96,7 +99,7 @@ export class MessageSkeletonGenerator {
         return `
                     <div style="${avatarStyle}"></div>
                     <div style="flex: 1; max-width: calc(100% - 48px);">
-                        ${this._renderSkeletonLines(finalLineCount, 'left')}
+                        ${MessageSkeletonGenerator._renderSkeletonLines(finalLineCount, 'left')}
                     </div>
                 `;
 
@@ -108,7 +111,7 @@ export class MessageSkeletonGenerator {
                             <div style="width: 20px; height: 20px; border-radius: 4px; background: var(--rtc-color-bg-tertiary, #d0d0d0);"></div>
                             <div style="height: 16px; width: 120px; background: var(--rtc-color-bg-tertiary, #d0d0d0); border-radius: 4px;"></div>
                         </div>
-                        ${this._renderSkeletonLines(Math.min(5, finalLineCount), 'left')}
+                        ${MessageSkeletonGenerator._renderSkeletonLines(Math.min(5, finalLineCount), 'left')}
                     </div>
                 `;
 
@@ -120,7 +123,7 @@ export class MessageSkeletonGenerator {
                             <div style="width: 20px; height: 20px; border-radius: 4px; background: var(--rtc-color-bg-tertiary, #d0d0d0);"></div>
                             <div style="height: 16px; width: 120px; background: var(--rtc-color-bg-tertiary, #d0d0d0); border-radius: 4px;"></div>
                         </div>
-                        ${this._renderSkeletonLines(Math.min(3, finalLineCount), 'left')}
+                        ${MessageSkeletonGenerator._renderSkeletonLines(Math.min(3, finalLineCount), 'left')}
                     </div>
                 `;
 
@@ -129,12 +132,15 @@ export class MessageSkeletonGenerator {
                     <div style="${avatarStyle}"></div>
                     <div style="flex: 1; background: var(--rtc-color-error-bg, #fff5f5); border: 1px solid var(--rtc-color-error, #ffd0d0); border-radius: 8px; padding: 12px; display: flex; align-items: center; gap: 8px;">
                         <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--rtc-color-error, #ffcccc); flex-shrink: 0;"></div>
-                        ${this._renderSkeletonLines(Math.min(2, finalLineCount), 'left')}
+                        ${MessageSkeletonGenerator._renderSkeletonLines(Math.min(2, finalLineCount), 'left')}
                     </div>
                 `;
 
       default:
-        return this._renderSkeletonLines(finalLineCount, 'left');
+        return MessageSkeletonGenerator._renderSkeletonLines(
+          finalLineCount,
+          'left',
+        );
     }
   }
 

@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
-import { provideContext } from '../../test-context-helpers.js';
-import { SessionContext } from '../../contexts/session.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SessionContextValue } from '../../contexts/session.js';
+import { SessionContext } from '../../contexts/session.js';
+import { provideContext } from '../../test-context-helpers.js';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-session-header.js';
 
 const mockSessionCtx: SessionContextValue = {
@@ -43,8 +43,8 @@ describe('<rtc-session-header>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    const title = el.shadowRoot!.querySelector('.session-title');
-    expect(title!.textContent!.trim()).toBe('未命名');
+    const title = el.shadowRoot?.querySelector('.session-title');
+    expect(title?.textContent?.trim()).toBe('未命名');
   });
 
   it('should display provided session title', async () => {
@@ -53,8 +53,8 @@ describe('<rtc-session-header>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    const title = el.shadowRoot!.querySelector('.session-title');
-    expect(title!.textContent!.trim()).toBe('My Chat');
+    const title = el.shadowRoot?.querySelector('.session-title');
+    expect(title?.textContent?.trim()).toBe('My Chat');
   });
 
   it('should have a history button', async () => {
@@ -62,7 +62,7 @@ describe('<rtc-session-header>', () => {
       html`<rtc-session-header></rtc-session-header>`,
       { setup: setupContexts },
     );
-    const btn = el.shadowRoot!.querySelector('[data-action="history"]');
+    const btn = el.shadowRoot?.querySelector('[data-action="history"]');
     expect(btn).not.toBeNull();
   });
 
@@ -71,7 +71,7 @@ describe('<rtc-session-header>', () => {
       html`<rtc-session-header></rtc-session-header>`,
       { setup: setupContexts },
     );
-    const btn = el.shadowRoot!.querySelector('[data-action="new-session"]');
+    const btn = el.shadowRoot?.querySelector('[data-action="new-session"]');
     expect(btn).not.toBeNull();
   });
 
@@ -81,19 +81,19 @@ describe('<rtc-session-header>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="history"]',
     ) as HTMLElement;
 
     // First click: open panel
     btn.click();
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).not.toBeNull();
 
     // Second click: close panel
     btn.click();
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).toBeNull();
   });
 
   it('should close session panel on Escape key', async () => {
@@ -102,21 +102,21 @@ describe('<rtc-session-header>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="history"]',
     ) as HTMLElement;
 
     // Open panel
     btn.click();
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).not.toBeNull();
 
     // Press Escape
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).toBeNull();
   });
 
   it('should close session panel on click outside', async () => {
@@ -125,19 +125,19 @@ describe('<rtc-session-header>', () => {
       { setup: setupContexts },
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="history"]',
     ) as HTMLElement;
 
     // Open panel
     btn.click();
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).not.toBeNull();
 
     // Click outside (on document body)
     document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-panel')).toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-panel')).toBeNull();
   });
 
   it('should call clearCurrentSession on new session click', async () => {
@@ -150,7 +150,7 @@ describe('<rtc-session-header>', () => {
       html`<rtc-session-header></rtc-session-header>`,
       { setup: (host) => provideContext(host, SessionContext, ctx) },
     );
-    const btn = el.shadowRoot!.querySelector(
+    const btn = el.shadowRoot?.querySelector(
       '[data-action="new-session"]',
     ) as HTMLElement;
     btn.click();

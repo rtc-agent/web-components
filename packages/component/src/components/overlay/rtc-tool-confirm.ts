@@ -17,19 +17,20 @@
  * @csspart dialog - The dialog card
  * @csspart params - The tool parameters display
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-tool-confirm.styles.js';
 import type { ToolCall } from '../../types/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-tool-confirm.styles.js';
 
 const log = createLogger('ToolConfirm');
 
@@ -220,13 +221,15 @@ export class RtcToolConfirm extends LitElement {
             <button class="action-btn primary" data-action="yes" @click=${() => this._approve(false)}>
               ${msg('允许')} <span class="shortcut-hint">(Y)</span>
             </button>
-            ${this.showAllowAll
-              ? html`
+            ${
+              this.showAllowAll
+                ? html`
                 <button class="action-btn" data-action="yes-allow" @click=${() => this._approve(true)}>
                   ${msg('全部允许')} <span class="shortcut-hint">(A)</span>
                 </button>
               `
-              : ''}
+                : ''
+            }
           </div>
         </div>
       </div>

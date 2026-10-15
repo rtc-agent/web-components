@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { WindowStateContext } from './window-state.js';
+import { describe, expect, it } from 'vitest';
 import type { WindowState, WindowStateActions } from '../types/index.js';
+import { WindowStateContext } from './window-state.js';
 
 describe('WindowStateContext', () => {
   it('should export a context key', () => {

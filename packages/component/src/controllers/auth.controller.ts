@@ -12,18 +12,19 @@
  * Note: `setTokens()` is a root-level coordination method, NOT exposed on AuthContext.
  * It is called directly by `<rtc-agent>` when login dialog completes.
  */
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+
 import type {
-  TokenExpiredAction,
   TokenExchangeResponse,
+  TokenExpiredAction,
 } from '@rtc-agent/client';
-import type { AuthState } from '../types/index.js';
-import type { AuthContextValue } from '../contexts/auth.js';
-import type { AuthProvider } from '../types/factory.js';
-import { DEFAULT_AUTH_STATE } from '../contexts/auth.js';
-import { AUTH_CONFIG, STORAGE_KEYS } from '../config/auth.js';
 import { OAuth2Client } from '@rtc-agent/client';
 import { createLogger, parseJwtPayload } from '@rtc-agent/protocol';
+import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import { AUTH_CONFIG, STORAGE_KEYS } from '../config/auth.js';
+import type { AuthContextValue } from '../contexts/auth.js';
+import { DEFAULT_AUTH_STATE } from '../contexts/auth.js';
+import type { AuthProvider } from '../types/factory.js';
+import type { AuthState } from '../types/index.js';
 import { getDeviceName, saveDeviceIdToStorage } from '../utils/device.js';
 import { maskUserID } from '../utils/mask.js';
 
@@ -211,7 +212,9 @@ export class AuthController implements ReactiveController {
    */
   private _initBroadcastChannel() {
     if (typeof BroadcastChannel === 'undefined') {
-      log.debug('BroadcastChannel not supported, cross-tab coordination disabled');
+      log.debug(
+        'BroadcastChannel not supported, cross-tab coordination disabled',
+      );
       return;
     }
 
@@ -241,7 +244,9 @@ export class AuthController implements ReactiveController {
           // (e.g., if the leader tab crashes before broadcasting result)
           setTimeout(() => {
             if (this._deferredRefresh) {
-              log.debug('Cross-tab refresh deferred timed out, proceeding independently');
+              log.debug(
+                'Cross-tab refresh deferred timed out, proceeding independently',
+              );
               this._deferredResolve?.(false);
               this._deferredResolve = undefined;
               this._deferredRefresh = undefined;
@@ -254,7 +259,10 @@ export class AuthController implements ReactiveController {
           log.debug('Another tab refreshed successfully, updating state');
           // Accept tokens if logged in OR if a token exchange is pending
           // (Token Exchange mode may have isLoggedIn=false during initial setup)
-          if (tokens && (this._state.isLoggedIn || this._pendingTokenExchange)) {
+          if (
+            tokens &&
+            (this._state.isLoggedIn || this._pendingTokenExchange)
+          ) {
             this._state = {
               ...this._state,
               accessToken: tokens.accessToken,
@@ -733,7 +741,7 @@ export class AuthController implements ReactiveController {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
-        const delay = initialDelay * Math.pow(2, attempt - 1);
+        const delay = initialDelay * 2 ** (attempt - 1);
         log.info(
           `token_exchange.retry: attempt ${attempt}/${maxRetries}, waiting ${delay}ms`,
         );
@@ -818,10 +826,7 @@ export class AuthController implements ReactiveController {
         // Calling _performLogout() here would cause double logout (double event dispatch).
         return false;
       }
-      log.info(
-        'token_exchange.parsed_userId_from_jwt:',
-        maskUserID(rtcUserId),
-      );
+      log.info('token_exchange.parsed_userId_from_jwt:', maskUserID(rtcUserId));
 
       // Step 4: Update state with RTC JWT
       const expiresAt = Date.now() + response.expires_in * 1000;
@@ -884,7 +889,7 @@ export class AuthController implements ReactiveController {
     const payload = parseJwtPayload(token);
     if (!payload) {
       // Enhanced logging: include token prefix for debugging (without exposing full token)
-      const tokenPrefix = token.substring(0, 20) + '...';
+      const tokenPrefix = `${token.substring(0, 20)}...`;
       log.warn(
         '_parseUserIdFromJwtPayload: failed to parse JWT, token prefix:',
         tokenPrefix,
@@ -904,12 +909,12 @@ export class AuthController implements ReactiveController {
       return '';
     }
     if (!userId) {
-      log.warn(
-        '_parseUserIdFromJwtPayload: user_id/sub claim is empty string',
-      );
+      log.warn('_parseUserIdFromJwtPayload: user_id/sub claim is empty string');
       return '';
     }
-    log.debug('_parseUserIdFromJwtPayload: successfully parsed userId from JWT');
+    log.debug(
+      '_parseUserIdFromJwtPayload: successfully parsed userId from JWT',
+    );
     return userId;
   }
 
@@ -1213,8 +1218,11 @@ export class AuthController implements ReactiveController {
       const success = await Promise.race([
         this._refreshing,
         new Promise<boolean>((_, reject) =>
-          setTimeout(() => reject(new Error('Token refresh timeout')), REFRESH_TIMEOUT_MS)
-        )
+          setTimeout(
+            () => reject(new Error('Token refresh timeout')),
+            REFRESH_TIMEOUT_MS,
+          ),
+        ),
       ]);
       return success ? 'refresh' : 'relogin';
     }
@@ -1229,10 +1237,12 @@ export class AuthController implements ReactiveController {
         this._deferredRefresh,
         new Promise<boolean>((resolve) =>
           setTimeout(() => {
-            log.debug('Other tab refresh wait timed out, proceeding independently');
+            log.debug(
+              'Other tab refresh wait timed out, proceeding independently',
+            );
             resolve(false);
-          }, AUTH_CONFIG.crossTabRefreshTimeoutMs)
-        )
+          }, AUTH_CONFIG.crossTabRefreshTimeoutMs),
+        ),
       ]);
       this._deferredRefresh = undefined;
       this._deferredResolve = undefined;
@@ -1249,15 +1259,21 @@ export class AuthController implements ReactiveController {
     this._refreshStartTime = Date.now();
 
     // Broadcast to other tabs that this tab is refreshing
-    this._broadcast({ type: 'refresh-start', timestamp: this._refreshStartTime });
+    this._broadcast({
+      type: 'refresh-start',
+      timestamp: this._refreshStartTime,
+    });
 
     this._refreshing = this._doRefreshWithBroadcast();
     try {
       const success = await Promise.race([
         this._refreshing,
         new Promise<boolean>((_, reject) =>
-          setTimeout(() => reject(new Error('Token refresh timeout')), REFRESH_TIMEOUT_MS)
-        )
+          setTimeout(
+            () => reject(new Error('Token refresh timeout')),
+            REFRESH_TIMEOUT_MS,
+          ),
+        ),
       ]);
       return success ? 'refresh' : 'relogin';
     } finally {

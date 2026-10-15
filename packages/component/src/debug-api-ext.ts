@@ -5,10 +5,10 @@
  * simulation, toast notifications, settings, activity control, performance
  * metrics, and network simulation.
  */
-import type { RtcAgentDebugAPI } from './debug-api-types.js';
-import type { ToolCall } from './types/index.js';
+
 import type { SettingsState } from './contexts/settings.js';
-import type { Activity } from './types/index.js';
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
+import type { Activity, ToolCall } from './types/index.js';
 
 // ── Non-standard API type augmentations ──
 
@@ -25,11 +25,12 @@ interface PerformanceMemory {
 interface PerformanceWithMemory extends Performance {
   memory?: PerformanceMemory;
 }
+
 import {
-  log,
+  getAgentElement,
   getLogBufferSnapshot,
   LOG_BUFFER_MAX,
-  getAgentElement,
+  log,
 } from './debug-api-helpers.js';
 
 // Re-export mutable state setters for the network simulation

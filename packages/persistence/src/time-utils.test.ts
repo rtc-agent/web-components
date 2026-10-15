@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatRFC3339, nowRFC3339 } from './time-utils.js';
 
 describe('formatRFC3339', () => {

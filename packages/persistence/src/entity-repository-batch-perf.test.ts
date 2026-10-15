@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
-import { getDatabase, flushAll, DB_NAME_PREFIX } from './database.js';
-import { EntityRepository } from './entity-repository.js';
 import type { Update } from '@rtc-agent/protocol';
+import { DB_NAME_PREFIX, flushAll, getDatabase } from './database.js';
+import { EntityRepository } from './entity-repository.js';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-batch-perf`;
 const TEST_DEVICE_ID = 'test-device-perf';
@@ -12,7 +12,7 @@ describe('applyUpdates performance benchmark', () => {
 
   beforeEach(async () => {
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
   });
 
@@ -129,14 +129,14 @@ describe('applyUpdates performance benchmark', () => {
     const totalItems = updates.reduce((sum, u) => sum + u.items.length, 0);
 
     // Batch path
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
     const batchStart = performance.now();
     await repo.applyUpdates(updates);
     const batchTime = performance.now() - batchStart;
 
     // Single path (applyUpdate for each)
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
     const singleStart = performance.now();
     for (const update of updates) {
@@ -180,14 +180,14 @@ describe('applyUpdates performance benchmark', () => {
     const totalItems = updates.reduce((sum, u) => sum + u.items.length, 0);
 
     // Batch
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
     const batchStart = performance.now();
     await repo.applyUpdates(updates);
     const batchTime = performance.now() - batchStart;
 
     // Single
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
     const singleStart = performance.now();
     for (const update of updates) {

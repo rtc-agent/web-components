@@ -1,11 +1,11 @@
+import { createLogger } from '@rtc-agent/protocol';
 import Dexie from 'dexie';
 import {
-  getDatabase,
   type DebugHistoryItem,
+  getDatabase,
   type LocalDebugHistoryItem,
   type LogEntry,
 } from './database.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('DebugHistoryRepository');
 
@@ -45,7 +45,7 @@ export function fromLocal(local: LocalDebugHistoryItem): DebugHistoryItem {
     log.warn('Failed to parse logs JSON for item', local.id, err);
   }
 
-  let result: unknown = undefined;
+  let result: unknown;
   if (local.result !== undefined) {
     try {
       result = JSON.parse(local.result);

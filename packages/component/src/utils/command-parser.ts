@@ -86,7 +86,7 @@ export function findCommandSuggestions(
 
   // First: prefix matches (highest priority)
   const prefixMatches = availableCommands
-    .filter(cmd => cmd.toLowerCase().startsWith(normalizedInput))
+    .filter((cmd) => cmd.toLowerCase().startsWith(normalizedInput))
     .slice(0, maxSuggestions);
 
   if (prefixMatches.length >= maxSuggestions) {
@@ -95,10 +95,11 @@ export function findCommandSuggestions(
 
   // Second: simple similarity (commands that contain the input)
   const containsMatches = availableCommands
-    .filter(cmd => {
+    .filter((cmd) => {
       const normalizedCmd = cmd.toLowerCase();
-      return normalizedCmd.includes(normalizedInput) &&
-             !prefixMatches.includes(cmd);
+      return (
+        normalizedCmd.includes(normalizedInput) && !prefixMatches.includes(cmd)
+      );
     })
     .slice(0, maxSuggestions - prefixMatches.length);
 
@@ -120,7 +121,7 @@ export function findCommandSuggestions(
  */
 export function parseCommand(
   input: string,
-  availableCommands?: string[]
+  availableCommands?: string[],
 ): ParsedCommand {
   const trimmed = input.trim();
 

@@ -1,6 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { UIUpdateBus, getUIUpdateBus, closeUIUpdateBus } from './ui-update-bus';
-import type { UIUpdateEvent, BulkUpdateEvent } from './ui-update-bus';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { UIUpdateEvent } from './ui-update-bus';
+import {
+  closeUIUpdateBus,
+  getUIUpdateBus,
+  type UIUpdateBus,
+} from './ui-update-bus';
 
 describe('UIUpdateBus', () => {
   let bus: UIUpdateBus;
@@ -389,7 +393,7 @@ describe('UIUpdateBus', () => {
       const listener = vi
         .fn()
         .mockImplementation(async (event: UIUpdateEvent) => {
-          order.push(parseInt(event.entityId));
+          order.push(parseInt(event.entityId, 10));
           await new Promise((resolve) => setTimeout(resolve, 10));
         });
 

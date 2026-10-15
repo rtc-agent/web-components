@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { openApiToZod } from './openapi-to-zod.js';
+import { describe, expect, it } from 'vitest';
 import type { ParameterDef } from '../types/skill.js';
+import { openApiToZod } from './openapi-to-zod.js';
 
 describe('openApiToZod', () => {
   // ── String type ──

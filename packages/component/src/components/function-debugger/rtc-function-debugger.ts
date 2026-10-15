@@ -6,29 +6,30 @@
  *
  * @element rtc-function-debugger
  */
-import { LitElement, html, nothing, type TemplateResult } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-function-debugger.styles.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
-import { baseStyles } from '../../styles/base.js';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing, type TemplateResult } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FunctionDebugContext,
   type FunctionDebugContextValue,
 } from '../../contexts/function-debug.js';
-import { chevronDownIcon, chevronRightIcon } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import { schemaToTypeString } from '../../core/markdown-generator.js';
+import { chevronDownIcon, chevronRightIcon } from '../../icons/index.js';
+import { baseStyles } from '../../styles/base.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type { OpenAPISchema } from '../../types/skill.js';
+import { styles } from './rtc-function-debugger.styles.js';
 
 import '../function-params/rtc-function-params.js';
 import '../function-console/rtc-function-console.js';
@@ -209,7 +210,7 @@ export class RtcFunctionDebugger extends LitElement {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${fn.parameters!.flatMap((param) =>
+                                        ${fn.parameters?.flatMap((param) =>
                                           this._renderParamRows(
                                             param.schema,
                                             param.name,

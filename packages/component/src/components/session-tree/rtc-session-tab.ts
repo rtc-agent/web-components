@@ -7,24 +7,25 @@
  * @fires rtc-session-tab-activate - Click to activate (detail: { sessionId })
  * @fires rtc-session-tab-close - Click to close (detail: { sessionId })
  */
-import { LitElement, html, svg } from 'lit';
+
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
-import { localized, msg } from '@lit/localize';
-import { consume } from '@lit/context';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { styles } from './rtc-session-tab.styles.js';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
 import type { SessionStatus } from '../../types/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-session-tab.styles.js';
 
 const log = createLogger('SessionTab');
 

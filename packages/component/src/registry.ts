@@ -1,8 +1,9 @@
 // Registry definition and function registration
+
+import { createLogger } from '@rtc-agent/protocol';
 import { defineRegistry } from './index.js';
 import { loadTasks, saveTasks, type Task } from './storage.js';
 import { generateUUID, showToast } from './utils.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Registry');
 

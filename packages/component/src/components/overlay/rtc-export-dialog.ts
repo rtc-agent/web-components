@@ -14,18 +14,19 @@
  * @csspart backdrop - The backdrop overlay
  * @csspart dialog - The dialog card
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
 import { styles } from './rtc-export-dialog.styles.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('ExportDialog');
 

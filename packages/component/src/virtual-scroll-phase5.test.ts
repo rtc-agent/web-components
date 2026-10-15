@@ -8,7 +8,7 @@
  * - User experience scenarios
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MessageVirtualScroll } from '../src/utils/message-virtual-scroll.js';
 
 // Test item type
@@ -107,9 +107,9 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
       originalElement.replaceWith(placeholder);
 
       // Manually mark as placeholder (simulating internal state)
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._skeletonTracker.add('2', 1, 100, placeholder);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._componentStateCache.set('2', { expanded: true });
 
       // Update message 2 with new content
@@ -122,11 +122,11 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
       virtualScroll.updateItems(updatedMessages);
 
       // Verify data model was updated
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._items[1].content).toBe('Message 2 - UPDATED');
 
       // Verify cached state was invalidated
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._componentStateCache.has('2')).toBe(false);
 
       // Verify DOM was NOT updated (still skeleton)
@@ -217,9 +217,9 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
       const originalElement = innerContainer.children[1] as HTMLElement;
       originalElement.replaceWith(placeholder);
 
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._skeletonTracker.add('2', 1, 100, placeholder);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._componentStateCache.set('2', { expanded: true });
 
       // Update by ID
@@ -231,11 +231,11 @@ describe('MessageVirtualScroll - Phase 5: Update Handling', () => {
       expect(result).toBe(true);
 
       // Verify data model was updated
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._items[1].content).toBe('Message 2 - UPDATED');
 
       // Verify cached state was invalidated
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._componentStateCache.has('2')).toBe(false);
 
       // Verify DOM was NOT updated (still skeleton)
@@ -379,7 +379,7 @@ describe('MessageVirtualScroll - Phase 5: Performance', () => {
       const originalElement = innerContainer.children[i] as HTMLElement;
       originalElement.replaceWith(placeholder);
 
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._skeletonTracker.add(`msg-${i}`, i, i * 100, placeholder);
     }
 
@@ -448,7 +448,7 @@ describe('MessageVirtualScroll - Phase 5: Edge Cases', () => {
 
     // Data model should still be updated
     expect(result).toBe(true);
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     expect(virtualScroll._items[1].content).toBe('Message 2 - UPDATED');
   });
 
@@ -510,7 +510,7 @@ describe('MessageVirtualScroll - Phase 5: Edge Cases', () => {
     }
 
     // Final state should be correct
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     expect(virtualScroll._items[0].content).toBe('Message 1 - Update 9');
   });
 
@@ -531,7 +531,7 @@ describe('MessageVirtualScroll - Phase 5: Edge Cases', () => {
     virtualScroll.setItems(messages);
 
     // Mark as active stream
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     virtualScroll._activeStreams.add('1');
 
     // Update streaming message
@@ -541,7 +541,7 @@ describe('MessageVirtualScroll - Phase 5: Edge Cases', () => {
     );
 
     // Should update normally
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     expect(virtualScroll._items[0].content).toBe(
       'Message 1 - Streaming update',
     );
@@ -621,9 +621,9 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
     const originalElement = innerContainer.children[0] as HTMLElement;
     originalElement.replaceWith(placeholder);
 
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     virtualScroll._skeletonTracker.add('1', 0, 0, placeholder);
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     virtualScroll._componentStateCache.set('1', { expanded: true });
 
     // Update content
@@ -633,7 +633,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
     );
 
     // Cached state should be invalidated
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     expect(virtualScroll._componentStateCache.has('1')).toBe(false);
   });
 
@@ -663,9 +663,9 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
     const originalElement = innerContainer.children[0] as HTMLElement;
     originalElement.replaceWith(placeholder);
 
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     virtualScroll._skeletonTracker.add('1', 0, 0, placeholder);
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     virtualScroll._componentStateCache.set('1', { expanded: true });
 
     // Update with identical content (different timestamp, but content is same)
@@ -676,7 +676,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
     });
 
     // Cached state should NOT be invalidated (content unchanged)
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     expect(virtualScroll._componentStateCache.has('1')).toBe(true);
   });
 
@@ -692,7 +692,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
 
     virtualScroll.setItems(messages);
 
-    // @ts-ignore - accessing private for testing
+    // @ts-expect-error - accessing private for testing
     const isContainerVisible =
       virtualScroll._isContainerVisible.bind(virtualScroll);
 
@@ -724,17 +724,17 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
 
       virtualScroll.setItems(messages);
 
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       const initialSettledCount = virtualScroll._settledCount;
 
       // Call _settleData() with items below MAX_HOT_ITEMS threshold
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._settleData();
 
       // Verify no items were settled
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._settledCount).toBe(initialSettledCount);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._items.length).toBe(messages.length);
     });
 
@@ -753,23 +753,23 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
       });
 
       // Temporarily lower MAX_HOT_ITEMS for testing
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll.MAX_HOT_ITEMS = 100;
 
       virtualScroll.setItems(messages);
 
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       const settledCount = virtualScroll._settledCount;
 
       // Verify that excess items were settled
       expect(settledCount).toBeGreaterThan(0);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._items.length).toBeLessThan(messages.length);
 
       // Verify ID-to-index mapping was rebuilt correctly
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       for (const [id, index] of virtualScroll._idToIndex.entries()) {
-        // @ts-ignore - accessing private for testing
+        // @ts-expect-error - accessing private for testing
         expect(virtualScroll._items[index].id).toBe(id);
       }
     });
@@ -793,7 +793,7 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
       virtualScroll.setItems(messages);
 
       // Now lower MAX_HOT_ITEMS and add more items to trigger another settlement
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll.MAX_HOT_ITEMS = 50;
 
       // Add skeleton before triggering settlement
@@ -811,32 +811,32 @@ describe('MessageVirtualScroll - Phase 5: User Experience', () => {
       const originalElement = innerContainer.children[10] as HTMLElement;
 
       // Update _elementMap to point to the skeleton
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._elementMap.set(10, placeholder);
 
       // Replace in DOM
       originalElement.replaceWith(placeholder);
 
       // Add to skeleton tracker
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._skeletonTracker.add('msg-60', 10, 1000, placeholder);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._componentStateCache.set('msg-60', { expanded: true });
 
       // Trigger settlement manually
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       virtualScroll._settleData();
 
       // Verify skeleton tracker was cleaned up for settled items
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._skeletonTracker.has('msg-60')).toBe(false);
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       expect(virtualScroll._componentStateCache.has('msg-60')).toBe(false);
 
       // Verify remaining items' indices are correct
-      // @ts-ignore - accessing private for testing
+      // @ts-expect-error - accessing private for testing
       for (const [id, index] of virtualScroll._idToIndex.entries()) {
-        // @ts-ignore - accessing private for testing
+        // @ts-expect-error - accessing private for testing
         expect(virtualScroll._items[index].id).toBe(id);
       }
     });

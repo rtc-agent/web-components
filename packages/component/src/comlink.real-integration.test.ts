@@ -12,9 +12,10 @@
  * Unlike multi-tab.mock.test.ts, these tests use REAL Comlink proxies
  * over MessageChannel to verify the actual communication protocol works correctly.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { expose, wrap, proxy, releaseProxy, type Remote } from 'comlink';
-import type { WorkerPersistenceCore, WorkerCallbacks } from '@rtc-agent/worker';
+
+import type { WorkerCallbacks, WorkerPersistenceCore } from '@rtc-agent/worker';
+import { expose, proxy, type Remote, releaseProxy, wrap } from 'comlink';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 /**
  * Create a test config for the TestWorkerCore.
@@ -41,7 +42,11 @@ class TestWorkerCore {
   private initialized = false;
   private callbacks = new Set<WorkerCallbacks>();
 
-  async init(_config: { databaseName: string; deviceId: string; userId: string }): Promise<void> {
+  async init(_config: {
+    databaseName: string;
+    deviceId: string;
+    userId: string;
+  }): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -244,7 +249,9 @@ describe('Real Comlink Integration', () => {
 
     it('should propagate errors across the boundary', async () => {
       // Try to call a method without initializing
-      await expect(wrappedCore.listSessions()).rejects.toThrow('Not initialized');
+      await expect(wrappedCore.listSessions()).rejects.toThrow(
+        'Not initialized',
+      );
     });
   });
 

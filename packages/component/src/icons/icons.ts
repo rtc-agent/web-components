@@ -12,46 +12,46 @@
  */
 import { html } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-
-// Import all SVG files as raw strings
-// Using Vite's ?raw import to get SVG content
-import minimizeSvg from './svg/minimize-16.svg?raw';
-import screenFullSvg from './svg/screen-full-16.svg?raw'; // octicons: screen-full-16
-import restoreSvg from './svg/restore-16.svg?raw'; // octicons: screen-normal-16
-import clockSvg from './svg/clock-16.svg?raw';
-import plusSvg from './svg/plus-16.svg?raw';
-import editSvg from './svg/edit-16.svg?raw'; // octicons: pencil-16
-import deleteSvg from './svg/delete-16.svg?raw'; // octicons: trash-16
-import handSvg from './svg/hand-16.svg?raw'; // octicons: grabber-16
-import codeSvg from './svg/code-16.svg?raw';
-import planSvg from './svg/plan-16.svg?raw'; // octicons: tasklist-16
-import zapSvg from './svg/zap-16.svg?raw';
-import gearSvg from './svg/gear-16.svg?raw';
-import checkSvg from './svg/check-16.svg?raw';
+// File upload/download icons
+import alertSvg from './svg/alert-16.svg?raw';
 import attachSvg from './svg/attach-16.svg?raw'; // octicons: paperclip-16
-import toolSvg from './svg/tool-16.svg?raw'; // octicons: tools-16 (singular vs plural)
-import sendSvg from './svg/send-16.svg?raw'; // octicons: paper-airplane-16
-import squareFillSvg from './svg/square-fill-16.svg?raw'; // octicons: square-fill-16
-import micSvg from './svg/mic-16.svg?raw'; // octicons: broadcast-16 (semantic mismatch)
+import checkSvg from './svg/check-16.svg?raw';
 import checklistSvg from './svg/checklist-16.svg?raw';
-
+import chevronDownSvg from './svg/chevron-down-16.svg?raw';
+import chevronRightSvg from './svg/chevron-right-16.svg?raw';
+import clockSvg from './svg/clock-16.svg?raw';
+import codeSvg from './svg/code-16.svg?raw';
+import columnsSvg from './svg/columns-16.svg?raw';
+import commentDiscussionSvg from './svg/comment-discussion-16.svg?raw';
+import deleteSvg from './svg/delete-16.svg?raw'; // octicons: trash-16
+import downloadSvg from './svg/download-16.svg?raw';
+import editSvg from './svg/edit-16.svg?raw'; // octicons: pencil-16
+import eyeSvg from './svg/eye-16.svg?raw';
+import fileSvg from './svg/file-16.svg?raw';
+import fileCodeSvg from './svg/file-code-16.svg?raw';
 // File explorer icons (Phase 1)
 // Note: saveIcon uses octicon 'download' — octicons has no 'save' glyph.
 // Note: filesIcon and folderClosedIcon share the same 'file-directory' SVG source.
 import fileDirectorySvg from './svg/file-directory-16.svg?raw';
-import commentDiscussionSvg from './svg/comment-discussion-16.svg?raw';
 import fileDirectoryOpenFillSvg from './svg/file-directory-open-fill-16.svg?raw';
+import gearSvg from './svg/gear-16.svg?raw';
+import handSvg from './svg/hand-16.svg?raw'; // octicons: grabber-16
+import linkSvg from './svg/link-16.svg?raw';
+// Scroll lock icons
+import lockSvg from './svg/lock-16.svg?raw';
 import markdownSvg from './svg/markdown-16.svg?raw';
-import fileCodeSvg from './svg/file-code-16.svg?raw';
-import fileSvg from './svg/file-16.svg?raw';
-import syncSvg from './svg/sync-16.svg?raw';
-import downloadSvg from './svg/download-16.svg?raw';
-import undoSvg from './svg/undo-16.svg?raw';
+import micSvg from './svg/mic-16.svg?raw'; // octicons: broadcast-16 (semantic mismatch)
+// Import all SVG files as raw strings
+// Using Vite's ?raw import to get SVG content
+import minimizeSvg from './svg/minimize-16.svg?raw';
+import planSvg from './svg/plan-16.svg?raw'; // octicons: tasklist-16
+import plusSvg from './svg/plus-16.svg?raw';
 import redoSvg from './svg/redo-16.svg?raw';
-import xSvg from './svg/x-16.svg?raw';
-import chevronRightSvg from './svg/chevron-right-16.svg?raw';
-import chevronDownSvg from './svg/chevron-down-16.svg?raw';
-
+import restoreSvg from './svg/restore-16.svg?raw'; // octicons: screen-normal-16
+import screenFullSvg from './svg/screen-full-16.svg?raw'; // octicons: screen-full-16
+import sendSvg from './svg/send-16.svg?raw'; // octicons: paper-airplane-16
+import squareFillSvg from './svg/square-fill-16.svg?raw'; // octicons: square-fill-16
+import syncSvg from './svg/sync-16.svg?raw';
 // Editor toolbar icons (Phase 2.5)
 // bold / italic: Formatting actions.
 // link: Insert hyperlink.
@@ -59,16 +59,11 @@ import chevronDownSvg from './svg/chevron-down-16.svg?raw';
 // columns: Split-screen view.
 import boldSvg from './svg/text-bold-16.svg?raw'; // octicons: bold-16 (text- prefix added)
 import italicSvg from './svg/text-italic-16.svg?raw'; // octicons: italic-16 (text- prefix added)
-import linkSvg from './svg/link-16.svg?raw';
-import eyeSvg from './svg/eye-16.svg?raw';
-import columnsSvg from './svg/columns-16.svg?raw';
-
-// Scroll lock icons
-import lockSvg from './svg/lock-16.svg?raw';
+import toolSvg from './svg/tool-16.svg?raw'; // octicons: tools-16 (singular vs plural)
+import undoSvg from './svg/undo-16.svg?raw';
 import unlockSvg from './svg/unlock-16.svg?raw';
-
-// File upload/download icons
-import alertSvg from './svg/alert-16.svg?raw';
+import xSvg from './svg/x-16.svg?raw';
+import zapSvg from './svg/zap-16.svg?raw';
 
 /**
  * Convert SVG string to Lit template using unsafeHTML

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
 
 describe('LifecycleGuard', () => {
   let guard: LifecycleGuard;
@@ -109,12 +109,9 @@ describe('LifecycleGuard', () => {
 
     it('should return fallback when LifecycleClosedError occurs', async () => {
       guard.close();
-      const result = await guard.run(
-        async () => {
-          throw new Error('Should not reach here');
-        },
-        'fallback-value',
-      );
+      const result = await guard.run(async () => {
+        throw new Error('Should not reach here');
+      }, 'fallback-value');
       expect(result).toBe('fallback-value');
     });
 
@@ -176,9 +173,7 @@ describe('LifecycleGuard', () => {
         expect.fail('Should have thrown');
       } catch (err) {
         expect(err).toBeInstanceOf(LifecycleClosedError);
-        expect((err as LifecycleClosedError).message).toContain(
-          'file-handle',
-        );
+        expect((err as LifecycleClosedError).message).toContain('file-handle');
       }
     });
   });

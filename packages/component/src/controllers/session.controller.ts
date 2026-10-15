@@ -11,13 +11,14 @@
  * Provided by: `<rtc-agent>` (root)
  * Consumed by: `<rtc-session-header>`, `<rtc-session-panel>`, `<rtc-content-area>`
  */
-import type { ReactiveControllerHost } from 'lit';
-import type { Session, SessionState, SessionActions } from '../types/index.js';
-import type { SessionContextValue } from '../contexts/session.js';
-import { DEFAULT_SESSION_STATE } from '../contexts/session.js';
+
 import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveControllerHost } from 'lit';
+import type { SessionContextValue } from '../contexts/session.js';
+import { DEFAULT_SESSION_STATE } from '../contexts/session.js';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { Session, SessionActions, SessionState } from '../types/index.js';
 
 const log = createLogger('SessionController');
 
@@ -195,9 +196,7 @@ export class SessionController extends CachedContextController<
     // offline / pre-connect fallback. This matches the documented behavior of the
     // `persistence` property.
     if (!this.persistence) {
-      log.warn(
-        `NO persistence layer, doing in-memory only ${operation}`,
-      );
+      log.warn(`NO persistence layer, doing in-memory only ${operation}`);
       // Proceed with in-memory operation
     }
 

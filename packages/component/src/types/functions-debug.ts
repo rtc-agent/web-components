@@ -5,12 +5,12 @@
  * DebugHistoryItem and LogEntry are now re-exported from @rtc-agent/persistence.
  */
 
-import type { FunctionDef } from './skill.js';
 import type {
   DebugHistoryItem,
   LogEntry,
   LogLevel,
 } from '@rtc-agent/persistence';
+import type { FunctionDef } from './skill.js';
 
 // Re-export for backward compatibility
 export type { DebugHistoryItem, LogEntry, LogLevel };

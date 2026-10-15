@@ -1,13 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
-import {
-  getDatabase,
-  flushAll,
-  closeDatabase,
-  DB_NAME_PREFIX,
-} from './database.js';
-import { EntityRepository } from './entity-repository.js';
 import type { Update } from '@rtc-agent/protocol';
+import { DB_NAME_PREFIX, flushAll, getDatabase } from './database.js';
+import { EntityRepository } from './entity-repository.js';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-batch`;
 const TEST_DEVICE_ID = 'test-device-id';
@@ -18,7 +13,7 @@ describe('applyUpdates (batch processing)', () => {
   beforeEach(async () => {
     // Initialize database
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
 
     // Create fresh repository
     repo = new EntityRepository(TEST_DEVICE_ID);
@@ -35,7 +30,7 @@ describe('applyUpdates (batch processing)', () => {
           title: 'Test',
           status: 'active',
           owner_kind: 'user',
-          owner_ref_id: 'test-user'
+          owner_ref_id: 'test-user',
         },
       ],
       offset: 1,
@@ -46,7 +41,7 @@ describe('applyUpdates (batch processing)', () => {
     const singleResult = await repo.getClientSession('c-s1');
 
     // Reset DB
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
 
     // Batch path
@@ -54,11 +49,11 @@ describe('applyUpdates (batch processing)', () => {
     const batchResult = await repo.getClientSession('c-s1');
 
     // Compare key fields (ignore timestamps which may differ by milliseconds)
-    expect(batchResult!.client_id).toBe(singleResult!.client_id);
-    expect(batchResult!.server_id).toBe(singleResult!.server_id);
-    expect(batchResult!.title).toBe(singleResult!.title);
-    expect(batchResult!.status).toBe(singleResult!.status);
-    expect(batchResult!.sync_status).toBe(singleResult!.sync_status);
+    expect(batchResult?.client_id).toBe(singleResult?.client_id);
+    expect(batchResult?.server_id).toBe(singleResult?.server_id);
+    expect(batchResult?.title).toBe(singleResult?.title);
+    expect(batchResult?.status).toBe(singleResult?.status);
+    expect(batchResult?.sync_status).toBe(singleResult?.sync_status);
   });
 
   it('should handle mixed entity types in a single batch', async () => {
@@ -76,7 +71,7 @@ describe('applyUpdates (batch processing)', () => {
             client_id: 'c-s1',
             status: 'active',
             owner_kind: 'user',
-            owner_ref_id: 'test-user'
+            owner_ref_id: 'test-user',
           },
           {
             id: 'srv-t1',
@@ -88,11 +83,11 @@ describe('applyUpdates (batch processing)', () => {
             id: 'srv-m1',
             client_id: 'c-m1',
             session_id: 'srv-s1',
-            role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+            role: 'assistant',
             global_offset: 1,
             streaming_status: 'completed',
             creator_kind: 'llm',
-            creator_ref_id: 'test-model'
+            creator_ref_id: 'test-model',
           },
         ],
         offset: 1,
@@ -105,7 +100,7 @@ describe('applyUpdates (batch processing)', () => {
 
     // Session should have pending_turn_count=1
     const s = await repo.getClientSession('c-s1');
-    expect(s!.pending_turn_count).toBe(1);
+    expect(s?.pending_turn_count).toBe(1);
   });
 
   // KNOWN ISSUE: Batch delete bug not yet fixed (tracked in GitHub Issues)
@@ -117,7 +112,15 @@ describe('applyUpdates (batch processing)', () => {
       {
         id: 'u1',
         items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
-        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+        data_list: [
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
+        ],
         offset: 1,
       },
     ]);
@@ -146,16 +149,22 @@ describe('applyUpdates (batch processing)', () => {
           { entity: 'message', action: 'created', entity_id: 'srv-child' },
         ],
         data_list: [
-          { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
           {
             id: 'srv-parent',
             client_id: 'c-parent',
             session_id: 'srv-s1',
-            role: 'user', global_offset: 0, streaming_status: 'completed', creator_kind: 'user', creator_ref_id: 'test-user',
+            role: 'user',
             global_offset: 0,
             streaming_status: 'completed',
             creator_kind: 'user',
-            creator_ref_id: 'test-user'
+            creator_ref_id: 'test-user',
           },
           {
             id: 'srv-child',
@@ -175,7 +184,7 @@ describe('applyUpdates (batch processing)', () => {
 
     const child = await repo.getClientMessage('c-child');
     expect(child).toBeDefined();
-    expect(child!.parent_client_id).toBe('c-parent');
+    expect(child?.parent_client_id).toBe('c-parent');
   });
 
   it('should return early for empty input', async () => {
@@ -195,7 +204,13 @@ describe('applyUpdates (batch processing)', () => {
           { entity: 'rtc', action: 'created', entity_id: 'srv-r1' },
         ],
         data_list: [
-          { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
           {
             id: 'srv-r1',
             client_id: 'c-r1',
@@ -211,7 +226,7 @@ describe('applyUpdates (batch processing)', () => {
 
     const rtc = await repo.getClientRtc('c-r1');
     expect(rtc).toBeDefined();
-    expect(rtc!.sync_status).toBe('pending');
+    expect(rtc?.sync_status).toBe('pending');
   });
 
   it('should deduplicate same client_id within a batch (last wins)', async () => {
@@ -223,15 +238,29 @@ describe('applyUpdates (batch processing)', () => {
           { entity: 'session', action: 'updated', entity_id: 's1' },
         ],
         data_list: [
-          { id: 's1', client_id: 'c-s1', title: 'First', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
-          { id: 's1', client_id: 'c-s1', title: 'Second', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+          {
+            id: 's1',
+            client_id: 'c-s1',
+            title: 'First',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
+          {
+            id: 's1',
+            client_id: 'c-s1',
+            title: 'Second',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
         ],
         offset: 1,
       },
     ]);
 
     const session = await repo.getClientSession('c-s1');
-    expect(session!.title).toBe('Second'); // Last occurrence wins
+    expect(session?.title).toBe('Second'); // Last occurrence wins
   });
 
   it('should handle session_id not found (fallback to server_id)', async () => {
@@ -255,7 +284,7 @@ describe('applyUpdates (batch processing)', () => {
     const turn = await repo.getClientTurn('c-t1');
     expect(turn).toBeDefined();
     // Fallback: session_client_id is set to the server_id when session is not found
-    expect(turn!.session_client_id).toBe('non-existent-session');
+    expect(turn?.session_client_id).toBe('non-existent-session');
   });
 
   it('should handle parent_message_id not found (parent_client_id remains unset)', async () => {
@@ -269,7 +298,11 @@ describe('applyUpdates (batch processing)', () => {
             client_id: 'c-m1',
             session_id: 'srv-s1',
             parent_message_id: 'non-existent-parent',
-            role: 'user', global_offset: 0, streaming_status: 'completed', creator_kind: 'user', creator_ref_id: 'test-user',
+            role: 'user',
+            global_offset: 0,
+            streaming_status: 'completed',
+            creator_kind: 'user',
+            creator_ref_id: 'test-user',
           },
         ],
         offset: 1,
@@ -279,7 +312,7 @@ describe('applyUpdates (batch processing)', () => {
     const msg = await repo.getClientMessage('c-m1');
     expect(msg).toBeDefined();
     // parent_client_id is not set when parent is not found
-    expect(msg!.parent_client_id).toBeUndefined();
+    expect(msg?.parent_client_id).toBeUndefined();
   });
 
   it('should handle large batch (1000 messages) within time budget', async () => {
@@ -288,7 +321,15 @@ describe('applyUpdates (batch processing)', () => {
       {
         id: 'u-session',
         items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
-        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+        data_list: [
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
+        ],
         offset: 0,
       },
     ]);
@@ -305,7 +346,11 @@ describe('applyUpdates (batch processing)', () => {
             id: `srv-m-${i}`,
             client_id: `c-m-${i}`,
             session_id: 'srv-s1',
-            role: 'user', global_offset: 0, streaming_status: 'completed', creator_kind: 'user', creator_ref_id: 'test-user',
+            role: 'user',
+            global_offset: 0,
+            streaming_status: 'completed',
+            creator_kind: 'user',
+            creator_ref_id: 'test-user',
           },
         ],
         offset: i + 1,
@@ -319,7 +364,7 @@ describe('applyUpdates (batch processing)', () => {
     // Verify all 1000 messages were written
     const msg = await repo.getClientMessage('c-m-999');
     expect(msg).toBeDefined();
-    expect(msg!.session_client_id).toBe('c-s1');
+    expect(msg?.session_client_id).toBe('c-s1');
 
     // Batch should complete in reasonable time (<5s)
     expect(elapsed).toBeLessThan(5000);
@@ -334,7 +379,15 @@ describe('applyUpdates (batch processing)', () => {
       {
         id: 'u1',
         items: [{ entity: 'session', action: 'created', entity_id: 'srv-s1' }],
-        data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+        data_list: [
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
+        ],
         offset: 1,
       },
     ]);
@@ -349,7 +402,13 @@ describe('applyUpdates (batch processing)', () => {
           { entity: 'session', action: 'deleted', entity_id: 'srv-s1' },
         ],
         data_list: [
-          { id: 'srv-s1', client_id: 'c-s1', title: 'Updated', owner_kind: 'user', owner_ref_id: 'test-user' },
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            title: 'Updated',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
           undefined,
         ],
         offset: 2,
@@ -389,7 +448,7 @@ describe('applyUpdates (batch processing)', () => {
             title: 'Original',
             status: 'active',
             owner_kind: 'user',
-            owner_ref_id: 'test-user'
+            owner_ref_id: 'test-user',
           },
         ],
         offset: 1,
@@ -397,7 +456,7 @@ describe('applyUpdates (batch processing)', () => {
     ]);
 
     const before = await repo.getClientSession('c-s1');
-    expect(before!.title).toBe('Original');
+    expect(before?.title).toBe('Original');
 
     // Update only title in a batch; other fields should be preserved via merge
     // Use multiple updates to force batch processing path
@@ -405,7 +464,15 @@ describe('applyUpdates (batch processing)', () => {
       {
         id: 'u2',
         items: [{ entity: 'session', action: 'updated', entity_id: 'srv-s1' }],
-        data_list: [{ id: 'srv-s1', client_id: 'c-s1', title: 'Renamed', owner_kind: 'user', owner_ref_id: 'test-user' }],
+        data_list: [
+          {
+            id: 'srv-s1',
+            client_id: 'c-s1',
+            title: 'Renamed',
+            owner_kind: 'user',
+            owner_ref_id: 'test-user',
+          },
+        ],
         offset: 2,
       },
       {
@@ -413,13 +480,13 @@ describe('applyUpdates (batch processing)', () => {
         items: [],
         data_list: [],
         offset: 3,
-      }
+      },
     ]);
 
     const after = await repo.getClientSession('c-s1');
-    expect(after!.title).toBe('Renamed');
+    expect(after?.title).toBe('Renamed');
     // status was not in the update payload, but should be preserved from existing
-    expect(after!.status).toBe('active');
+    expect(after?.status).toBe('active');
   });
 
   describe('applyUpdates equivalence with applyUpdate (Section 8.4)', () => {
@@ -433,7 +500,13 @@ describe('applyUpdates (batch processing)', () => {
             { entity: 'turn', action: 'created', entity_id: 'srv-t2' },
           ],
           data_list: [
-            { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
             {
               id: 'srv-t1',
               client_id: 'c-t1',
@@ -456,7 +529,7 @@ describe('applyUpdates (batch processing)', () => {
       const sessionA = await repo.getClientSession('c-s1');
 
       // Reset
-      await flushAll();
+      await flushAll(true);
       repo = new EntityRepository(TEST_DEVICE_ID);
 
       // Path B: batch
@@ -464,10 +537,10 @@ describe('applyUpdates (batch processing)', () => {
       const sessionB = await repo.getClientSession('c-s1');
 
       // Compare turn counts
-      expect(sessionB!.pending_turn_count).toBe(sessionA!.pending_turn_count);
-      expect(sessionB!.running_turn_count).toBe(sessionA!.running_turn_count);
-      expect(sessionB!.pending_turn_count).toBe(1);
-      expect(sessionB!.running_turn_count).toBe(1);
+      expect(sessionB?.pending_turn_count).toBe(sessionA?.pending_turn_count);
+      expect(sessionB?.running_turn_count).toBe(sessionA?.running_turn_count);
+      expect(sessionB?.pending_turn_count).toBe(1);
+      expect(sessionB?.running_turn_count).toBe(1);
     });
 
     it('should produce identical message state', async () => {
@@ -479,12 +552,22 @@ describe('applyUpdates (batch processing)', () => {
             { entity: 'message', action: 'created', entity_id: 'srv-m1' },
           ],
           data_list: [
-            { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
             {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
+              streaming_status: 'completed',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
               content: 'Hello',
             },
           ],
@@ -497,7 +580,7 @@ describe('applyUpdates (batch processing)', () => {
       const msgA = await repo.getClientMessage('c-m1');
 
       // Reset
-      await flushAll();
+      await flushAll(true);
       repo = new EntityRepository(TEST_DEVICE_ID);
 
       // Path B: batch
@@ -505,9 +588,9 @@ describe('applyUpdates (batch processing)', () => {
       const msgB = await repo.getClientMessage('c-m1');
 
       // Compare
-      expect(msgB!.role).toBe(msgA!.role);
-      expect(msgB!.content).toBe(msgA!.content);
-      expect(msgB!.session_client_id).toBe(msgA!.session_client_id);
+      expect(msgB?.role).toBe(msgA?.role);
+      expect(msgB?.content).toBe(msgA?.content);
+      expect(msgB?.session_client_id).toBe(msgA?.session_client_id);
     });
 
     it('should produce identical turn counts across multiple sessions', async () => {
@@ -522,8 +605,20 @@ describe('applyUpdates (batch processing)', () => {
             { entity: 'turn', action: 'created', entity_id: 'srv-t3' },
           ],
           data_list: [
-            { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
-            { id: 'srv-s2', client_id: 'c-s2', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+            {
+              id: 'srv-s2',
+              client_id: 'c-s2',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
             {
               id: 'srv-t1',
               client_id: 'c-t1',
@@ -553,7 +648,7 @@ describe('applyUpdates (batch processing)', () => {
       const s2A = await repo.getClientSession('c-s2');
 
       // Reset
-      await flushAll();
+      await flushAll(true);
       repo = new EntityRepository(TEST_DEVICE_ID);
 
       // Path B: batch
@@ -562,10 +657,10 @@ describe('applyUpdates (batch processing)', () => {
       const s2B = await repo.getClientSession('c-s2');
 
       // Compare
-      expect(s1B!.pending_turn_count).toBe(s1A!.pending_turn_count);
-      expect(s1B!.running_turn_count).toBe(s1A!.running_turn_count);
-      expect(s2B!.pending_turn_count).toBe(s2A!.pending_turn_count);
-      expect(s2B!.running_turn_count).toBe(s2A!.running_turn_count);
+      expect(s1B?.pending_turn_count).toBe(s1A?.pending_turn_count);
+      expect(s1B?.running_turn_count).toBe(s1A?.running_turn_count);
+      expect(s2B?.pending_turn_count).toBe(s2A?.pending_turn_count);
+      expect(s2B?.running_turn_count).toBe(s2A?.running_turn_count);
     });
   });
 });
@@ -588,7 +683,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
   beforeEach(async () => {
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
     repo = new EntityRepository(TEST_DEVICE_ID);
   });
 
@@ -603,7 +698,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
         {
@@ -636,7 +739,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
       const turn = await repo.getClientTurn('c-t1');
       expect(turn).toBeDefined();
-      expect(turn!.status).toBe('completed'); // Last wins
+      expect(turn?.status).toBe('completed'); // Last wins
     });
 
     it('should handle 5 updates for same entity in a batch (last wins)', async () => {
@@ -647,7 +750,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
         {
@@ -719,7 +830,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
       const turn = await repo.getClientTurn('c-t1');
       expect(turn).toBeDefined();
-      expect(turn!.status).toBe('completed'); // Last update wins
+      expect(turn?.status).toBe('completed'); // Last update wins
     });
   });
 
@@ -743,7 +854,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               status: 'active',
               agent_prompt: 'You are helpful',
               owner_kind: 'user',
-              owner_ref_id: 'test-user'
+              owner_ref_id: 'test-user',
             },
           ],
           offset: 1,
@@ -751,8 +862,8 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       let session = await repo.getClientSession('c-s1');
-      expect(session!.title).toBe('Original Title');
-      expect(session!.agent_prompt).toBe('You are helpful');
+      expect(session?.title).toBe('Original Title');
+      expect(session?.agent_prompt).toBe('You are helpful');
 
       // Step 2: Update only the title (not agent_prompt)
       // Use multiple updates to force batch processing path
@@ -768,7 +879,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               client_id: 'c-s1',
               title: 'Updated Title',
               owner_kind: 'user',
-              owner_ref_id: 'test-user'
+              owner_ref_id: 'test-user',
             },
           ],
           offset: 2,
@@ -778,12 +889,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [],
           data_list: [],
           offset: 3,
-        }
+        },
       ]);
 
       session = await repo.getClientSession('c-s1');
-      expect(session!.title).toBe('Updated Title'); // Updated
-      expect(session!.agent_prompt).toBe('You are helpful'); // Preserved!
+      expect(session?.title).toBe('Updated Title'); // Updated
+      expect(session?.agent_prompt).toBe('You are helpful'); // Preserved!
     });
 
     it('should preserve server_id when incoming does not provide it', async () => {
@@ -801,7 +912,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               title: 'Test',
               status: 'active',
               owner_kind: 'user',
-              owner_ref_id: 'test-user'
+              owner_ref_id: 'test-user',
             },
           ],
           offset: 1,
@@ -809,7 +920,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       let session = await repo.getClientSession('c-s1');
-      expect(session!.server_id).toBe('srv-s1');
+      expect(session?.server_id).toBe('srv-s1');
 
       // Update without server_id in data_list
       // Use multiple updates to force batch processing path
@@ -819,7 +930,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'updated', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', title: 'Updated', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              title: 'Updated',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 2,
         },
         {
@@ -827,12 +946,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [],
           data_list: [],
           offset: 3,
-        }
+        },
       ]);
 
       session = await repo.getClientSession('c-s1');
-      expect(session!.server_id).toBe('srv-s1'); // Preserved!
-      expect(session!.title).toBe('Updated');
+      expect(session?.server_id).toBe('srv-s1'); // Preserved!
+      expect(session?.title).toBe('Updated');
     });
   });
 
@@ -847,7 +966,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
       ]);
@@ -870,12 +997,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       let turn = await repo.getClientTurn('c-t1');
-      expect(turn!.status).toBe('running');
+      expect(turn?.status).toBe('running');
 
       // Verify session has running_turn_count=1
       let session = await repo.getClientSession('c-s1');
-      expect(session!.running_turn_count).toBe(1);
-      expect(session!.pending_turn_count).toBe(0);
+      expect(session?.running_turn_count).toBe(1);
+      expect(session?.pending_turn_count).toBe(0);
 
       // Step 2: Turn updated to status=completed
       await repo.applyUpdates([
@@ -895,12 +1022,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       turn = await repo.getClientTurn('c-t1');
-      expect(turn!.status).toBe('completed');
+      expect(turn?.status).toBe('completed');
 
       // Verify session counts updated
       session = await repo.getClientSession('c-s1');
-      expect(session!.running_turn_count).toBe(0);
-      expect(session!.pending_turn_count).toBe(0);
+      expect(session?.running_turn_count).toBe(0);
+      expect(session?.pending_turn_count).toBe(0);
     });
 
     it('should handle rapid turn state changes: pending → running → completed', async () => {
@@ -911,7 +1038,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
         {
@@ -956,7 +1091,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       const turn = await repo.getClientTurn('c-t1');
-      expect(turn!.status).toBe('completed'); // Final state
+      expect(turn?.status).toBe('completed'); // Final state
     });
   });
 
@@ -970,7 +1105,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
       ]);
@@ -987,12 +1130,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
-              streaming_status: 'completed',
-              content: 'Hello',
+              role: 'assistant',
               global_offset: 1,
+              streaming_status: 'completed',
               creator_kind: 'llm',
-              creator_ref_id: 'test-model'
+              creator_ref_id: 'test-model',
+              content: 'Hello',
             },
           ],
           offset: 1,
@@ -1000,7 +1143,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       let msg = await repo.getClientMessage('c-m1');
-      expect(msg!.streaming_status).toBe('completed');
+      expect(msg?.streaming_status).toBe('completed');
 
       // Step 2: Try to apply an older update with streaming_status=streaming
       // This simulates a late-arriving update from gap fill
@@ -1015,12 +1158,12 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
-              streaming_status: 'streaming',
-              content: 'Hello',
+              role: 'assistant',
               global_offset: 1,
+              streaming_status: 'streaming',
               creator_kind: 'llm',
-              creator_ref_id: 'test-model'
+              creator_ref_id: 'test-model',
+              content: 'Hello',
             },
           ],
           offset: 2,
@@ -1029,7 +1172,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
       msg = await repo.getClientMessage('c-m1');
       // streaming_status should NOT regress to 'streaming'
-      expect(msg!.streaming_status).toBe('completed');
+      expect(msg?.streaming_status).toBe('completed');
     });
 
     it('should prevent streaming_status regression: completed → pending', async () => {
@@ -1039,7 +1182,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
       ]);
@@ -1056,8 +1207,11 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
               streaming_status: 'completed',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
             },
           ],
           offset: 1,
@@ -1076,8 +1230,11 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
               streaming_status: 'pending',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
             },
           ],
           offset: 2,
@@ -1085,7 +1242,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       const msg = await repo.getClientMessage('c-m1');
-      expect(msg!.streaming_status).toBe('completed'); // No regression
+      expect(msg?.streaming_status).toBe('completed'); // No regression
     });
 
     it('should allow streaming_status progression: pending → streaming → completed', async () => {
@@ -1095,7 +1252,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
       ]);
@@ -1112,8 +1277,11 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
               streaming_status: 'pending',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
             },
           ],
           offset: 1,
@@ -1121,7 +1289,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       let msg = await repo.getClientMessage('c-m1');
-      expect(msg!.streaming_status).toBe('pending');
+      expect(msg?.streaming_status).toBe('pending');
 
       // Progression: streaming → completed
       await repo.applyUpdates([
@@ -1135,8 +1303,11 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
               streaming_status: 'streaming',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
             },
           ],
           offset: 2,
@@ -1144,7 +1315,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       msg = await repo.getClientMessage('c-m1');
-      expect(msg!.streaming_status).toBe('streaming');
+      expect(msg?.streaming_status).toBe('streaming');
 
       await repo.applyUpdates([
         {
@@ -1157,8 +1328,11 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
               id: 'srv-m1',
               client_id: 'c-m1',
               session_id: 'srv-s1',
-              role: 'assistant', global_offset: 1, streaming_status: 'completed', creator_kind: 'llm', creator_ref_id: 'test-model',
+              role: 'assistant',
+              global_offset: 1,
               streaming_status: 'completed',
+              creator_kind: 'llm',
+              creator_ref_id: 'test-model',
             },
           ],
           offset: 3,
@@ -1166,7 +1340,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       ]);
 
       msg = await repo.getClientMessage('c-m1');
-      expect(msg!.streaming_status).toBe('completed');
+      expect(msg?.streaming_status).toBe('completed');
     });
   });
 
@@ -1183,7 +1357,13 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
             { entity: 'turn', action: 'created', entity_id: 'srv-t1' },
           ],
           data_list: [
-            { id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' },
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
             {
               id: 'srv-t1',
               client_id: 'c-t1',
@@ -1200,7 +1380,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
       const turn = await repo.getClientTurn('c-t1');
       expect(session).toBeDefined();
       expect(turn).toBeDefined();
-      expect(turn!.status).toBe('completed');
+      expect(turn?.status).toBe('completed');
     });
 
     it('should handle multiple entities each with multiple updates in same batch', async () => {
@@ -1211,7 +1391,15 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
           items: [
             { entity: 'session', action: 'created', entity_id: 'srv-s1' },
           ],
-          data_list: [{ id: 'srv-s1', client_id: 'c-s1', status: 'active', owner_kind: 'user', owner_ref_id: 'test-user' }],
+          data_list: [
+            {
+              id: 'srv-s1',
+              client_id: 'c-s1',
+              status: 'active',
+              owner_kind: 'user',
+              owner_ref_id: 'test-user',
+            },
+          ],
           offset: 0,
         },
         // Turn 1: 3 updates
@@ -1302,8 +1490,8 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
       const t1 = await repo.getClientTurn('c-t1');
       const t2 = await repo.getClientTurn('c-t2');
-      expect(t1!.status).toBe('completed');
-      expect(t2!.status).toBe('completed');
+      expect(t1?.status).toBe('completed');
+      expect(t2?.status).toBe('completed');
     });
   });
 });

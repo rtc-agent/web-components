@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { UIUpdateBus, getUIUpdateBus, closeUIUpdateBus } from './ui-update-bus';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  closeDatabase,
+  DB_NAME_PREFIX,
+  flushAll,
+  getDatabase,
+} from './database';
 import type { UIUpdateEvent } from './ui-update-bus';
-import { getDatabase, closeDatabase, flushAll, DB_NAME_PREFIX } from './database';
+import { closeUIUpdateBus, getUIUpdateBus, UIUpdateBus } from './ui-update-bus';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-ui-update-bus-async`;
 
@@ -15,7 +20,7 @@ describe('UIUpdateBus - publish() async behavior', () => {
 
     // Get fresh database
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
 
     // Get fresh bus instance
     bus = getUIUpdateBus();
@@ -104,7 +109,7 @@ describe('UIUpdateBus - publish() async behavior', () => {
 
       // Verify listener receives the correct seq
       const receivedSeqs: number[] = [];
-      bus.subscribe((event, seq) => {
+      bus.subscribe((_event, seq) => {
         receivedSeqs.push(seq);
       });
 
@@ -139,7 +144,7 @@ describe('UIUpdateBus - publish() async behavior', () => {
       const db = getDatabase(TEST_DB);
       const listener = vi.fn();
 
-      bus.subscribe(async (event, seq) => {
+      bus.subscribe(async (event, _seq) => {
         // When listener is called, event should already be in DB
         const records = await db.ui_updates.toArray();
         const found = records.some((r) => r.event.entityId === event.entityId);

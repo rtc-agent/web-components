@@ -11,46 +11,47 @@
  * state machine. Splitting would scatter the protocol flow across files, making
  * it harder to reason about ordering guarantees and error recovery.
  */
-import { Centrifuge, HistoryOptions } from 'centrifuge';
-import {
-  RPC_METHODS,
-  SendMessageRequest,
-  ForkSessionRequest,
-  Update,
-  UpdateItem,
-  createLogger,
-  parseJwtPayload,
-} from '@rtc-agent/protocol';
+
 import type {
-  RtcStatus,
-  ListSessionsResponse,
-  MessageListResponse,
-  TurnListResponse,
-  RtcListResponse,
-  GetSessionResponse,
-  SendMessageResponse,
-  ForkSessionResponse,
   CloseSessionResponse,
-  OpenSessionResponse,
-  StopTurnResponse,
-  SubmitRtcResultResponse,
-  UpdateRtcStatusResponse,
   CompactSessionRequest,
   CompactSessionResponse,
+  ForkSessionResponse,
+  GetSessionResponse,
+  ListSessionsResponse,
+  MessageListResponse,
+  OpenSessionResponse,
+  RtcListResponse,
+  RtcStatus,
+  SendMessageResponse,
+  StopTurnResponse,
+  SubmitRtcResultResponse,
+  TurnListResponse,
+  UpdateRtcStatusResponse,
   UpdateSessionRequest,
   UpdateSessionResponse,
 } from '@rtc-agent/protocol';
+import {
+  createLogger,
+  type ForkSessionRequest,
+  parseJwtPayload,
+  RPC_METHODS,
+  type SendMessageRequest,
+  type Update,
+  type UpdateItem,
+} from '@rtc-agent/protocol';
+import { Centrifuge, type HistoryOptions } from 'centrifuge';
 import type {
-  IRTCAgentClient,
-  RTCAgentClientOptions,
   ConnectionState,
   ConnectionStateEvent,
-  EventName,
   EventCallback,
-  Unsubscribe,
-  RTCAgentClientEvents,
-  TokenExpiredAction,
+  EventName,
+  IRTCAgentClient,
   PublicationEvent,
+  RTCAgentClientEvents,
+  RTCAgentClientOptions,
+  TokenExpiredAction,
+  Unsubscribe,
 } from './types.js';
 
 const log = createLogger('RTCAgentClient');
@@ -175,11 +176,19 @@ export class RTCAgentClient implements IRTCAgentClient {
    * After completion (success or failure), the promise is cleared to allow retry.
    *
    * **Why this is safe:**
-   * - JavaScript is single-threaded: the check-and-assign is atomic (no interleaving)
-   * - The promise is cleared in `finally`, ensuring cleanup even on exceptions
-   * - Callers awaiting the same promise receive the same result (success or failure)
+   * - JavaScript is single-threaded: the check-and-assign operation is atomic because there
+   *   is no true parallel execution. Between the check (`if (this._refreshPromise)`) and
+   *   the assignment (`this._refreshPromise = ...`), no other code can run.
+   * - `await` yields control at suspension points, but `_refreshPromise` is assigned
+   *   synchronously before any `await`, so concurrent callers will see the cached promise.
+   * - The promise is cleared in `finally`, ensuring cleanup even on exceptions.
+   * - Multiple callers can await the same promise and receive the same result (success or failure).
    *
-   * See: WorkerBridge Token Caching Bug (memory) for historical context on similar issues.
+   * **Historical context:**
+   * See WorkerBridge Token Caching Bug for a similar issue where Promise deduplication
+   * was incorrectly implemented, causing stale tokens to be cached permanently.
+   * The key difference here is that we clear the promise in `finally`, preventing
+   * permanent caching of failed refresh attempts.
    */
   private _refreshPromise: Promise<string> | null = null;
 
@@ -309,7 +318,11 @@ export class RTCAgentClient implements IRTCAgentClient {
     // which could cause unnecessary network traffic and race conditions with the initial connect() call.
     this._onOnlineHandler = () => {
       log.info('Network online event received, triggering reconnection');
-      if (this.connectionState === 'disconnected' && this.shouldReconnect && this.wasConnected) {
+      if (
+        this.connectionState === 'disconnected' &&
+        this.shouldReconnect &&
+        this.wasConnected
+      ) {
         // Clear any pending reconnect timer to reconnect immediately
         if (this._reconnectTimer) {
           clearTimeout(this._reconnectTimer);
@@ -374,9 +387,14 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.gapFillTasks.size,
       );
 
-      // Detect account banned (disconnect code 4501).
-      // Server uses terminal disconnect code 4501 (application-specific, no auto-reconnect).
-      // Stop reconnecting and notify the application.
+      // Disconnect handling strategy:
+      // Each case represents a distinct disconnect category with its own recovery semantics.
+      // Cases 1-2 use early return (terminal or async-handled).
+      // Case 3 falls through to setConnectionState (delayed auto-reconnect).
+      // Default falls through to setConnectionState (normal disconnect).
+
+      // Case 1: Account banned — terminal disconnect, no reconnection.
+      // Server uses disconnect code 4501 (application-specific, no auto-reconnect).
       if (ctx?.code === 4501) {
         log.warn('account banned, disconnect code 4501, reason:', ctx?.reason);
         this.shouldReconnect = false;
@@ -390,7 +408,7 @@ export class RTCAgentClient implements IRTCAgentClient {
         return;
       }
 
-      // Detect server-side token rejection (e.g. "invalid token").
+      // Case 2: Server-side token rejection — trigger token refresh flow.
       // Even if the JWT is not expired, we need to trigger the refresh mechanism.
       if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {
         // Critical fix: immediately disconnect the Centrifuge instance to prevent it from
@@ -401,7 +419,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         oldCentrifuge?.disconnect(); // Explicit disconnect to stop auto-reconnect.
         // Fix: Remove all event listeners from the old instance to prevent memory leaks.
         // Centrifuge SDK provides removeAllListeners() method for cleanup.
-        if (oldCentrifuge && typeof oldCentrifuge.removeAllListeners === 'function') {
+        if (
+          oldCentrifuge &&
+          typeof oldCentrifuge.removeAllListeners === 'function'
+        ) {
           oldCentrifuge.removeAllListeners();
         }
         // Fire-and-forget: handleInvalidToken() manages its own error handling and
@@ -416,8 +437,8 @@ export class RTCAgentClient implements IRTCAgentClient {
         return;
       }
 
-      // Detect message-size-limit exceeded: server rejects the connection and Centrifuge
-      // does not auto-retry this type of server-side rejection.
+      // Case 3: Message-size-limit exceeded — server rejects the connection.
+      // Centrifuge does not auto-retry this type of server-side rejection.
       if (ctx?.reason === 'message size limit exceeded') {
         log.warn(
           'message size limit exceeded, will retry connection after delay',
@@ -436,7 +457,10 @@ export class RTCAgentClient implements IRTCAgentClient {
             });
           }
         }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
+        // Falls through to setConnectionState below
       }
+      // Default: Normal disconnect (network error, server restart, timeout, etc.)
+      // Falls through to setConnectionState below
 
       this.setConnectionState('disconnected', ctx?.reason);
     });
@@ -476,7 +500,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     // P2-6: Stop heartbeat monitoring on disconnect
     this._stopHeartbeatMonitoring();
     // Abort all active gap fill waits to prevent zombie timers
-    this._gapFillAbortControllers.forEach((controller) => controller.abort());
+    for (const [, controller] of this._gapFillAbortControllers) controller.abort();
     this._gapFillAbortControllers.clear();
     // Clear pending gap fill tasks to prevent stale tasks after reconnect
     this.gapFillTasks.clear();
@@ -671,7 +695,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     // Serialise: chain the current task after the previous one.
     // Critical: must await previousPromise, otherwise concurrent calls will see
     // the same lastOffset and both skip the gap fill, breaking offset continuity.
-    let previousPromise = this.applyUpdatesQueue;
+    const previousPromise = this.applyUpdatesQueue;
 
     const currentPromise = (async () => {
       if (previousPromise) {
@@ -726,7 +750,30 @@ export class RTCAgentClient implements IRTCAgentClient {
         this.scheduleGapFill(channel, update.offset, lastEpoch);
 
         // Wait for gap fill to catch up to this update's offset.
-        await this.waitForGapFill(channel, update.offset - 1);
+        // P2-FIX: Catch GapFillTimeoutError to emit syncRequired event and trigger reconnect.
+        try {
+          await this.waitForGapFill(channel, update.offset - 1);
+        } catch (err) {
+          if (err instanceof GapFillTimeoutError) {
+            // Gap fill timed out — emit syncRequired event to notify application
+            log.warn(
+              `Gap fill timeout for channel ${channel}: target=${err.targetOffset}, ` +
+                `current=${err.currentOffset}, remaining=${err.remainingGap}`,
+            );
+            this.emit('syncRequired', {
+              reason: 'gap_fill_timeout',
+              lastKnownOffset: err.currentOffset,
+              serverOffset: err.targetOffset,
+            });
+            // Trigger reconnect to re-sync state
+            if (this.shouldReconnect && !this._reconnecting) {
+              log.debug('Triggering reconnect after gap fill timeout');
+              this.centrifuge?.disconnect();
+              this.setConnectionState('disconnected', 'gap fill timeout');
+            }
+          }
+          throw err; // Re-throw to let caller handle
+        }
 
         // Post-fill verification: did gap fill advance the offset to update.offset - 1?
         const newPosition = await this.options.getLastOffset?.(channel);
@@ -790,7 +837,8 @@ export class RTCAgentClient implements IRTCAgentClient {
     targetOffset: number,
   ): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
-    const INITIAL_POLL_INTERVAL_MS = RTCAgentClient.GAP_FILL_INITIAL_POLL_INTERVAL_MS;
+    const INITIAL_POLL_INTERVAL_MS =
+      RTCAgentClient.GAP_FILL_INITIAL_POLL_INTERVAL_MS;
     const MAX_POLL_INTERVAL_MS = RTCAgentClient.GAP_FILL_MAX_POLL_INTERVAL_MS;
     const BACKOFF_MULTIPLIER = 2;
 
@@ -886,7 +934,7 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
     set.add(cb as EventCallback<EventName>);
     return () => {
-      set!.delete(cb as EventCallback<EventName>);
+      set?.delete(cb as EventCallback<EventName>);
     };
   }
 
@@ -1377,8 +1425,11 @@ export class RTCAgentClient implements IRTCAgentClient {
       // Threshold: 100 updates = ~500 UI events (5 entities per update on average)
       // This is well below the 1000 event limit, but using batch mode for 100+ updates
       // provides a safety margin while avoiding unnecessary overhead for small batches.
-      const useBatchMode = deduplicated.length >= RTCAgentClient.BATCH_MODE_THRESHOLD;
-      const batchId = useBatchMode ? `gap-fill-${channel}-${Date.now()}` : undefined;
+      const useBatchMode =
+        deduplicated.length >= RTCAgentClient.BATCH_MODE_THRESHOLD;
+      const batchId = useBatchMode
+        ? `gap-fill-${channel}-${Date.now()}`
+        : undefined;
 
       if (useBatchMode) {
         this.options.startBatchUIUpdates?.(batchId!);
@@ -1606,7 +1657,8 @@ export class RTCAgentClient implements IRTCAgentClient {
       // P2-7: Check if we need to back off due to recent failures
       if (this._refreshFailureCount > 0) {
         const backoffDelay = Math.min(
-          RTCAgentClient.REFRESH_BACKOFF_MS * Math.pow(2, this._refreshFailureCount - 1),
+          RTCAgentClient.REFRESH_BACKOFF_MS *
+            2 ** (this._refreshFailureCount - 1),
           RTCAgentClient.REFRESH_MAX_BACKOFF_MS,
         );
         log.warn(
@@ -1616,11 +1668,12 @@ export class RTCAgentClient implements IRTCAgentClient {
       }
 
       log.warn('[Centrifuge] token is expired, requesting refresh...');
+      const onTokenExpired = this.options.onTokenExpired;
 
       // Create and cache the refresh promise
       this._refreshPromise = (async () => {
         try {
-          const action: TokenExpiredAction = await this.options.onTokenExpired!();
+          const action: TokenExpiredAction = await onTokenExpired();
           if (action === 'relogin') {
             // Relogin required — stop reconnecting.
             this.shouldReconnect = false;
@@ -1704,9 +1757,15 @@ export class RTCAgentClient implements IRTCAgentClient {
 
     // SECURITY: Validate userId format (UUID-like) to prevent channel name injection.
     // Accepts standard UUID format (8-4-4-4-12) or simple alphanumeric strings.
-    if (!/^[a-zA-Z0-9_-]+$/.test(userId)) {
+    // Maximum length: 128 characters to prevent abuse.
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(userId)) {
       log.error('invalid userId format, refusing to subscribe:', userId);
-      this.emit('error', new Error('Invalid userId format for channel subscription'));
+      this.emit(
+        'error',
+        new Error(
+          'Invalid userId format for channel subscription: must be 1-128 alphanumeric characters, underscores, or hyphens',
+        ),
+      );
       return;
     }
 
@@ -1746,8 +1805,10 @@ export class RTCAgentClient implements IRTCAgentClient {
 
             // Detect epoch change (e.g. server restart) and reset offset.
             if (position && position.epoch !== epoch) {
+              // P2-FIX: Enhanced debug logging for epoch change detection
               log.warn(
-                `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0`,
+                `Epoch changed: '${position.epoch}' -> '${epoch}', resetting offset to 0. ` +
+                  `channel=${topicChannel}, oldOffset=${position.offset}, serverOffset=${serverOffset}`,
               );
               await this.options.updateOffset?.(topicChannel, 0, epoch);
               localOffset = 0;
@@ -1757,6 +1818,11 @@ export class RTCAgentClient implements IRTCAgentClient {
 
             if (localOffset === undefined) {
               // No local record (first subscription) — use the server offset directly.
+              // P2-FIX: Enhanced debug logging for first subscription
+              log.debug(
+                `First subscription: no local offset, using server offset. ` +
+                  `channel=${topicChannel}, serverOffset=${serverOffset}, epoch=${epoch}`,
+              );
               await this.options.updateOffset?.(
                 topicChannel,
                 serverOffset,
@@ -1765,6 +1831,11 @@ export class RTCAgentClient implements IRTCAgentClient {
               localOffset = serverOffset;
             } else if (serverOffset <= localOffset) {
               // Server offset <= local offset: duplicate subscription or rollback — keep local.
+              // P2-FIX: Enhanced debug logging for duplicate subscription
+              log.debug(
+                `Server offset <= local offset: keeping local. ` +
+                  `channel=${topicChannel}, serverOffset=${serverOffset}, localOffset=${localOffset}`,
+              );
             } else {
               // Gap exists — schedule async gap fill (non-blocking).
               // The gap fill will fetch history in batches and process through applyUpdates.
@@ -1782,7 +1853,10 @@ export class RTCAgentClient implements IRTCAgentClient {
           // SECURITY: Async callback errors won't be caught by Centrifuge.
           // Log and emit error to prevent silent failures.
           log.error('subscribed callback failed:', err);
-          this.emit('error', err instanceof Error ? err : new Error(String(err)));
+          this.emit(
+            'error',
+            err instanceof Error ? err : new Error(String(err)),
+          );
         }
       });
     }
@@ -1833,12 +1907,14 @@ export class RTCAgentClient implements IRTCAgentClient {
           {
             channel: event.channel,
             type: (event.data as Record<string, unknown>)?.type,
-          }
+          },
         );
       }
     } catch {
       // JSON.stringify failed (e.g., circular reference) - skip size monitoring
-      log.debug('handlePublication: failed to estimate message size (non-fatal)');
+      log.debug(
+        'handlePublication: failed to estimate message size (non-fatal)',
+      );
     }
 
     try {
@@ -1888,6 +1964,12 @@ export class RTCAgentClient implements IRTCAgentClient {
           log.debug(
             `Heartbeat timeout skipped: shouldReconnect=${this.shouldReconnect}, reconnecting=${this._reconnecting}`,
           );
+          // P2-FIX: Stop heartbeat monitoring if we should not reconnect (e.g., token expired, relogin required).
+          // This prevents unnecessary timer execution when the connection is permanently closed.
+          if (!this.shouldReconnect) {
+            log.debug('Stopping heartbeat monitoring: shouldReconnect=false');
+            this._stopHeartbeatMonitoring();
+          }
         }
       } else {
         log.debug(

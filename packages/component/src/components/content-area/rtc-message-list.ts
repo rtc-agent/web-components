@@ -28,24 +28,25 @@
  * @csspart scroll - The scroll container
  * @csspart inner - The inner message container
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-message-list.styles.js';
-import { skeletonStyles } from './rtc-message-list.skeleton-styles.js';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   SettingsContext,
   type SettingsContextValue,
 } from '../../contexts/settings.js';
 import type { MessageController } from '../../controllers/message.controller.js';
+import {
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
 import type { Message, MessageState } from '../../types/index.js';
+import { skeletonStyles } from './rtc-message-list.skeleton-styles.js';
+import { styles } from './rtc-message-list.styles.js';
 import './rtc-message.js';
 import { createLogger } from '@rtc-agent/protocol';
 
@@ -55,12 +56,12 @@ import './rtc-user-message.js';
 import './rtc-toolcall-card.js';
 import './rtc-toolcall-reply.js';
 import './rtc-error-message.js';
+import { MessageSkeletonGenerator } from '../../utils/message-skeleton.js';
 import {
   MessageVirtualScroll,
-  type WindowBoundary,
   type StatefulComponent,
+  type WindowBoundary,
 } from '../../utils/message-virtual-scroll.js';
-import { MessageSkeletonGenerator } from '../../utils/message-skeleton.js';
 
 /** Type guard: check if an element implements StatefulComponent */
 function isStatefulComponent(el: Element): el is Element & StatefulComponent {
@@ -199,12 +200,15 @@ export class RtcMessageList extends LitElement {
    * new Message objects, cache misses naturally and old entries are GC'd via WeakMap.
    * Same reference hits the cache, eliminating per-comparison object allocation.
    */
-  private _changeableContentCache = new WeakMap<Message, {
-    content: Message['content'];
-    status: Message['syncStatus'];
-    timestamp: Message['timestamp'];
-    streaming: Message['streaming'];
-  }>();
+  private _changeableContentCache = new WeakMap<
+    Message,
+    {
+      content: Message['content'];
+      status: Message['syncStatus'];
+      timestamp: Message['timestamp'];
+      streaming: Message['streaming'];
+    }
+  >();
 
   /** Flag to prevent ResizeObserver feedback loop during virtual scroll operations */
   private _isVirtualScrollOperation = false;
@@ -306,10 +310,10 @@ export class RtcMessageList extends LitElement {
   }
 
   firstUpdated() {
-    this._scrollEl = this.shadowRoot!.querySelector(
+    this._scrollEl = this.shadowRoot?.querySelector(
       '.message-list-scroll',
     ) as HTMLElement;
-    const innerEl = this.shadowRoot!.querySelector(
+    const innerEl = this.shadowRoot?.querySelector(
       '.message-list-inner',
     ) as HTMLElement;
 
@@ -696,7 +700,11 @@ export class RtcMessageList extends LitElement {
       this._virtualScroll.setVisibility(visible);
 
       // Tab became visible: if new messages arrived while hidden, scroll to bottom
-      if (visible && this._hasNewMessagesWhileHidden && this._shouldAutoScroll()) {
+      if (
+        visible &&
+        this._hasNewMessagesWhileHidden &&
+        this._shouldAutoScroll()
+      ) {
         this._scrollToBottom(true);
         this._hasNewMessagesWhileHidden = false;
       }

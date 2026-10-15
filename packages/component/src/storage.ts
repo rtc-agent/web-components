@@ -5,11 +5,11 @@
  * (IndexedDB via SharedWorker) instead of localStorage.
  */
 
+import { STORAGE_KEYS } from './config/auth.js';
 import {
   safeLocalStorageGetJSON,
   safeLocalStorageSetJSON,
 } from './utils/safe-local-storage.js';
-import { STORAGE_KEYS } from './config/auth.js';
 
 // Use centralized STORAGE_KEYS for consistency
 const STORAGE_KEY = STORAGE_KEYS.demoTasks;

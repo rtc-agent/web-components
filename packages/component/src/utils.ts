@@ -29,10 +29,14 @@ export function generateUUID(): string {
  * SECURITY: Handles all dangerous HTML characters including:
  * - & < > " ' (standard HTML entities)
  * - ` (backtick, prevents template literal injection)
+ * - / (slash, prevents closing HTML tags like </script>)
+ * - \0 (null byte, removed to prevent premature string termination)
  *
  * Uses character mapping for performance (vs DOM-based approach).
  */
 export function escapeHtml(text: string): string {
+  // Remove null bytes first (security: prevent string termination attacks)
+  const withoutNull = text.replace(/\0/g, '');
   const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
@@ -40,8 +44,9 @@ export function escapeHtml(text: string): string {
     '"': '&quot;',
     "'": '&#039;',
     '`': '&#96;',
+    '/': '&#x2F;',
   };
-  return text.replace(/[&<>"'`]/g, (char) => map[char]);
+  return withoutNull.replace(/[&<>"'`/]/g, (char) => map[char]);
 }
 
 export function formatDate(dateStr: string): string {

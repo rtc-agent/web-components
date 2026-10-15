@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { WindowStateController } from './window-state.controller.js';
 
 /** Minimal mock host for unit-testing controllers outside of a LitElement. */

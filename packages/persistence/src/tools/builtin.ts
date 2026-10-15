@@ -5,18 +5,18 @@
  * File operations are implemented on top of VirtualFS.
  */
 
-import type { Tool, ToolParams, ToolResult } from './types.js';
-import { virtualFS, PathError } from '../virtual-fs.js';
 import {
-  createSandbox,
   _executeCode,
+  createSandbox,
   parseScriptContent,
+  type RtcAgentAPI,
+  type ScriptCompileError,
+  type ScriptTimeoutError,
   saveScript,
   transformTypeScript,
-  type RtcAgentAPI,
-  type ScriptTimeoutError,
-  type ScriptCompileError,
 } from '../script-engine.js';
+import { PathError, virtualFS } from '../virtual-fs.js';
+import type { Tool, ToolParams, ToolResult } from './types.js';
 
 /**
  * Shared FS operation wrapper.
@@ -65,13 +65,13 @@ function validateNumberParam(params: ToolParams, name: string): number | null {
   if (value === undefined || value === null) {
     return null;
   }
-  if (typeof value === 'number' && !isNaN(value)) {
+  if (typeof value === 'number' && !Number.isNaN(value)) {
     return value;
   }
   // Attempt string-to-number conversion
   if (typeof value === 'string') {
     const num = Number(value);
-    if (!isNaN(num)) {
+    if (!Number.isNaN(num)) {
       return num;
     }
   }
@@ -296,7 +296,7 @@ export class GrepTool implements Tool {
         if (result.appliedOffset !== undefined) {
           output += ` (offset: ${result.appliedOffset})`;
         }
-        output += '\n' + (result.filenames ?? []).join('\n');
+        output += `\n${(result.filenames ?? []).join('\n')}`;
         return output;
       }
 

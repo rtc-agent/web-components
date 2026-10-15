@@ -13,19 +13,20 @@
  * @csspart thumbnail - The thumbnail container
  * @csspart remove-btn - The delete button
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg, str } from '@lit/localize';
-import { styles } from './rtc-file-thumbnail.styles.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FileStorageContext,
   type FileStorageContextValue,
 } from '../../contexts/file-storage.js';
-import { parseFileId } from '../../utils/file-id.js';
-import type { FileAttachment } from '../../types/index.js';
 import { alertIcon, retryIcon } from '../../icons/index.js';
+import type { FileAttachment } from '../../types/index.js';
+import { parseFileId } from '../../utils/file-id.js';
+import { styles } from './rtc-file-thumbnail.styles.js';
 
 const log = createLogger('FileThumbnail');
 
@@ -168,7 +169,7 @@ export class RtcFileThumbnail extends LitElement {
     }
 
     // If no file or not an image, clear thumbnail
-    if (!this.file || !this.file.mimetype.startsWith('image/')) {
+    if (!this.file?.mimetype.startsWith('image/')) {
       this._thumbnailUrl = '';
       return;
     }

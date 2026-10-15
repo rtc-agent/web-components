@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { ActivityController } from './activity.controller.js';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { STORAGE_KEYS } from '../config/auth.js';
 import { DEFAULT_ACTIVITY_STATE } from '../contexts/activity.js';
+import { ActivityController } from './activity.controller.js';
 
 class MockHost {
   updateCount = 0;

@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-content-wrapper.js';
 
 describe('<rtc-content-wrapper>', () => {
@@ -21,7 +21,7 @@ describe('<rtc-content-wrapper>', () => {
       html`<rtc-content-wrapper></rtc-content-wrapper>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-session-header')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-session-header')).not.toBeNull();
   });
 
   it('should contain content-area', async () => {
@@ -29,7 +29,7 @@ describe('<rtc-content-wrapper>', () => {
       html`<rtc-content-wrapper></rtc-content-wrapper>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-content-area')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-content-area')).not.toBeNull();
   });
 
   it('should contain input-area', async () => {
@@ -37,7 +37,7 @@ describe('<rtc-content-wrapper>', () => {
       html`<rtc-content-wrapper></rtc-content-wrapper>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-input-area')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-input-area')).not.toBeNull();
   });
 
   it('should contain overlay-manager', async () => {
@@ -45,6 +45,6 @@ describe('<rtc-content-wrapper>', () => {
       html`<rtc-content-wrapper></rtc-content-wrapper>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.querySelector('rtc-overlay-manager')).not.toBeNull();
+    expect(el.shadowRoot?.querySelector('rtc-overlay-manager')).not.toBeNull();
   });
 });

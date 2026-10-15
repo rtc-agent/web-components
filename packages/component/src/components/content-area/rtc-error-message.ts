@@ -20,23 +20,23 @@
  * @csspart dot - The timeline dot (colored by error category)
  * @csspart content - The error content area
  */
-import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import type { ErrorCategory, ErrorContent } from '@rtc-agent/protocol';
+import { createLogger, isValidErrorContent } from '@rtc-agent/protocol';
+import { css, html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { timelineStyles } from './timeline.styles.js';
-import type { ErrorContent, ErrorCategory } from '@rtc-agent/protocol';
-import { isValidErrorContent } from '@rtc-agent/protocol';
 import type { Message } from '../../types/index.js';
 import { formatTimestampCompact } from '../../utils/format.js';
-import { createLogger } from '@rtc-agent/protocol';
 import type { StatefulComponent } from '../../utils/message-virtual-scroll.js';
+import { timelineStyles } from './timeline.styles.js';
 
 const log = createLogger('ErrorMessage');
 

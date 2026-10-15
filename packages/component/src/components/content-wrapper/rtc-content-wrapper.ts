@@ -7,7 +7,7 @@
  *
  * @element rtc-content-wrapper
  */
-import { LitElement, html } from 'lit';
+import { html, LitElement } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { styles } from './rtc-content-wrapper.styles.js';
 

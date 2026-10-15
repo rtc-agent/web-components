@@ -11,21 +11,19 @@
  * - Saves current active activity and sidebarVisible state via localStorage
  * - Restores to last activity on page refresh
  */
-import type { ReactiveControllerHost } from 'lit';
-import type { Activity } from '../types/index.js';
-import type {
-  ActivityState,
-  ActivityActions,
-} from '../contexts/activity.js';
-import { DEFAULT_ACTIVITY_STATE } from '../contexts/activity.js';
-import { STORAGE_KEYS } from '../config/auth.js';
+
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveControllerHost } from 'lit';
+import { STORAGE_KEYS } from '../config/auth.js';
+import type { ActivityActions, ActivityState } from '../contexts/activity.js';
+import { DEFAULT_ACTIVITY_STATE } from '../contexts/activity.js';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { Activity } from '../types/index.js';
 
 const log = createLogger('ActivityController');
 
 // Re-export types for convenience
-export type { ActivityState, ActivityActions };
+export type { ActivityActions, ActivityState };
 
 export class ActivityController extends CachedContextController<
   ActivityState,

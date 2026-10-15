@@ -25,26 +25,27 @@
  * @csspart dot - The timeline dot
  * @csspart content - The message content area
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { classMap } from 'lit/directives/class-map.js';
-import { styles } from './rtc-message.styles.js';
 import type { Message, PromptContent } from '../../types/index.js';
 import { copyToClipboard } from '../../utils/clipboard.js';
 import {
-  formatTimestampCompact,
   extractTextContent,
+  formatTimestampCompact,
 } from '../../utils/format.js';
-import { createLogger } from '@rtc-agent/protocol';
 import type { StatefulComponent } from '../../utils/message-virtual-scroll.js';
+import { styles } from './rtc-message.styles.js';
 
 const log = createLogger('Message');
 
@@ -294,9 +295,9 @@ export class RtcMessage extends LitElement implements StatefulComponent {
     if (!html.includes('<pre>')) return html;
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc
-      .querySelectorAll('pre code')
-      .forEach((el) => hljs.highlightElement(el as HTMLElement));
+    for (const el of doc.querySelectorAll('pre code')) {
+      hljs.highlightElement(el as HTMLElement);
+    }
     return doc.body.innerHTML;
   }
 
@@ -423,23 +424,24 @@ export class RtcMessage extends LitElement implements StatefulComponent {
           @click=${this._handleDotClick}
         ></div>
         <div class="timeline-content" part="content">
-          ${this._parseError
-            ? this._renderErrorBlock()
-            : isThinking
-              ? this._renderThinkingBlock()
-              : isSummary
-                ? this._renderSummaryBlock()
-                : isPrompt
-                  ? this._renderPromptBlock()
-                  : /*
-                     * Note this extra layer of <div> wrapping:
-                     * 1. .innerHTML must be attached to some element, not directly on .timeline-content
-                     *    (otherwise it would conflict with the thinking branch's structure)
-                     * 2. This wrapping layer is targeted by CSS selector penetration:
-                     *    `.timeline-content > div > *:first-child { margin-top: 0 }`
-                     *    used to clear the UA default margin on the first <p> rendered by Markdown
-                     */
-                    html`<div .innerHTML=${this._renderedHtml}></div>`
+          ${
+            this._parseError
+              ? this._renderErrorBlock()
+              : isThinking
+                ? this._renderThinkingBlock()
+                : isSummary
+                  ? this._renderSummaryBlock()
+                  : isPrompt
+                    ? this._renderPromptBlock()
+                    : /*
+                       * Note this extra layer of <div> wrapping:
+                       * 1. .innerHTML must be attached to some element, not directly on .timeline-content
+                       *    (otherwise it would conflict with the thinking branch's structure)
+                       * 2. This wrapping layer is targeted by CSS selector penetration:
+                       *    `.timeline-content > div > *:first-child { margin-top: 0 }`
+                       *    used to clear the UA default margin on the first <p> rendered by Markdown
+                       */
+                      html`<div .innerHTML=${this._renderedHtml}></div>`
           }
         </div>
       </div>

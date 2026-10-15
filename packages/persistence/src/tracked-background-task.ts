@@ -1,8 +1,11 @@
 // TrackedBackgroundTask — Lifecycle-aware background task wrapper
 
-import { SyncTaskTracker } from './sync-task-tracker.js';
-import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
 import { createLogger } from '@rtc-agent/protocol';
+import {
+  LifecycleClosedError,
+  type LifecycleGuard,
+} from './lifecycle-guard.js';
+import type { SyncTaskTracker } from './sync-task-tracker.js';
 
 const log = createLogger('TrackedBackgroundTask');
 
@@ -130,7 +133,7 @@ export class TrackedBackgroundTask {
 
       // Retry if under limit
       if (retry < maxRetries) {
-        const delay = exponential ? baseDelay * Math.pow(2, retry) : baseDelay;
+        const delay = exponential ? baseDelay * 2 ** retry : baseDelay;
         log.debug(
           `TrackedBackgroundTask: retry ${retry + 1}/${maxRetries} for ${label} after ${delay}ms`,
         );

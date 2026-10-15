@@ -18,28 +18,29 @@
  * ## Styles
  * Uses project design tokens (--rtc-color-*), supports light/dark themes.
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg, str } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg, str } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-editor-tab.styles.js';
 import {
   closeIcon,
+  fileDefaultIcon,
   fileMarkdownIcon,
   fileScriptIcon,
-  fileDefaultIcon,
 } from '../../icons/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import { styles } from './rtc-editor-tab.styles.js';
 
 const log = createLogger('EditorTab');
 

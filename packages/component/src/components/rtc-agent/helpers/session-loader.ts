@@ -8,8 +8,8 @@
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
 import { msg } from '@lit/localize';
-import type { Logger } from '@rtc-agent/protocol';
 import type { IPersistenceLayer } from '@rtc-agent/persistence';
+import type { Logger } from '@rtc-agent/protocol';
 import type { Session, SessionStatus } from '../../../types/index.js';
 
 // ── Dependency interfaces ──

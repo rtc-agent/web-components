@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getFileExtension, generateFilename } from './file-storage.js';
+import { describe, expect, it } from 'vitest';
+import { generateFilename, getFileExtension } from './file-storage.js';
 
 describe('file-storage utilities', () => {
   describe('getFileExtension', () => {

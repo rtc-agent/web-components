@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { maskUserID, maskEmail } from './mask.js';
+import { describe, expect, it } from 'vitest';
+import { maskEmail, maskUserID } from './mask.js';
 
 describe('maskUserID', () => {
   it('returns empty string for falsy input', () => {

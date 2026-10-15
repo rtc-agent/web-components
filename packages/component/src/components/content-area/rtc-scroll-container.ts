@@ -24,8 +24,8 @@
  * @cssprop --rtc-scroll-max-height-locked - Max height when locked (default: 100px)
  * @cssprop --rtc-scroll-max-height-unlocked - Max height when unlocked (default: 200px)
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state, query } from 'lit/decorators.js';
+import { html, LitElement } from 'lit';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import { styles } from './rtc-scroll-container.styles.js';
 
 @customElement('rtc-scroll-container')

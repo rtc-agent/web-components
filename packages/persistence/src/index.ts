@@ -48,62 +48,63 @@
  * See s3-upload.ts for detailed explanation and future improvement suggestions.
  */
 import {
+  type HeadObjectResult,
+  type PublicationEvent,
   RTCAgentClient,
   type RTCAgentClientOptions,
-  type PublicationEvent,
   S3Client,
-  type HeadObjectResult,
 } from '@rtc-agent/client';
 import type {
-  Update,
-  ContentData,
-  SendMessageRequest,
-  ForkSessionRequest,
   CompactSessionRequest,
+  ContentData,
+  ForkSessionRequest,
+  SendMessageRequest,
+  Update,
 } from '@rtc-agent/protocol';
+import { createLogger, type MessageRole } from '@rtc-agent/protocol';
 import {
-  getDatabase,
   closeDatabase,
-  flushAll,
-  type LocalSession,
-  type LocalMessage,
-  type LocalRtc,
   type DebugHistoryItem,
   type FileCacheEntry,
+  flushAll,
+  getDatabase,
+  type LocalMessage,
+  type LocalRtc,
+  type LocalSession,
   type UploadPartRecord,
 } from './database.js';
-import { getOffsetManager } from './offset-manager.js';
+import { DebugHistoryManager } from './debug-history-manager.js';
 import {
-  initEntityRepository,
-  getEntityRepository,
-} from './entity-repository.js';
-import {
-  initDebugHistoryRepository,
   getDebugHistoryRepository,
+  initDebugHistoryRepository,
   type PagedResult,
 } from './debug-history-repository.js';
 import {
-  initFileCacheRepository,
-  getFileCacheRepository,
-  SYNC_LOCK_TIMEOUT_MS,
-  type FileCacheRepository,
-  type CachedFileInfo,
-} from './file-cache-repository.js';
+  getEntityRepository,
+  initEntityRepository,
+} from './entity-repository.js';
 import {
-  initUploadProgressRepository,
+  type CachedFileInfo,
+  type FileCacheRepository,
+  getFileCacheRepository,
+  initFileCacheRepository,
+  SYNC_LOCK_TIMEOUT_MS,
+} from './file-cache-repository.js';
+import { FileOpCoordinator } from './file-op-coordinator.js';
+import { FileSyncTransaction } from './file-sync-transaction.js';
+import { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
+import { getOffsetManager } from './offset-manager.js';
+import { SyncTaskTracker } from './sync-task-tracker.js';
+import { nowRFC3339 } from './time-utils.js';
+import { TrackedBackgroundTask } from './tracked-background-task.js';
+import { getUIUpdateBus } from './ui-update-bus.js';
+import {
   getUploadProgressRepository,
+  initUploadProgressRepository,
   type UploadProgressRepository,
 } from './upload-progress-repository.js';
-import { FileOpCoordinator } from './file-op-coordinator.js';
-import { nowRFC3339 } from './time-utils.js';
 import { virtualFS } from './virtual-fs.js';
-import { getUIUpdateBus } from './ui-update-bus.js';
-import { SyncTaskTracker } from './sync-task-tracker.js';
-import { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
-import { FileSyncTransaction } from './file-sync-transaction.js';
-import { TrackedBackgroundTask } from './tracked-background-task.js';
-import { DebugHistoryManager } from './debug-history-manager.js';
-import { createLogger, MessageRole } from '@rtc-agent/protocol';
+
 const log = createLogger('PersistenceLayer');
 
 /** Multipart upload threshold: 5MB (S3 minimum part size) */
@@ -119,31 +120,31 @@ const MAX_RETRY_COUNT = 3;
 const RESUME_CONCURRENCY = 2;
 
 export * from './database.js';
-export * from './offset-manager.js';
-export * from './entity-repository.js';
+export { DebugHistoryManager } from './debug-history-manager.js';
 export * from './debug-history-repository.js';
+export * from './entity-repository.js';
 export * from './file-cache-repository.js';
-export * from './upload-progress-repository.js';
 export * from './file-op-coordinator.js';
-export * from './ui-update-bus.js';
-export * from './time-utils.js';
+export { FileSyncTransaction } from './file-sync-transaction.js';
+export { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
+export * from './offset-manager.js';
 export * from './permission.js';
-export * from './tools/index.js';
-export * from './virtual-fs.js';
-export * from './virtual-fs-init.js';
+export { ResourceScope } from './resource-scope.js';
+export {
+  type AskUserDialogFn,
+  type ConfirmDialogFn,
+  RtcProcessor,
+} from './rtc-processor.js';
 export * from './script-engine.js';
 export * from './sync-task-tracker.js';
-export { LifecycleGuard, LifecycleClosedError } from './lifecycle-guard.js';
-export { ResourceScope } from './resource-scope.js';
-export { FileSyncTransaction } from './file-sync-transaction.js';
-export { TrackedBackgroundTask } from './tracked-background-task.js';
+export * from './time-utils.js';
 export { createBuiltinTools } from './tools/builtin.js';
-export {
-  RtcProcessor,
-  type ConfirmDialogFn,
-  type AskUserDialogFn,
-} from './rtc-processor.js';
-export { DebugHistoryManager } from './debug-history-manager.js';
+export * from './tools/index.js';
+export { TrackedBackgroundTask } from './tracked-background-task.js';
+export * from './ui-update-bus.js';
+export * from './upload-progress-repository.js';
+export * from './virtual-fs.js';
+export * from './virtual-fs-init.js';
 
 /**
  * Persistence layer configuration.
@@ -194,9 +195,7 @@ export interface IPersistenceLayer {
     cursor?: number,
     limit?: number,
   ): Promise<LocalRtc[]>;
-  getNextRtcToProcess(
-    sessionClientId?: string,
-  ): Promise<LocalRtc | undefined>;
+  getNextRtcToProcess(sessionClientId?: string): Promise<LocalRtc | undefined>;
 
   // ========== Operations ==========
   sendMessage(params: {
@@ -233,14 +232,11 @@ export interface IPersistenceLayer {
     limit?: number;
   }): Promise<{ session: LocalSession; message: LocalMessage }>;
   deleteSession(sessionClientId: string): Promise<void>;
-  updateSessionTitle(
-    sessionClientId: string,
-    title: string,
-  ): Promise<void>;
+  updateSessionTitle(sessionClientId: string, title: string): Promise<void>;
 
   // ========== Lifecycle ==========
   close(): Promise<void>;
-  flushAll(): Promise<void>;
+  flushAll(confirm?: boolean): Promise<void>;
 
   // ========== Restricted methods ==========
   getClient(): RTCAgentClient;
@@ -868,11 +864,17 @@ export class PersistenceLayer implements IPersistenceLayer {
             );
           } else {
             // Small file: direct upload (existing logic)
-            await this._getS3ClientOrThrow().upload(this._userId, md5, ext, blob, {
-              contentType,
-              signal: txSignal,
-              onProgress,
-            });
+            await this._getS3ClientOrThrow().upload(
+              this._userId,
+              md5,
+              ext,
+              blob,
+              {
+                contentType,
+                signal: txSignal,
+                onProgress,
+              },
+            );
           }
         },
         onSuccess: 'synced',
@@ -901,7 +903,9 @@ export class PersistenceLayer implements IPersistenceLayer {
    */
   private _getS3ClientOrThrow(): S3Client {
     if (!this.s3Client) {
-      throw new Error('S3Client not initialized - cannot perform file operation');
+      throw new Error(
+        'S3Client not initialized - cannot perform file operation',
+      );
     }
     return this.s3Client;
   }
@@ -938,7 +942,7 @@ export class PersistenceLayer implements IPersistenceLayer {
     const existing = await progressRepo.get(md5, ext);
 
     let uploadId: string = '';
-    let completedParts: UploadPartRecord[] = [];
+    const completedParts: UploadPartRecord[] = [];
     let bytesUploaded = 0;
     const partSize = DEFAULT_PART_SIZE;
     let totalParts = 0;
@@ -1448,7 +1452,10 @@ export class PersistenceLayer implements IPersistenceLayer {
    * The listener is automatically removed during close() to prevent memory leaks.
    */
   private setupNetworkListener(): void {
-    if (typeof self === 'undefined' || typeof self.addEventListener !== 'function') {
+    if (
+      typeof self === 'undefined' ||
+      typeof self.addEventListener !== 'function'
+    ) {
       log.debug('Network listener not supported in this environment');
       return;
     }
@@ -1952,6 +1959,7 @@ export class PersistenceLayer implements IPersistenceLayer {
     // Activate lifecycle guard — after this point, all DB operations are intercepted
     this._lifecycleGuard.close();
     this.fileCacheRepository.closeLifecycleGuard();
+    virtualFS.closeLifecycleGuard();
 
     this.disconnect();
     this.s3Client?.dispose();
@@ -1966,10 +1974,11 @@ export class PersistenceLayer implements IPersistenceLayer {
 
   /**
    * Flush all data (for development/testing).
+   * @param confirm Must be true to actually flush. Prevents accidental data loss.
    */
-  async flushAll(): Promise<void> {
+  async flushAll(confirm: boolean = false): Promise<void> {
     this._lifecycleGuard.assertActive();
-    await flushAll();
+    await flushAll(confirm);
   }
 
   // ========== Data flow core ==========
@@ -2207,7 +2216,7 @@ export class PersistenceLayer implements IPersistenceLayer {
 
       // Truncate to 50 characters
       return firstLine.length > 50
-        ? firstLine.substring(0, 50) + '…'
+        ? `${firstLine.substring(0, 50)}…`
         : firstLine;
     } catch {
       return 'New Chat';

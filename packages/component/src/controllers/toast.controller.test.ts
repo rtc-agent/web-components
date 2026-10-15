@@ -7,9 +7,10 @@
  * - Timer cleanup on host disconnect
  * - Action callbacks
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ToastController } from './toast.controller.js';
+
 import type { ReactiveControllerHost } from 'lit';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ToastController } from './toast.controller.js';
 
 // Mock ReactiveControllerHost
 function createMockHost(): ReactiveControllerHost & { updateCount: number } {

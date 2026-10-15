@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { NotificationController } from './notification.controller.js';
 import { closeUIUpdateBus } from '@rtc-agent/persistence';
 import type { ReactiveControllerHost } from 'lit';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotificationController } from './notification.controller.js';
 
 /**
  * Integration tests for the notification system

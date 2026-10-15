@@ -21,11 +21,12 @@
  *   and activeFilePath via localStorage. Content is not persisted;
  *   it is reloaded from VFS after refresh.
  */
-import type { ReactiveControllerHost } from 'lit';
-import type { EditorTab, EditorViewMode } from '../types/index.js';
-import { STORAGE_KEYS } from '../config/auth.js';
+
 import { createLogger } from '@rtc-agent/protocol';
+import type { ReactiveControllerHost } from 'lit';
+import { STORAGE_KEYS } from '../config/auth.js';
 import { CachedContextController } from '../core/cached-context.controller.js';
+import type { EditorTab, EditorViewMode } from '../types/index.js';
 
 const log = createLogger('EditorAreaController');
 
@@ -94,7 +95,9 @@ export class EditorAreaController extends CachedContextController<
 
   /** Current active tab (readonly quick access) */
   get activeTab(): EditorTab | undefined {
-    return this._state.tabs.find((t) => t.filePath === this._state.activeFilePath);
+    return this._state.tabs.find(
+      (t) => t.filePath === this._state.activeFilePath,
+    );
   }
 
   constructor(host: ReactiveControllerHost) {
@@ -286,7 +289,10 @@ export class EditorAreaController extends CachedContextController<
     });
     // Content changes frequently; skip persistence to avoid localStorage thrashing;
     // dirty state and content are authoritative in VFS; reload from VFS after refresh.
-    this._setState({ tabs: newTabs, activeFilePath: this._state.activeFilePath });
+    this._setState({
+      tabs: newTabs,
+      activeFilePath: this._state.activeFilePath,
+    });
     this.host.requestUpdate();
   }
 
@@ -300,7 +306,10 @@ export class EditorAreaController extends CachedContextController<
       if (t.filePath !== filePath) return t;
       return { ...t, isDirty: false };
     });
-    this._setState({ tabs: newTabs, activeFilePath: this._state.activeFilePath });
+    this._setState({
+      tabs: newTabs,
+      activeFilePath: this._state.activeFilePath,
+    });
     this._persist();
     this.host.requestUpdate();
   }
@@ -313,7 +322,10 @@ export class EditorAreaController extends CachedContextController<
       if (t.filePath !== filePath) return t;
       return { ...t, viewMode };
     });
-    this._setState({ tabs: newTabs, activeFilePath: this._state.activeFilePath });
+    this._setState({
+      tabs: newTabs,
+      activeFilePath: this._state.activeFilePath,
+    });
     this._persist();
     this.host.requestUpdate();
   }
@@ -338,7 +350,10 @@ export class EditorAreaController extends CachedContextController<
       if (t.filePath !== filePath) return t;
       return { ...t, cursorPosition: position };
     });
-    this._setState({ tabs: newTabs, activeFilePath: this._state.activeFilePath });
+    this._setState({
+      tabs: newTabs,
+      activeFilePath: this._state.activeFilePath,
+    });
     // Trigger host update so status bar updates in real time
     this.host.requestUpdate();
     // Throttle persistence: write localStorage only once per 2s to avoid IO thrashing from frequent cursor moves
@@ -363,7 +378,10 @@ export class EditorAreaController extends CachedContextController<
         // Clear isDirty when loading content (e.g., after restore default)
         return { ...t, content, isDirty: false };
       });
-      this._setState({ tabs: newTabs, activeFilePath: this._state.activeFilePath });
+      this._setState({
+        tabs: newTabs,
+        activeFilePath: this._state.activeFilePath,
+      });
       this.host.requestUpdate();
       return;
     }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationController } from './notification.controller.js';
 
 // Mock UIUpdateBus
@@ -477,7 +477,7 @@ describe('NotificationController', () => {
       controller.hostDisconnected();
 
       // Now resolve the getMessage
-      resolveGetMessage!({ session_client_id: 'session-B' });
+      resolveGetMessage?.({ session_client_id: 'session-B' });
 
       // Wait for the handler to complete
       await handlePromise;
@@ -598,7 +598,7 @@ describe('NotificationController', () => {
       controller.hostDisconnected();
 
       // Resolve after abort
-      resolveGetMessage!({ session_client_id: 'session-B' });
+      resolveGetMessage?.({ session_client_id: 'session-B' });
 
       await handlePromise;
 

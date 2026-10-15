@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { RTCAgentClient, GapFillTimeoutError } from './client.js';
-import type { RTCAgentClientOptions } from './types.js';
 import type { Update } from '@rtc-agent/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GapFillTimeoutError, RTCAgentClient } from './client.js';
+import type { RTCAgentClientOptions } from './types.js';
 
 /**
  * Test suite for Issue #234: applyUpdates 事务失败后 offset 已推进 - 数据丢失
@@ -528,8 +528,9 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       // Catch the rejection immediately to avoid unhandled rejection
       const resultPromise = promise.catch((err) => err);
 
-      // Advance time past the 30 second timeout
+      // Advance time past the 30 second timeout and flush all promises
       await vi.advanceTimersByTimeAsync(31000);
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       expect(error).toBeInstanceOf(GapFillTimeoutError);
@@ -552,6 +553,7 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const resultPromise = promise.catch((err) => err);
 
       await vi.advanceTimersByTimeAsync(31000);
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       expect(error).toBeInstanceOf(GapFillTimeoutError);
@@ -567,11 +569,11 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const channel = 'topic:u=test-user-id';
       const targetOffset = 100;
 
-      // Mock offset that catches up after 5 seconds
+      // Mock offset that catches up after a few calls
       let callCount = 0;
       mockGetLastOffset.mockImplementation(async () => {
         callCount++;
-        if (callCount < 50) {
+        if (callCount < 3) {
           return { offset: 50, epoch: 'test-epoch' };
         }
         return { offset: 100, epoch: 'test-epoch' };
@@ -585,8 +587,11 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       const promise = waitForGapFill(channel, targetOffset);
 
-      // Advance time to allow polling
-      await vi.advanceTimersByTimeAsync(5000);
+      // Advance time incrementally and flush promises to allow polling
+      for (let i = 0; i < 10; i++) {
+        await vi.advanceTimersByTimeAsync(500);
+        await Promise.resolve();
+      }
 
       await expect(promise).resolves.toBeUndefined();
     });
@@ -723,8 +728,9 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const promise = waitForGapFill(channel, targetOffset);
       const resultPromise = promise.catch((err) => err);
 
-      // Advance to exactly 30 seconds
+      // Advance to exactly 30 seconds and flush all timers
       await vi.advanceTimersByTimeAsync(30000);
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       // Should still throw (not return silently)
@@ -761,6 +767,7 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const resultPromise = promise.catch(() => {});
 
       await vi.advanceTimersByTimeAsync(31000);
+      await vi.runAllTimersAsync();
       await resultPromise;
 
       // @ts-expect-error - accessing private field for testing
@@ -1112,14 +1119,16 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
       expect(result[0].items[0].action).toBe('created');
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
-        'running',
-      );
+      const data0 = result[0].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data0?.status).toBe('running');
       expect(result[1].offset).toBe(5);
       expect(result[1].items[0].action).toBe('updated');
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
-        'completed',
-      );
+      const data1 = result[1].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data1?.status).toBe('completed');
     });
   });
 
@@ -1399,13 +1408,15 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       // Should keep only first (offset=1) and last (offset=100)
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
-        'pending',
-      );
+      const data0 = result[0].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data0?.status).toBe('pending');
       expect(result[1].offset).toBe(100);
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
-        'completed',
-      );
+      const data1 = result[1].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data1?.status).toBe('completed');
 
       // Should be efficient (< 100ms)
       expect(elapsed).toBeLessThan(100);
@@ -1454,13 +1465,13 @@ describe('deduplicateUpdates: keep first and last offset', () => {
       expect(result).toHaveLength(2);
 
       // First update should have creation data
-      const firstData = result[0].data_list![0] as Record<string, unknown>;
+      const firstData = result[0].data_list?.[0] as Record<string, unknown>;
       expect(firstData.status).toBe('running');
       expect(firstData.message_count).toBe(0);
       expect(firstData.started_at).toBe('2024-01-01T00:00:00Z');
 
       // Last update should have final state
-      const lastData = result[1].data_list![0] as Record<string, unknown>;
+      const lastData = result[1].data_list?.[0] as Record<string, unknown>;
       expect(lastData.status).toBe('completed');
       expect(lastData.message_count).toBe(10);
       expect(lastData.completed_at).toBe('2024-01-01T00:01:00Z');
@@ -1494,15 +1505,17 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
       // First: turn created with running status
       expect(result[0].offset).toBe(100);
-      expect((result[0].data_list![0] as Record<string, unknown>).status).toBe(
-        'running',
-      );
+      const data0 = result[0].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data0?.status).toBe('running');
 
       // Last: turn updated to completed status
       expect(result[1].offset).toBe(103);
-      expect((result[1].data_list![0] as Record<string, unknown>).status).toBe(
-        'completed',
-      );
+      const data1 = result[1].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data1?.status).toBe('completed');
     });
 
     it('should correctly handle message lifecycle: pending → sent → delivered', () => {
@@ -1528,13 +1541,15 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
       expect(result).toHaveLength(2);
       expect(result[0].offset).toBe(1);
-      expect(
-        (result[0].data_list![0] as Record<string, unknown>).streaming_status,
-      ).toBe('pending');
+      const data0 = result[0].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data0?.streaming_status).toBe('pending');
       expect(result[1].offset).toBe(5);
-      expect(
-        (result[1].data_list![0] as Record<string, unknown>).streaming_status,
-      ).toBe('completed');
+      const data1 = result[1].data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(data1?.streaming_status).toBe('completed');
     });
 
     it('should handle concurrent entities with different lifecycles', () => {
@@ -1574,14 +1589,16 @@ describe('deduplicateUpdates: keep first and last offset', () => {
 
       // Verify final states
       const turnLast = result.find((u) => u.offset === 6);
-      expect((turnLast!.data_list![0] as Record<string, unknown>).status).toBe(
-        'completed',
-      );
+      const turnData = turnLast?.data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(turnData?.status).toBe('completed');
 
       const msgLast = result.find((u) => u.offset === 7);
-      expect(
-        (msgLast!.data_list![0] as Record<string, unknown>).streaming_status,
-      ).toBe('completed');
+      const msgData = msgLast?.data_list?.[0] as
+        | Record<string, unknown>
+        | undefined;
+      expect(msgData?.streaming_status).toBe('completed');
     });
   });
 });

@@ -8,15 +8,15 @@
  */
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type {
+  ToastAction,
   ToastItem,
   ToastType,
-  ToastAction,
 } from '../components/overlay/rtc-toast.js';
 
 export type {
+  ToastAction,
   ToastItem,
   ToastType,
-  ToastAction,
 } from '../components/overlay/rtc-toast.js';
 
 export interface ToastActions {

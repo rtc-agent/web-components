@@ -6,18 +6,19 @@
  * @element rtc-notice-bar
  * @fires rtc-notice-dismissed - User clicked the close button
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
 import { styles } from './rtc-notice-bar.styles.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('NoticeBar');
 

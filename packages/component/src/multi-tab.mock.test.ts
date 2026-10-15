@@ -11,43 +11,37 @@
  *
  * These tests validate the correctness of SharedWorker's multi-tab architecture,
  * ensuring data consistency and event propagation across tabs.
+ *
+ * NOTE ON PRIVATE FIELD ACCESS:
+ * These tests use `(bridge as any)._field` to inject mock state into WorkerBridge
+ * instances, bypassing the full init() flow. See worker-bridge.test.ts for the
+ * full rationale. In summary: init() has heavy I/O side effects that are unsuitable
+ * for focused multi-tab scenario testing, and the fields being set (_core, _initialized,
+ * _callbacksRegistered, _databaseName, _lastProcessedSeq) represent the exact internal
+ * state that defines a "connected tab" — there is no public API to reach this state
+ * without a real SharedWorker.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+import type { ConnectionStateEvent } from '@rtc-agent/client';
 import type {
-  WorkerPersistenceCore,
-  WorkerCallbacks,
   UIUpdatePayload,
+  WorkerCallbacks,
+  WorkerPersistenceCore,
 } from '@rtc-agent/worker';
 import type { Remote } from 'comlink';
-import type { ConnectionStateEvent } from '@rtc-agent/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock heavy dependencies before importing WorkerBridge
-vi.mock('@rtc-agent/persistence', () => ({
-  getUIUpdateBus: () => ({
-    publish: vi.fn(),
-    emitGapFillStart: vi.fn(),
-    emitGapFillEnd: vi.fn(),
-  }),
-  virtualFS: {
-    read: vi.fn(),
-    write: vi.fn(),
-    ls: vi.fn(),
-    find: vi.fn(),
-    grep: vi.fn(),
-    queryByType: vi.fn(),
-    exists: vi.fn(),
-    remove: vi.fn(),
-  },
-}));
+// (dynamic imports to handle vi.mock hoisting)
+vi.mock('@rtc-agent/persistence', async () => {
+  const { createMockPersistenceModule } = await import('./test-helpers.js');
+  return createMockPersistenceModule();
+});
 
-vi.mock('@rtc-agent/protocol', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}));
+vi.mock('@rtc-agent/protocol', async () => {
+  const { createMockProtocolModule } = await import('./test-helpers.js');
+  return createMockProtocolModule();
+});
 
 // Dynamic import after mocks
 const { WorkerBridge } = await import('./worker-bridge.js');
@@ -57,7 +51,7 @@ const { WorkerBridge } = await import('./worker-bridge.js');
  * Bypasses full init() flow for focused multi-tab testing.
  */
 function createMockTab(
-  tabId: string,
+  _tabId: string,
   mockCore: Remote<WorkerPersistenceCore>,
   mockAuth: any,
 ): InstanceType<typeof WorkerBridge> {
@@ -134,7 +128,7 @@ describe('Multi-Tab Integration', () => {
             broadcastedEvents.push({ tabId, payload });
             try {
               cb.onUIUpdate(payload);
-            } catch (err) {
+            } catch (_err) {
               // Ignore errors in tests
             }
           }
@@ -146,7 +140,7 @@ describe('Multi-Tab Integration', () => {
           for (const cb of callbacksSet) {
             try {
               cb.onConnectionStateChange(event);
-            } catch (err) {
+            } catch (_err) {
               // Ignore errors in tests
             }
           }
@@ -183,9 +177,9 @@ describe('Multi-Tab Integration', () => {
   describe('Multiple tabs connecting to SharedWorker', () => {
     it('should allow multiple tabs to register callbacks', async () => {
       const mockCore = createSharedMockCore();
-      const tab1 = createMockTab('tab-1', mockCore, mockAuth);
-      const tab2 = createMockTab('tab-2', mockCore, mockAuth);
-      const tab3 = createMockTab('tab-3', mockCore, mockAuth);
+      const _tab1 = createMockTab('tab-1', mockCore, mockAuth);
+      const _tab2 = createMockTab('tab-2', mockCore, mockAuth);
+      const _tab3 = createMockTab('tab-3', mockCore, mockAuth);
 
       // Simulate callback registration
       const cb1: WorkerCallbacks = {
@@ -240,9 +234,9 @@ describe('Multi-Tab Integration', () => {
       const mockCore = createSharedMockCore();
 
       // Create and register three tabs
-      const tab1 = createMockTab('tab-1', mockCore, mockAuth);
-      const tab2 = createMockTab('tab-2', mockCore, mockAuth);
-      const tab3 = createMockTab('tab-3', mockCore, mockAuth);
+      const _tab1 = createMockTab('tab-1', mockCore, mockAuth);
+      const _tab2 = createMockTab('tab-2', mockCore, mockAuth);
+      const _tab3 = createMockTab('tab-3', mockCore, mockAuth);
 
       const cb1: WorkerCallbacks = {
         onUIUpdate: vi.fn(),
@@ -361,9 +355,9 @@ describe('Multi-Tab Integration', () => {
       const mockCore = createSharedMockCore();
 
       // Simulate concurrent writes
-      const tab1 = createMockTab('tab-1', mockCore, mockAuth);
-      const tab2 = createMockTab('tab-2', mockCore, mockAuth);
-      const tab3 = createMockTab('tab-3', mockCore, mockAuth);
+      const _tab1 = createMockTab('tab-1', mockCore, mockAuth);
+      const _tab2 = createMockTab('tab-2', mockCore, mockAuth);
+      const _tab3 = createMockTab('tab-3', mockCore, mockAuth);
 
       // Simulate concurrent session creation
       const writePromises = Promise.all([
@@ -381,8 +375,8 @@ describe('Multi-Tab Integration', () => {
     it('should maintain data consistency across tabs', async () => {
       const mockCore = createSharedMockCore();
 
-      const tab1 = createMockTab('tab-1', mockCore, mockAuth);
-      const tab2 = createMockTab('tab-2', mockCore, mockAuth);
+      const _tab1 = createMockTab('tab-1', mockCore, mockAuth);
+      const _tab2 = createMockTab('tab-2', mockCore, mockAuth);
 
       // Both tabs should see the same data (simulated via shared core)
       const sessions = [

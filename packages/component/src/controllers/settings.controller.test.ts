@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SettingsController } from './settings.controller.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { STORAGE_KEYS } from '../config/auth.js';
 import { DEFAULT_SETTINGS_STATE } from '../contexts/settings.js';
+import { SettingsController } from './settings.controller.js';
 
 class MockHost {
   updateCount = 0;

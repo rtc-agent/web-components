@@ -10,8 +10,8 @@
  * - Message deduplication (same offset not processed twice)
  * - Offset persistence and gap detection
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getDatabase, closeDatabase, DB_NAME_PREFIX } from './database.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeDatabase, DB_NAME_PREFIX, getDatabase } from './database.js';
 import { OffsetManager } from './offset-manager.js';
 import { UIUpdateBus } from './ui-update-bus.js';
 
@@ -100,7 +100,7 @@ describe('Data Synchronization Integration', () => {
       const currentPosition = await manager.getPosition(channel);
 
       expect(currentPosition?.offset).toBe(50);
-      expect(newOffset).toBeGreaterThan(currentPosition!.offset + 1); // Gap detected
+      expect(newOffset).toBeGreaterThan(currentPosition?.offset + 1); // Gap detected
     });
 
     it('should handle epoch change (history cleanup)', async () => {
@@ -171,7 +171,7 @@ describe('Data Synchronization Integration', () => {
       // Try to process older offsets
       const oldOffset = 45;
       const position = await manager.getPosition(channel);
-      const shouldProcess = oldOffset > position!.offset;
+      const shouldProcess = oldOffset > position?.offset;
 
       expect(shouldProcess).toBe(false);
     });
@@ -236,9 +236,9 @@ describe('Data Synchronization Integration', () => {
       const newOffset = 50;
       const position = await manager.getPosition(channel);
 
-      const hasGap = newOffset > position!.offset + 1;
+      const hasGap = newOffset > position?.offset + 1;
       expect(hasGap).toBe(true);
-      expect(position!.offset).toBe(10);
+      expect(position?.offset).toBe(10);
       expect(newOffset).toBe(50);
     });
 

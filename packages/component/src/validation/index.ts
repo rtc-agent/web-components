@@ -5,7 +5,7 @@
  * Validation failures return friendly errors, guiding Agent to read /functions/INDEX.md
  */
 
-import { z, type ZodType } from 'zod';
+import type { ZodType, z } from 'zod';
 import type { ParameterDef } from '../types/skill.js';
 import { openApiToZod } from './openapi-to-zod.js';
 
@@ -135,5 +135,5 @@ export function withValidation<TParams extends ZodType, TResult>(
 // ── Exports ──────────────────────────────────────────
 
 export { z } from 'zod';
-export { zodToParams, zodToOpenAPISchema, withMeta } from './zod-to-openapi.js';
 export { openApiToZod } from './openapi-to-zod.js';
+export { withMeta, zodToOpenAPISchema, zodToParams } from './zod-to-openapi.js';

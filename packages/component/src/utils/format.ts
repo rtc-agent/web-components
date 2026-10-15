@@ -6,11 +6,11 @@
  * rtc-message, rtc-toolcall-card, rtc-user-message, etc.
  */
 
-import type { ContentData, PromptContent } from '../types/index.js';
 import { msg, str } from '@lit/localize';
-import { getLocale } from '../core/i18n.js';
-import { clearRelativeTimeFormatterCache } from './relative-time.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { getLocale } from '../core/i18n.js';
+import type { ContentData, PromptContent } from '../types/index.js';
+import { clearRelativeTimeFormatterCache } from './relative-time.js';
 
 const log = createLogger('Format');
 
@@ -30,16 +30,18 @@ const log = createLogger('Format');
 export function formatNumber(
   num: number | undefined | null,
   decimals?: number,
-  locale?: string
+  locale?: string,
 ): string {
-  if (num === undefined || num === null || !isFinite(num)) return '0';
+  if (num === undefined || num === null || !Number.isFinite(num)) return '0';
 
   const currentLocale = locale || getLocale();
 
   // If decimals is specified, use toFixed for exact control
   if (decimals !== undefined) {
     if (decimals < 0 || decimals > 20) {
-      log.warn(`formatNumber: decimals ${decimals} out of range (0-20), using 0`);
+      log.warn(
+        `formatNumber: decimals ${decimals} out of range (0-20), using 0`,
+      );
       decimals = 0;
     }
     num = Number(num.toFixed(decimals));
@@ -66,9 +68,10 @@ export function formatNumber(
 export function formatPercentage(
   value: number | undefined | null,
   decimals: number = 1,
-  alreadyMultiplied: boolean = false
+  alreadyMultiplied: boolean = false,
 ): string {
-  if (value === undefined || value === null || !isFinite(value)) return '0%';
+  if (value === undefined || value === null || !Number.isFinite(value))
+    return '0%';
 
   const percentValue = alreadyMultiplied ? value : value * 100;
   const locale = getLocale();
@@ -76,7 +79,7 @@ export function formatPercentage(
   try {
     const formatter = getCachedNumberFormatter(locale, {
       minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
+      maximumFractionDigits: decimals,
     });
     return `${formatter.format(percentValue)}%`;
   } catch {
@@ -92,15 +95,26 @@ export function formatPercentage(
  * @param locale - Optional locale override (defaults to current locale)
  * @returns Human-readable size string (e.g., "1.5 MB")
  */
-export function formatFileSize(bytes: number | undefined | null, decimals: number = 2, locale?: string): string {
+export function formatFileSize(
+  bytes: number | undefined | null,
+  decimals: number = 2,
+  locale?: string,
+): string {
   if (bytes === undefined || bytes === null || bytes < 0) return `${msg('B')}`;
   if (bytes === 0) return `${0} ${msg('B')}`;
 
   const k = 1024;
-  const sizes = [msg('B'), msg('KB'), msg('MB'), msg('GB'), msg('TB'), msg('PB')];
+  const sizes = [
+    msg('B'),
+    msg('KB'),
+    msg('MB'),
+    msg('GB'),
+    msg('TB'),
+    msg('PB'),
+  ];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-  const value = parseFloat((bytes / Math.pow(k, i)).toFixed(decimals));
+  const value = parseFloat((bytes / k ** i).toFixed(decimals));
   const currentLocale = locale || getLocale();
 
   try {
@@ -119,18 +133,18 @@ export function formatFileSize(bytes: number | undefined | null, decimals: numbe
  */
 export function isValidDate(value: unknown): boolean {
   if (value instanceof Date) {
-    return !isNaN(value.getTime());
+    return !Number.isNaN(value.getTime());
   }
 
   if (typeof value === 'number') {
-    if (!isFinite(value)) return false;
+    if (!Number.isFinite(value)) return false;
     const date = new Date(value);
-    return !isNaN(date.getTime());
+    return !Number.isNaN(date.getTime());
   }
 
   if (typeof value === 'string') {
     const date = new Date(value);
-    return !isNaN(date.getTime());
+    return !Number.isNaN(date.getTime());
   }
 
   return false;
@@ -165,7 +179,7 @@ export function clearFormatterCaches(): void {
  */
 function getCachedNumberFormatter(
   locale: string,
-  options?: Intl.NumberFormatOptions
+  options?: Intl.NumberFormatOptions,
 ): Intl.NumberFormat {
   // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
   const optsKey = options
@@ -188,7 +202,7 @@ function getCachedNumberFormatter(
 function getCachedFormatter(
   locale: string,
   type: 'date' | 'time' | 'datetime',
-  options?: Intl.DateTimeFormatOptions
+  options?: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
   // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
   const optsKey = options
@@ -221,7 +235,7 @@ function getCachedFormatter(
 export function formatCurrency(
   amount: number | undefined | null,
   currency: string = 'USD',
-  locale?: string
+  locale?: string,
 ): string {
   if (amount === undefined || amount === null || !Number.isFinite(amount)) {
     return `${currency} 0.00`;

@@ -7,11 +7,11 @@
  *     { setup: (host) => provideContext(host, myContext, mockValue) }
  *   );
  */
-import { html } from 'lit';
-import { LitElement } from 'lit';
-import { customElement } from 'lit/decorators.js';
-import { ContextProvider } from '@lit/context';
+
 import type { Context } from '@lit/context';
+import { ContextProvider } from '@lit/context';
+import { html, LitElement } from 'lit';
+import { customElement } from 'lit/decorators.js';
 
 /**
  * Wrap a context provider around the host element's light DOM parent.
@@ -30,8 +30,7 @@ export function provideContext<T>(
   context: Context<unknown, T>,
   value: T,
 ): HTMLElement {
-  const tagName =
-    'test-context-provider-' + Math.random().toString(36).slice(2, 8);
+  const tagName = `test-context-provider-${Math.random().toString(36).slice(2, 8)}`;
 
   @customElement(tagName)
   class TestProvider extends LitElement {

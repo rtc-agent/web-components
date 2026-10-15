@@ -14,34 +14,35 @@
  * @fires file-tree-item-toggle - Clicked folder to expand/collapse (detail: { path })
  * @fires file-tree-item-select - Clicked file/folder to select (detail: { path })
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized } from '@lit/localize';
-import {
-  localeContext,
-  type LocaleContextValue,
-  sourceLocale,
-  targetLocales,
-} from '../../core/i18n.js';
-import { styles } from './rtc-file-tree-item.styles.js';
+import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FileExplorerContext,
   type FileExplorerContextValue,
 } from '../../contexts/file-explorer.js';
-import type { FileNode } from '../../types/index.js';
 import {
-  folderClosedIcon,
-  folderOpenIcon,
+  type LocaleContextValue,
+  localeContext,
+  sourceLocale,
+  targetLocales,
+} from '../../core/i18n.js';
+import {
+  fileDefaultIcon,
   fileMarkdownIcon,
   fileScriptIcon,
-  fileDefaultIcon,
+  folderClosedIcon,
+  folderOpenIcon,
 } from '../../icons/index.js';
-import { tokens } from '../../styles/tokens.js';
-import { lightTheme } from '../../styles/themes/light.js';
-import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { darkTheme } from '../../styles/themes/dark.js';
+import { lightTheme } from '../../styles/themes/light.js';
+import { tokens } from '../../styles/tokens.js';
+import type { FileNode } from '../../types/index.js';
+import { styles } from './rtc-file-tree-item.styles.js';
 
 const log = createLogger('FileTreeItem');
 

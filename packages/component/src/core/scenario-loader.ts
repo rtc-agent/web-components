@@ -4,13 +4,13 @@
  * Loads Scenario markdown files from a URL
  */
 
-import type { ScenarioManifest } from '../types/skill.js';
 import {
-  virtualFS,
   type FileSystemEntryMetadata,
+  virtualFS,
 } from '@rtc-agent/persistence';
-import { generateScenariosIndex } from './markdown-generator.js';
 import { createLogger } from '@rtc-agent/protocol';
+import type { ScenarioManifest } from '../types/skill.js';
+import { generateScenariosIndex } from './markdown-generator.js';
 
 const log = createLogger('ScenarioLoader');
 
@@ -121,7 +121,10 @@ async function fetchWithTimeout(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      credentials: 'omit', // SECURITY: prevent cookie leakage to external URLs
+    });
     return response;
   } finally {
     clearTimeout(timeoutId);
@@ -148,7 +151,7 @@ export async function loadScenariosFromURL(
   let manifest: ScenarioManifest | null = null;
 
   try {
-    const manifestUrl = baseURL + 'manifest.json';
+    const manifestUrl = `${baseURL}manifest.json`;
     const response = await fetchWithTimeout(manifestUrl, timeoutMs);
 
     if (response.ok) {
@@ -164,7 +167,7 @@ export async function loadScenariosFromURL(
 
   let filesToLoad: string[];
 
-  if (manifest && manifest.scenarios) {
+  if (manifest?.scenarios) {
     // Use file list from manifest
     filesToLoad = manifest.scenarios.map((s) => s.file);
   } else {
@@ -216,8 +219,6 @@ export async function loadScenariosFromURL(
         err instanceof Error &&
         err.message.includes('getDatabase() called without a name')
       ) {
-        // Database not yet initialized — expected timing issue, connectedCallback will reload later
-        continue;
       } else {
         log.error(`Error loading ${file}:`, err);
       }
@@ -263,7 +264,7 @@ export async function loadScenariosContent(
   let manifest: ScenarioManifest | null = null;
 
   try {
-    const manifestUrl = baseURL + 'manifest.json';
+    const manifestUrl = `${baseURL}manifest.json`;
     const response = await fetchWithTimeout(manifestUrl, timeoutMs);
 
     if (response.ok) {
@@ -277,7 +278,7 @@ export async function loadScenariosContent(
     }
   }
 
-  if (!manifest || !manifest.scenarios) {
+  if (!manifest?.scenarios) {
     log.warn('No manifest.json found.');
     return { files: [], deletePaths: [] };
   }

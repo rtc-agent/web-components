@@ -5,9 +5,10 @@
  * Exports current session conversation to a static HTML file for offline
  * reading, archiving, and sharing. Pure frontend implementation.
  */
-import type { Session, Message } from '../types/index.js';
-import { getLocale } from '../core/i18n.js';
+
 import { msg } from '@lit/localize';
+import { getLocale } from '../core/i18n.js';
+import type { Message, Session } from '../types/index.js';
 
 /**
  * Get translated label using @lit/localize msg() system.

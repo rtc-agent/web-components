@@ -68,14 +68,14 @@ export class ScrollSaver {
     let anchor = this._getAnchor();
 
     // Level 2: If anchor disconnected, re-query and try to find a new anchor
-    if (!anchor || !anchor.element.isConnected) {
+    if (!anchor?.element.isConnected) {
       log.debug('restore: anchor disconnected, re-querying visible elements');
       this._findElements();
       anchor = this._getAnchor();
     }
 
     // Level 3: Still no anchor → fall back to scrollHeight delta
-    if (!anchor || !anchor.element.isConnected) {
+    if (!anchor?.element.isConnected) {
       const delta = scrollHeight - this._scrollHeight;
       this._container.scrollTop = this._scrollTop + delta;
       log.debug(

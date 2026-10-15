@@ -1,13 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  closeDatabase,
+  DB_NAME_PREFIX,
+  flushAll,
+  getDatabase,
+} from './database';
 import { EntityRepository } from './entity-repository';
-import { getDatabase, closeDatabase, flushAll, DB_NAME_PREFIX } from './database';
-import { getUIUpdateBus, closeUIUpdateBus } from './ui-update-bus';
+import { closeUIUpdateBus } from './ui-update-bus';
 
 const TEST_DB = `${DB_NAME_PREFIX}test-entity-repository-pagination`;
 const TEST_DEVICE_ID = 'test-device-pagination';
 
 // Helper to create session with all required fields
-const createTestSession = (overrides: Partial<Parameters<EntityRepository['upsertSession']>[0]> = {}) => ({
+const createTestSession = (
+  overrides: Partial<Parameters<EntityRepository['upsertSession']>[0]> = {},
+) => ({
   owner_kind: 'user',
   owner_ref_id: 'test-user',
   status: 'active' as const,
@@ -23,7 +30,7 @@ describe('EntityRepository - listSessions cursor pagination', () => {
   beforeEach(async () => {
     // Reset singleton state
     getDatabase(TEST_DB);
-    await flushAll();
+    await flushAll(true);
     closeUIUpdateBus();
 
     // Create fresh repository
@@ -38,21 +45,27 @@ describe('EntityRepository - listSessions cursor pagination', () => {
   describe('listSessions() cursor pagination verification', () => {
     it('should not return soft-deleted sessions', async () => {
       // Create multiple sessions
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1',
-        updated_at: new Date(Date.now() - 3000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's2',
-        title: 'Session 2',
-        updated_at: new Date(Date.now() - 2000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's3',
-        title: 'Session 3',
-        updated_at: new Date(Date.now() - 1000).toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1',
+          updated_at: new Date(Date.now() - 3000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's2',
+          title: 'Session 2',
+          updated_at: new Date(Date.now() - 2000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's3',
+          title: 'Session 3',
+          updated_at: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
 
       // Soft delete middle session
       await repo.softDeleteSession('s2');
@@ -72,11 +85,13 @@ describe('EntityRepository - listSessions cursor pagination', () => {
       // Create 10 sessions with distinct timestamps
       const baseTime = Date.now();
       for (let i = 0; i < 10; i++) {
-        await repo.upsertSession(createTestSession({
-          client_id: `session-${i}`,
-          title: `Session ${i}`,
-          updated_at: new Date(baseTime - i * 1000).toISOString(),
-        }));
+        await repo.upsertSession(
+          createTestSession({
+            client_id: `session-${i}`,
+            title: `Session ${i}`,
+            updated_at: new Date(baseTime - i * 1000).toISOString(),
+          }),
+        );
       }
 
       // Get first page (3 items)
@@ -105,23 +120,29 @@ describe('EntityRepository - listSessions cursor pagination', () => {
       // Create sessions with different timestamps
       const baseTime = new Date('2026-01-01T00:00:00Z').getTime();
 
-      await repo.upsertSession(createTestSession({
-        client_id: 'old',
-        title: 'Old Session',
-        updated_at: new Date(baseTime - 2000).toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 'old',
+          title: 'Old Session',
+          updated_at: new Date(baseTime - 2000).toISOString(),
+        }),
+      );
 
-      await repo.upsertSession(createTestSession({
-        client_id: 'newest',
-        title: 'Newest Session',
-        updated_at: new Date(baseTime).toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 'newest',
+          title: 'Newest Session',
+          updated_at: new Date(baseTime).toISOString(),
+        }),
+      );
 
-      await repo.upsertSession(createTestSession({
-        client_id: 'middle',
-        title: 'Middle Session',
-        updated_at: new Date(baseTime - 1000).toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 'middle',
+          title: 'Middle Session',
+          updated_at: new Date(baseTime - 1000).toISOString(),
+        }),
+      );
 
       const sessions = await repo.listSessions();
 
@@ -138,16 +159,20 @@ describe('EntityRepository - listSessions cursor pagination', () => {
 
     it('should handle cursor not found gracefully', async () => {
       // Create some sessions
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1',
-        updated_at: new Date(Date.now() - 1000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's2',
-        title: 'Session 2',
-        updated_at: new Date().toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1',
+          updated_at: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's2',
+          title: 'Session 2',
+          updated_at: new Date().toISOString(),
+        }),
+      );
 
       // Use non-existent cursor
       const sessions = await repo.listSessions('non-existent-cursor', 10);
@@ -205,21 +230,27 @@ describe('EntityRepository - listSessions cursor pagination', () => {
 
     it('should handle single item pagination', async () => {
       // Create 3 sessions
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1',
-        updated_at: new Date(Date.now() - 2000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's2',
-        title: 'Session 2',
-        updated_at: new Date(Date.now() - 1000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's3',
-        title: 'Session 3',
-        updated_at: new Date().toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1',
+          updated_at: new Date(Date.now() - 2000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's2',
+          title: 'Session 2',
+          updated_at: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's3',
+          title: 'Session 3',
+          updated_at: new Date().toISOString(),
+        }),
+      );
 
       // Paginate one at a time
       const page1 = await repo.listSessions(undefined, 1);
@@ -242,21 +273,27 @@ describe('EntityRepository - listSessions cursor pagination', () => {
       // Create sessions with identical timestamps
       const sameTime = new Date().toISOString();
 
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1',
-        updated_at: sameTime,
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's2',
-        title: 'Session 2',
-        updated_at: sameTime,
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's3',
-        title: 'Session 3',
-        updated_at: sameTime,
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1',
+          updated_at: sameTime,
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's2',
+          title: 'Session 2',
+          updated_at: sameTime,
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's3',
+          title: 'Session 3',
+          updated_at: sameTime,
+        }),
+      );
 
       const sessions = await repo.listSessions();
 
@@ -285,23 +322,29 @@ describe('EntityRepository - listSessions cursor pagination', () => {
 
     it('should handle pagination after updating session timestamps', async () => {
       // Create initial sessions
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1',
-        updated_at: new Date(Date.now() - 2000).toISOString(),
-      }));
-      await repo.upsertSession(createTestSession({
-        client_id: 's2',
-        title: 'Session 2',
-        updated_at: new Date(Date.now() - 1000).toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1',
+          updated_at: new Date(Date.now() - 2000).toISOString(),
+        }),
+      );
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's2',
+          title: 'Session 2',
+          updated_at: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
 
       // Update s1 to be most recent
-      await repo.upsertSession(createTestSession({
-        client_id: 's1',
-        title: 'Session 1 Updated',
-        updated_at: new Date().toISOString(),
-      }));
+      await repo.upsertSession(
+        createTestSession({
+          client_id: 's1',
+          title: 'Session 1 Updated',
+          updated_at: new Date().toISOString(),
+        }),
+      );
 
       const sessions = await repo.listSessions();
 

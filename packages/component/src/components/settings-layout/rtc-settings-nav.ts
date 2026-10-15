@@ -7,26 +7,27 @@
  * @element rtc-settings-nav
  * @fires settings-nav-change - Fired when category changes (detail: { category })
  */
-import { LitElement, html } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
-import type { TemplateResult } from 'lit';
-import { localized, msg } from '@lit/localize';
+
 import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import type { TemplateResult } from 'lit';
+import { html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { styles } from './rtc-settings-nav.styles.js';
 import {
-  gearIcon,
   chatIcon,
-  filesIcon,
   checklistIcon,
   codeIcon,
+  filesIcon,
+  gearIcon,
 } from '../../icons/index.js';
-import { createLogger } from '@rtc-agent/protocol';
+import { styles } from './rtc-settings-nav.styles.js';
 
 const log = createLogger('SettingsNav');
 

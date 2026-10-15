@@ -11,14 +11,15 @@
  * @element rtc-overlay-manager
  * @csspart container - The overlay container
  */
-import { LitElement, html, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
-import { styles } from './rtc-overlay-manager.styles.js';
+import { html, LitElement, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import {
   ToolCallContext,
   type ToolCallContextValue,
 } from '../../contexts/tool-call.js';
+import { styles } from './rtc-overlay-manager.styles.js';
 import './rtc-tool-confirm.js';
 
 @customElement('rtc-overlay-manager')

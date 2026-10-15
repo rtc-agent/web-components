@@ -4,8 +4,8 @@
  * Provides AGENT.md template and initialization function.
  */
 
-import { virtualFS } from './virtual-fs.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { virtualFS } from './virtual-fs.js';
 
 const log = createLogger('VirtualFSInit');
 

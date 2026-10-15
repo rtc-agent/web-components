@@ -28,29 +28,30 @@
  *
  * @module EventBindingController
  */
+
+import type { RtcProcessor } from '@rtc-agent/persistence';
+import type { Logger } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { Activity, ContentData } from '../types/index.js';
-import type { WindowStateController } from './window-state.controller.js';
+import { formatBanMessage } from '../utils/format.js';
+import type { ActivityController } from './activity.controller.js';
 import type { AuthController } from './auth.controller.js';
-import type { SessionController } from './session.controller.js';
+import type { EditorAreaController } from './editor-area.controller.js';
+import type { FileExplorerController } from './file-explorer.controller.js';
+import type { ForkController } from './fork.controller.js';
 import type { MessageController } from './message.controller.js';
+import type { NotificationController } from './notification.controller.js';
+import type { PersistenceController } from './persistence.controller.js';
+import type { SessionController } from './session.controller.js';
+import type { SessionTabController } from './session-tab.controller.js';
+import type { SessionTreeController } from './session-tree.controller.js';
+import type { SettingsController } from './settings.controller.js';
+import type { SkillController } from './skill.controller.js';
+import type { StatusBarController } from './status-bar.controller.js';
+import type { ToastController } from './toast.controller.js';
 import type { ToolCallController } from './tool-call.controller.js';
 import type { WindowInteractionController } from './window-interaction.controller.js';
-import type { PersistenceController } from './persistence.controller.js';
-import type { SkillController } from './skill.controller.js';
-import type { ToastController } from './toast.controller.js';
-import type { ForkController } from './fork.controller.js';
-import type { ActivityController } from './activity.controller.js';
-import type { FileExplorerController } from './file-explorer.controller.js';
-import type { EditorAreaController } from './editor-area.controller.js';
-import type { StatusBarController } from './status-bar.controller.js';
-import type { SessionTreeController } from './session-tree.controller.js';
-import type { SessionTabController } from './session-tab.controller.js';
-import type { SettingsController } from './settings.controller.js';
-import type { NotificationController } from './notification.controller.js';
-import type { Logger } from '@rtc-agent/protocol';
-import type { RtcProcessor } from '@rtc-agent/persistence';
-import { formatBanMessage } from '../utils/format.js';
+import type { WindowStateController } from './window-state.controller.js';
 
 /**
  * Dependencies required by EventBindingController.

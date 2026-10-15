@@ -15,19 +15,20 @@
  *
  * @element rtc-message-more-menu
  */
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { css, html, LitElement } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
 import type { SyncStatus } from '../../types/index.js';
 import { formatTimestampCompact } from '../../utils/format.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('MessageMoreMenu');
 

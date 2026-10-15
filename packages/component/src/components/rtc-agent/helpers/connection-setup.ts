@@ -5,19 +5,18 @@
  * Extracted from rtc-agent.ts to keep the root component lean.
  */
 import { msg, str } from '@lit/localize';
-import { loadScenariosContent } from '../../../core/scenario-loader.js';
-import { RtcProcessor } from '@rtc-agent/persistence';
+import type { ConnectionState } from '@rtc-agent/client';
 import type {
+  AskUserDialogFn,
   IPersistenceLayer,
   LocalRtc,
-  AskUserDialogFn,
 } from '@rtc-agent/persistence';
-import type { WorkerBridge } from '../../../worker-bridge.js';
-import type { ConnectionState } from '@rtc-agent/client';
+import { RtcProcessor } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
-import type { FileNode } from '../../../types/index.js';
-import type { Mode } from '../../../types/index.js';
 import type { ToastActions } from '../../../controllers/toast.controller.js';
+import { loadScenariosContent } from '../../../core/scenario-loader.js';
+import type { FileNode, Mode } from '../../../types/index.js';
+import type { WorkerBridge } from '../../../worker-bridge.js';
 
 // ── Dependency interfaces ──
 

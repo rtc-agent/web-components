@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { MessageContext } from './message.js';
+import { describe, expect, it } from 'vitest';
 import type { MessageActions } from '../types/index.js';
+import { MessageContext } from './message.js';
 
 describe('MessageContext', () => {
   it('should export a context key', () => {

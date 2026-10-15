@@ -19,18 +19,19 @@
  * @csspart header - The modal header
  * @csspart body - The modal body
  */
-import { LitElement, html, nothing, type PropertyValues } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+
 import { consume } from '@lit/context';
 import { localized, msg } from '@lit/localize';
-import { styles } from './rtc-file-preview-modal.styles.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { html, LitElement, nothing, type PropertyValues } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
 import {
   FileStorageContext,
   type FileStorageContextValue,
 } from '../../contexts/file-storage.js';
-import { parseFileId } from '../../utils/file-id.js';
 import type { FileAttachment } from '../../types/index.js';
+import { parseFileId } from '../../utils/file-id.js';
+import { styles } from './rtc-file-preview-modal.styles.js';
 
 const log = createLogger('FilePreviewModal');
 
@@ -233,7 +234,7 @@ export class RtcFilePreviewModal extends LitElement {
     if (bytes === 0) return '';
     const units = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    const value = bytes / Math.pow(1024, i);
+    const value = bytes / 1024 ** i;
     return `${value.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
   }
 

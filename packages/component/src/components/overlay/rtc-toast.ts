@@ -23,18 +23,19 @@
  *
  * @element rtc-toast
  */
-import { LitElement, html, css, nothing } from 'lit';
+
+import { consume } from '@lit/context';
+import { localized, msg } from '@lit/localize';
+import { createLogger } from '@rtc-agent/protocol';
+import { css, html, LitElement, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
-import { localized, msg } from '@lit/localize';
-import { consume } from '@lit/context';
 import {
-  localeContext,
   type LocaleContextValue,
+  localeContext,
   sourceLocale,
   targetLocales,
 } from '../../core/i18n.js';
-import { createLogger } from '@rtc-agent/protocol';
 
 const log = createLogger('Toast');
 
@@ -268,7 +269,7 @@ export class RtcToast extends LitElement {
                 part="action"
                 @click=${(e: Event) => {
                   e.stopPropagation();
-                  toast.action!.onClick();
+                  toast.action?.onClick();
                   this._handleClose(toast.id);
                 }}
                 aria-label=${`${toast.action.label} ${toast.message}`}

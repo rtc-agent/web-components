@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-empty-state.js';
 
 describe('<rtc-empty-state>', () => {
@@ -18,8 +18,8 @@ describe('<rtc-empty-state>', () => {
       html`<rtc-empty-state></rtc-empty-state>`,
     );
     await nextFrame();
-    const hint = el.shadowRoot!.querySelector('.empty-hint');
-    expect(hint!.textContent).toContain('/goal');
+    const hint = el.shadowRoot?.querySelector('.empty-hint');
+    expect(hint?.textContent).toContain('/goal');
   });
 
   it('should display custom hint text', async () => {
@@ -27,8 +27,8 @@ describe('<rtc-empty-state>', () => {
       html`<rtc-empty-state hint-text="Custom hint"></rtc-empty-state>`,
     );
     await nextFrame();
-    const hint = el.shadowRoot!.querySelector('.empty-hint');
-    expect(hint!.textContent).toContain('Custom hint');
+    const hint = el.shadowRoot?.querySelector('.empty-hint');
+    expect(hint?.textContent).toContain('Custom hint');
   });
 
   it('should render a logo area', async () => {
@@ -36,7 +36,7 @@ describe('<rtc-empty-state>', () => {
       html`<rtc-empty-state></rtc-empty-state>`,
     );
     await nextFrame();
-    const logo = el.shadowRoot!.querySelector('.logo-container');
+    const logo = el.shadowRoot?.querySelector('.logo-container');
     expect(logo).not.toBeNull();
   });
 });

@@ -6,17 +6,17 @@
  * and component reference.
  */
 import { virtualFS } from '@rtc-agent/persistence';
-import { setGlobalLogLevel, getGlobalLogLevel } from '@rtc-agent/protocol';
 import type { LogLevel } from '@rtc-agent/protocol';
-import type { RtcAgentDebugAPI } from './debug-api-types.js';
+import { getGlobalLogLevel, setGlobalLogLevel } from '@rtc-agent/protocol';
 import {
-  log,
-  ensureDatabase,
-  getLogBufferSnapshot,
   clearLogBuffer,
   deepQuerySelector,
+  ensureDatabase,
   getAgentElement,
+  getLogBufferSnapshot,
+  log,
 } from './debug-api-helpers.js';
+import type { RtcAgentDebugAPI } from './debug-api-types.js';
 import type { ContentData } from './types/index.js';
 import { maskUserID } from './utils/mask.js';
 
@@ -382,11 +382,7 @@ export function buildCoreAPI(): Pick<
 
     async waitForReady(timeoutMs = 10000) {
       const existing = getAgentElement();
-      if (
-        existing &&
-        existing.isConnected &&
-        existing.shadowRoot?.querySelector('*')
-      ) {
+      if (existing?.isConnected && existing.shadowRoot?.querySelector('*')) {
         return existing;
       }
 

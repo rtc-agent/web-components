@@ -6,10 +6,11 @@
  * - Connection recovery: ensures RTC processor is triggered when connection is restored
  * - This fixes the issue where submitRtcResult fails during reconnection and doesn't retry
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { RtcProcessor } from '@rtc-agent/persistence';
+
 import type { ConnectionState, ConnectionStateEvent } from '@rtc-agent/client';
+import type { RtcProcessor } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the setupConnectionListener function
 // We'll test it indirectly through the behavior
@@ -39,12 +40,14 @@ describe('Connection Recovery RTC Retry', () => {
     connectionListeners = new Set();
 
     // Mock onConnectionStateChange to capture listeners
-    mockOnConnectionStateChange = vi.fn((listener: (event: ConnectionStateEvent) => void) => {
-      connectionListeners.add(listener);
-      return () => {
-        connectionListeners.delete(listener);
-      };
-    });
+    mockOnConnectionStateChange = vi.fn(
+      (listener: (event: ConnectionStateEvent) => void) => {
+        connectionListeners.add(listener);
+        return () => {
+          connectionListeners.delete(listener);
+        };
+      },
+    );
   });
 
   afterEach(() => {
@@ -54,7 +57,10 @@ describe('Connection Recovery RTC Retry', () => {
   /**
    * Helper to simulate connection state change
    */
-  function simulateConnectionStateChange(state: ConnectionState, reason?: string) {
+  function simulateConnectionStateChange(
+    state: ConnectionState,
+    reason?: string,
+  ) {
     const event: ConnectionStateEvent = {
       state,
       reason,
@@ -71,7 +77,9 @@ describe('Connection Recovery RTC Retry', () => {
       // Setup: simulate the listener registration
       const deps = {
         persistence: {
-          getConnectionState: vi.fn().mockResolvedValue('reconnecting' as ConnectionState),
+          getConnectionState: vi
+            .fn()
+            .mockResolvedValue('reconnecting' as ConnectionState),
           onConnectionStateChange: mockOnConnectionStateChange,
         },
         logger: mockLogger,
@@ -82,29 +90,31 @@ describe('Connection Recovery RTC Retry', () => {
       // Since setupConnectionListener is not exported, we'll test the expected behavior
       const setupListener = async () => {
         const connectionState = await deps.persistence.getConnectionState();
-        const unsubConnection = deps.persistence.onConnectionStateChange((event) => {
-          deps.logger.info(
-            '[connection-setup] received connection state change:',
-            event.state,
-            'reason:',
-            event.reason,
-          );
-
-          deps.onConnectionStateChange?.(event.state, event.reason);
-
-          // Critical: trigger RTC processor on connection recovery
-          if (event.state === 'connected') {
+        const unsubConnection = deps.persistence.onConnectionStateChange(
+          (event) => {
             deps.logger.info(
-              '[connection-setup] connection restored, triggering RTC processor retry',
+              '[connection-setup] received connection state change:',
+              event.state,
+              'reason:',
+              event.reason,
             );
-            mockRtcProcessor.onRtcUpdate().catch((err) => {
-              deps.logger.error(
-                '[connection-setup] onRtcUpdate after connection restore failed:',
-                err,
+
+            deps.onConnectionStateChange?.(event.state, event.reason);
+
+            // Critical: trigger RTC processor on connection recovery
+            if (event.state === 'connected') {
+              deps.logger.info(
+                '[connection-setup] connection restored, triggering RTC processor retry',
               );
-            });
-          }
-        });
+              mockRtcProcessor.onRtcUpdate().catch((err) => {
+                deps.logger.error(
+                  '[connection-setup] onRtcUpdate after connection restore failed:',
+                  err,
+                );
+              });
+            }
+          },
+        );
 
         return { unsubConnection, connectionState };
       };
@@ -131,7 +141,9 @@ describe('Connection Recovery RTC Retry', () => {
     it('should NOT trigger RTC processor for non-connected states', async () => {
       const deps = {
         persistence: {
-          getConnectionState: vi.fn().mockResolvedValue('disconnected' as ConnectionState),
+          getConnectionState: vi
+            .fn()
+            .mockResolvedValue('disconnected' as ConnectionState),
           onConnectionStateChange: mockOnConnectionStateChange,
         },
         logger: mockLogger,
@@ -169,7 +181,9 @@ describe('Connection Recovery RTC Retry', () => {
 
       const deps = {
         persistence: {
-          getConnectionState: vi.fn().mockResolvedValue('reconnecting' as ConnectionState),
+          getConnectionState: vi
+            .fn()
+            .mockResolvedValue('reconnecting' as ConnectionState),
           onConnectionStateChange: mockOnConnectionStateChange,
         },
         logger: mockLogger,
@@ -180,7 +194,9 @@ describe('Connection Recovery RTC Retry', () => {
         await deps.persistence.getConnectionState();
         deps.persistence.onConnectionStateChange((event) => {
           if (event.state === 'connected') {
-            mockLogger.info('[connection-setup] connection restored, triggering RTC processor retry');
+            mockLogger.info(
+              '[connection-setup] connection restored, triggering RTC processor retry',
+            );
             mockRtcProcessor.onRtcUpdate().catch((err) => {
               deps.logger.error(
                 '[connection-setup] onRtcUpdate after connection restore failed:',
@@ -207,7 +223,9 @@ describe('Connection Recovery RTC Retry', () => {
     it('should properly clean up listener on unsubscribe', async () => {
       const deps = {
         persistence: {
-          getConnectionState: vi.fn().mockResolvedValue('connected' as ConnectionState),
+          getConnectionState: vi
+            .fn()
+            .mockResolvedValue('connected' as ConnectionState),
           onConnectionStateChange: mockOnConnectionStateChange,
         },
         logger: mockLogger,
@@ -237,7 +255,9 @@ describe('Connection Recovery RTC Retry', () => {
     it('should handle multiple connection state changes correctly', async () => {
       const deps = {
         persistence: {
-          getConnectionState: vi.fn().mockResolvedValue('disconnected' as ConnectionState),
+          getConnectionState: vi
+            .fn()
+            .mockResolvedValue('disconnected' as ConnectionState),
           onConnectionStateChange: mockOnConnectionStateChange,
         },
         logger: mockLogger,

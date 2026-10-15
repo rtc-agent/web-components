@@ -1,5 +1,5 @@
 import { createContext } from '@lit/context';
-import type { MessageState, MessageActions } from '../types/index.js';
+import type { MessageActions, MessageState } from '../types/index.js';
 
 /**
  * Message Context — holds messages for the current session.

@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
 import { html } from 'lit';
-import { fixture, cleanupFixtures, nextFrame } from '../../test-helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupFixtures, fixture, nextFrame } from '../../test-helpers.js';
 import './rtc-notice-bar.js';
 
 describe('<rtc-notice-bar>', () => {
@@ -11,7 +11,7 @@ describe('<rtc-notice-bar>', () => {
       html`<rtc-notice-bar message="Hello notice"></rtc-notice-bar>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.textContent).toContain('Hello notice');
+    expect(el.shadowRoot?.textContent).toContain('Hello notice');
   });
 
   it('should not render when message is empty', async () => {
@@ -19,7 +19,7 @@ describe('<rtc-notice-bar>', () => {
       html`<rtc-notice-bar></rtc-notice-bar>`,
     );
     await nextFrame();
-    const bar = el.shadowRoot!.querySelector('.notice-bar');
+    const bar = el.shadowRoot?.querySelector('.notice-bar');
     expect(bar).toBeNull();
   });
 
@@ -28,7 +28,7 @@ describe('<rtc-notice-bar>', () => {
       html`<rtc-notice-bar message="Test"></rtc-notice-bar>`,
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.close-btn');
+    const btn = el.shadowRoot?.querySelector('.close-btn');
     expect(btn).not.toBeNull();
   });
 
@@ -37,10 +37,10 @@ describe('<rtc-notice-bar>', () => {
       html`<rtc-notice-bar message="Test"></rtc-notice-bar>`,
     );
     await nextFrame();
-    const btn = el.shadowRoot!.querySelector('.close-btn') as HTMLElement;
+    const btn = el.shadowRoot?.querySelector('.close-btn') as HTMLElement;
     btn.click();
     await nextFrame();
-    const bar = el.shadowRoot!.querySelector('.notice-bar');
+    const bar = el.shadowRoot?.querySelector('.notice-bar');
     expect(bar).toBeNull();
   });
 
@@ -51,7 +51,7 @@ describe('<rtc-notice-bar>', () => {
     await nextFrame();
     const handler = vi.fn();
     el.addEventListener('rtc-notice-dismissed', handler);
-    const btn = el.shadowRoot!.querySelector('.close-btn') as HTMLElement;
+    const btn = el.shadowRoot?.querySelector('.close-btn') as HTMLElement;
     btn.click();
     expect(handler).toHaveBeenCalledTimes(1);
   });

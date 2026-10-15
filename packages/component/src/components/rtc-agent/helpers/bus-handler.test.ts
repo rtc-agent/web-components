@@ -12,9 +12,10 @@
  * - Session reopen should create tab
  * - Other status changes should update tab status
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { DebouncedSessionLoader, handleBusEvent } from './bus-handler.js';
+
 import type { UIUpdateEvent } from '@rtc-agent/persistence';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DebouncedSessionLoader, handleBusEvent } from './bus-handler.js';
 
 describe('DebouncedSessionLoader', () => {
   let loadSessions: ReturnType<typeof vi.fn>;
@@ -102,7 +103,7 @@ describe('DebouncedSessionLoader', () => {
       expect(loadSessions).toHaveBeenCalledTimes(1);
 
       // Complete first call
-      resolveFirst!();
+      resolveFirst?.();
       await vi.advanceTimersByTimeAsync(0);
 
       // Now second call should execute

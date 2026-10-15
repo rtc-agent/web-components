@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SkillController } from './skill.controller.js';
-import { eventBus } from '../core/event-bus.js';
 import type { ReactiveControllerHost } from 'lit';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { eventBus } from '../core/event-bus.js';
+import { SkillController } from './skill.controller.js';
 
 // Mock ReactiveControllerHost
 function createMockHost(): ReactiveControllerHost {

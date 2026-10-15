@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageRepository } from './message.repository.js';
-import type { MessageApi } from './message.repository.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Message } from '../types/index.js';
+import type { MessageApi } from './message.repository.js';
+import { MessageRepository } from './message.repository.js';
 
 /** Auto-incrementing counter for deterministic test IDs. */
 let _msgCounter = 0;
@@ -562,7 +562,7 @@ describe('MessageRepository', () => {
       // isLoadingMore should be true now
       expect(states).toContain(true);
 
-      resolveApi!([createMessage()]);
+      resolveApi?.([createMessage()]);
       await loadPromise;
 
       // isLoadingMore should be false after completion

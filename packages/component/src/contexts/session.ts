@@ -1,5 +1,5 @@
 import { createContext } from '@lit/context';
-import type { SessionState, SessionActions } from '../types/index.js';
+import type { SessionActions, SessionState } from '../types/index.js';
 
 /**
  * Session Context — holds session list and current session.

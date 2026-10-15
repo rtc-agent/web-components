@@ -1,7 +1,7 @@
 // S3 Client 集成测试（需要真实服务）
 // 运行方式：REFRESH_TOKEN=xxx pnpm test:integration
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { S3Client } from './s3-client.js';
 
 /**

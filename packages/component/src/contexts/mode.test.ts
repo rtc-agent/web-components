@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { ModeContext, MODE_CONFIGS } from './mode.js';
+import { describe, expect, it } from 'vitest';
+import { MODE_CONFIGS, ModeContext } from './mode.js';
 
 describe('ModeContext', () => {
   it('should export a context key', () => {

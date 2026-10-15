@@ -9,11 +9,11 @@
  */
 
 import { createContext } from '@lit/context';
-import type { FunctionDef } from '../types/skill.js';
 import type {
-  FunctionDebugState,
   DebugHistoryItem,
+  FunctionDebugState,
 } from '../types/functions-debug.js';
+import type { FunctionDef } from '../types/skill.js';
 
 /**
  * Function debug context actions
