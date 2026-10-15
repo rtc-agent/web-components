@@ -266,15 +266,19 @@ export class WorkerBridge {
   /**
    * Tracks which WorkerBridge instance installed the virtualFS proxy.
    *
-   * Used to detect multi-instance conflicts: if a second instance tries to install
-   * the proxy, we can provide a clear error message identifying the conflicting instance.
-   * This is critical for debugging scenarios where multiple <rtc-agent> components
-   * are accidentally mounted on the same page.
+   * Uses WeakRef to allow GC to automatically reset the tracking if the instance
+   * is garbage collected. This prevents stale strong references from blocking GC
+   * and causing memory leaks in scenarios where components are frequently mounted
+   * and unmounted.
    *
-   * Note: The reference is kept even after destroy() to detect conflicts with
-   * destroyed instances (which would indicate a lifecycle bug).
+   * When checking this reference:
+   * - If WeakRef.deref() returns undefined, the instance was GC'd (safe to reinstall)
+   * - If WeakRef.deref() returns an instance, check if it's still alive
+   *
+   * Note: The WeakRef is kept even after destroy() to detect conflicts with
+   * destroyed-but-not-yet-GC'd instances (which would indicate a lifecycle bug).
    */
-  private static _virtualFSProxyInstalledBy: WorkerBridge | null = null;
+  private static _virtualFSProxyInstalledBy: WeakRef<WorkerBridge> | null = null;
 
   /**
    * Backup of original virtualFS methods, saved before proxy installation.
@@ -355,6 +359,11 @@ export class WorkerBridge {
       // to a Worker thread to avoid blocking the main thread.
       // See: https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API
       onUIUpdate: (payload: UIUpdatePayload) => {
+        // P2 FIX: Monitor main-thread processing cost for high-frequency events.
+        // When structured clone / JSON parsing + bus.publish() takes >5ms, emit a warning
+        // to help diagnose UI jank during bulk updates.
+        const startTime = performance.now();
+
         const bus = getUIUpdateBus();
         // P2-1 FIX: Document fire-and-forget design rationale.
         // DESIGN NOTE: bus.publish() is intentionally fire-and-forget (no await, no retry).
@@ -406,6 +415,18 @@ export class WorkerBridge {
         if (payload.seq > this._lastProcessedSeq) {
           this._updateLastProcessedSeq(payload.seq);
         }
+
+        // P2 FIX: Warn when main-thread processing exceeds 5ms threshold.
+        // This helps diagnose UI jank during high-frequency events (e.g., bulk streaming updates).
+        // The threshold of 5ms is chosen to catch significant main-thread blocking while avoiding
+        // noise from normal sub-millisecond events.
+        const elapsed = performance.now() - startTime;
+        if (elapsed > 5) {
+          log.warn(
+            `onUIUpdate: main-thread processing took ${elapsed.toFixed(2)}ms (>5ms threshold), ` +
+            `entity=${payload.event?.entity}, action=${payload.event?.action}, seq=${payload.seq}`,
+          );
+        }
       },
       // Worker requests token -> AuthController.getAccessTokenAsync().
       // TIMEOUT PROTECTION: 5-second timeout prevents infinite blocking if AuthController hangs.
@@ -413,8 +434,9 @@ export class WorkerBridge {
       // indefinitely, preventing reconnection and causing silent failures.
       requestToken: async (): Promise<string> => {
         const TIMEOUT_MS = 5000;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
+          timeoutId = setTimeout(() => {
             reject(
               new Error(
                 `[WorkerBridge] requestToken timeout after ${TIMEOUT_MS}ms`,
@@ -422,14 +444,23 @@ export class WorkerBridge {
             );
           }, TIMEOUT_MS);
         });
-        const token = await Promise.race([
-          this._auth.getAccessTokenAsync(),
-          timeoutPromise,
-        ]);
-        if (!token) {
-          throw new Error('[WorkerBridge] no access token available');
+        try {
+          const token = await Promise.race([
+            this._auth.getAccessTokenAsync(),
+            timeoutPromise,
+          ]);
+          if (!token) {
+            throw new Error('[WorkerBridge] no access token available');
+          }
+          return token;
+        } finally {
+          // CRITICAL: Clear timeout to prevent unhandled rejection when getAccessTokenAsync()
+          // resolves first. Without this, the timer fires after 5s and rejects an already-settled
+          // Promise, causing an unhandled promise rejection warning.
+          if (timeoutId !== undefined) {
+            clearTimeout(timeoutId);
+          }
         }
-        return token;
       },
       // Worker requests token refresh -> AuthController.handleTokenExpired().
       // Returns 'refresh' if refreshed, 'relogin' if re-login is required.
@@ -1390,13 +1421,17 @@ export class WorkerBridge {
    * error enforces the constraint at runtime rather than allowing silent corruption.
    */
   installVirtualFSProxy(): void {
-    // Throw error if proxy has already been installed (multi-instance conflict)
-    // virtualFS is a global singleton; multiple instances would corrupt each other's data
-    if (WorkerBridge._virtualFSProxyInstalled) {
-      const installedBy = WorkerBridge._virtualFSProxyInstalledBy;
-      const instanceInfo = installedBy
-        ? `previously installed by WorkerBridge instance at ${installedBy.constructor.name}`
-        : 'installed by unknown instance';
+    // Check if proxy has already been installed by another live instance
+    // WeakRef allows GC to automatically reset the tracking if the instance was collected
+    const existingInstaller = WorkerBridge._virtualFSProxyInstalledBy?.deref();
+    if (WorkerBridge._virtualFSProxyInstalled && existingInstaller) {
+      // Check if the existing installer is this instance (idempotent reinstall)
+      if (existingInstaller === this) {
+        log.debug('virtualFS proxy already installed by this instance (idempotent)');
+        return;
+      }
+      // Different instance is trying to install — multi-instance conflict
+      const instanceInfo = `previously installed by WorkerBridge instance at ${existingInstaller.constructor.name}`;
       throw new Error(
         '[WorkerBridge] virtualFS proxy already installed by another <rtc-agent> instance. ' +
           'Multiple instances are not supported. ' +
@@ -1405,6 +1440,11 @@ export class WorkerBridge {
           'If you see this error, check for duplicate <rtc-agent> mounts in your application.',
       );
     }
+
+    // If we get here, either:
+    // 1. No proxy was ever installed (_virtualFSProxyInstalled = false)
+    // 2. The previous installer was GC'd (existingInstaller = undefined)
+    // Both cases are safe to proceed with installation.
 
     const core = this._ensureCore();
 
@@ -1424,8 +1464,9 @@ export class WorkerBridge {
     }
 
     // Mark as installed (single-instance enforcement)
+    // Use WeakRef to allow GC to automatically reset the tracking
     WorkerBridge._virtualFSProxyInstalled = true;
-    WorkerBridge._virtualFSProxyInstalledBy = this;
+    WorkerBridge._virtualFSProxyInstalledBy = new WeakRef(this);
     log.debug('virtualFS proxy installed');
 
     virtualFS.read = ((path: string, offset?: number, limit?: number) =>
@@ -1498,7 +1539,6 @@ export class WorkerBridge {
     WorkerBridge._virtualFSProxyInstalledBy = null;
     log.debug('virtualFS proxy restored to original implementation');
   }
-
   // ========== File Cache & S3 Proxy ==========
 
   /**
