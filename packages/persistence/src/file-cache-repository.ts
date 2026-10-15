@@ -5,7 +5,7 @@ import Dexie from 'dexie';
 import SparkMD5 from 'spark-md5';
 import { type FileCacheEntry, getDatabase } from './database.js';
 import { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
-import { ResourceScope } from './resource-scope.js';
+import { AsyncLock } from './utils/index.js';
 
 const log = createLogger('FileCacheRepository');
 
@@ -122,10 +122,8 @@ export class FileCacheRepository {
   private inFlightDownloads = new Map<string, Promise<Blob>>();
   /** In-flight sync deduplication map (prevents duplicate uploads) */
   private syncInFlight = new Map<string, Promise<void>>();
-  /** Per-file sync lock chains (ensures sequential sync per file) */
-  private _syncLocks = new Map<string, Promise<unknown>>();
-  /** P1-FIX: Track Promise chain lengths for monitoring potential memory leaks */
-  private _syncLockChainLengths = new Map<string, number>();
+  /** P0-FIX: AsyncLock for per-file sync operations (ensures sequential sync per file) */
+  private _syncLock = new AsyncLock('FileCacheRepository.SyncLock');
   /** Lifecycle guard: prevents DB operations after PersistenceLayer.close() */
   private _lifecycleGuard = new LifecycleGuard('FileCacheRepository');
   /** H3-FIX: Lock to prevent concurrent recoverStaleSyncing calls */
@@ -859,7 +857,7 @@ export class FileCacheRepository {
   /**
    * Per-file sync lock: ensures only one sync operation runs at a time per file.
    *
-   * Uses promise chaining (not mutex) so operations queue sequentially.
+   * Uses AsyncLock utility (promise chaining) so operations queue sequentially.
    * Each call for the same key waits for the previous operation to settle
    * before starting its own. Different files run in parallel.
    *
@@ -887,112 +885,10 @@ export class FileCacheRepository {
     externalSignal?: AbortSignal,
   ): Promise<T> {
     const key = `${md5}.${ext}`;
-    const prev = this._syncLocks.get(key) ?? Promise.resolve();
-
-    // Create internal AbortController, merge with external signal
-    const controller = new AbortController();
-
-    // P1-NEW-A: Use ResourceScope to manage timer and listener lifecycle
-    const scope = new ResourceScope();
-
-    const onExternalAbort = () => controller.abort(externalSignal?.reason);
-    externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
-
-    const fnWithTimeout = (): Promise<T> => {
-      return Promise.race([
-        fn(controller.signal), // Pass signal to fn
-        new Promise<never>((_, reject) => {
-          // P1-NEW-A: Use scope.setTimeout for automatic cleanup
-          scope.setTimeout(() => {
-            const err = new Error(
-              `withSyncLock timed out for ${key} after ${timeoutMs}ms`,
-            );
-            controller.abort(err); // P1-B: abort underlying operation on timeout
-            reject(err);
-          }, timeoutMs);
-          // If external signal aborts first, timer will be cleaned up by scope.dispose()
-        }),
-      ]).finally(() => {
-        // P1-NEW-A: Always clean up resources (timer + listeners) after operation completes
-        scope.dispose();
-      });
-    };
-
-    const next = prev.then(
-      () => fnWithTimeout(),
-      () => fnWithTimeout(),
-    );
-
-    // Store the chained promise (settled when fn completes or throws)
-    const settled = next.then(
-      (v) => v,
-      (e) => {
-        throw e;
-      },
-    );
-
-    // C1-FIX: Track chain position to prevent unbounded Promise chain growth.
-    // When this is the first operation in the chain (prev was already resolved),
-    // we can clean up immediately after completion instead of waiting for the next operation.
-    const isFirstInChain = prev === this._syncLocks.get(key);
-
-    // P1-FIX: Monitor Promise chain length to detect potential memory leaks.
-    // In high-frequency scenarios, chains can grow unbounded if cleanup fails.
-    // Log a warning if chain exceeds threshold for debugging.
-    const CHAIN_LENGTH_WARNING_THRESHOLD = 50;
-    const CHAIN_LENGTH_HARD_LIMIT = 100;
-    const currentChainLength = this._syncLockChainLengths.get(key) ?? 0;
-    const newChainLength = isFirstInChain ? 1 : currentChainLength + 1;
-
-    // P1-FIX: Enforce hard limit to prevent unbounded memory growth.
-    // If chain length exceeds 100, reject the operation to force investigation.
-    if (newChainLength > CHAIN_LENGTH_HARD_LIMIT) {
-      throw new Error(
-        `withSyncLock: Promise chain length for ${key} exceeded hard limit ` +
-          `(${newChainLength} > ${CHAIN_LENGTH_HARD_LIMIT}). ` +
-          `Rejecting operation to prevent memory exhaustion. ` +
-          `This indicates a serious memory leak or extremely high concurrency. ` +
-          `Investigate why cleanup is not working correctly.`,
-      );
-    }
-
-    this._syncLockChainLengths.set(key, newChainLength);
-
-    if (newChainLength > CHAIN_LENGTH_WARNING_THRESHOLD) {
-      log.warn(
-        `withSyncLock: Promise chain length for ${key} is ${newChainLength} ` +
-          `(threshold: ${CHAIN_LENGTH_WARNING_THRESHOLD}). ` +
-          `This may indicate a memory leak if cleanup is not working correctly.`,
-      );
-    }
-
-    this._syncLocks.set(
-      key,
-      settled.finally(() => {
-        // C1-FIX: Clean up map entry when chain is empty or this is the last operation.
-        // If this was the first operation and no new operations queued, remove immediately.
-        // Otherwise, only remove if we're still the head of the chain.
-        const currentHead = this._syncLocks.get(key);
-        if (isFirstInChain || currentHead === settled) {
-          // Check if a new operation has queued behind us
-          // If settled is still the head, no new operations have queued, safe to delete
-          if (currentHead === settled) {
-            this._syncLocks.delete(key);
-            this._syncLockChainLengths.delete(key); // P1-FIX: Clean up chain length counter
-          }
-        } else {
-          // P1-FIX: Decrement chain length when an operation completes but chain continues
-          const currentLength = this._syncLockChainLengths.get(key) ?? 0;
-          if (currentLength > 0) {
-            this._syncLockChainLengths.set(key, currentLength - 1);
-          }
-        }
-        // Clean up external signal listener
-        externalSignal?.removeEventListener('abort', onExternalAbort);
-      }),
-    );
-
-    return next;
+    return this._syncLock.acquire(key, fn, {
+      timeoutMs,
+      signal: externalSignal,
+    });
   }
 
   /**

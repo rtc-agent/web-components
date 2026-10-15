@@ -973,66 +973,15 @@ export class EntityRepository {
       } else {
         const cursorTs = parseInt(parts[0], 10);
         const cursorClientId = parts[1];
-        const cursorDate = new Date(cursorTs).toISOString();
 
-        if (direction === 'backward') {
-          // Backward: get messages with created_at < cursor timestamp
-          const messages = await db.messages
-            .where('[session_client_id+created_at]')
-            .between(
-              [sessionClientId, ''],
-              [sessionClientId, cursorDate],
-              false, // exclude lower bound
-              false, // exclude upper bound (cursorDate)
-            )
-            .reverse()
-            .limit(limit * 2)
-            .toArray();
-
-          // Filter strictly less than cursor (handle ties with client_id)
-          const filtered = messages.filter((m) => {
-            const ts = new Date(m.created_at).getTime();
-            return (
-              ts < cursorTs || (ts === cursorTs && m.client_id < cursorClientId)
-            );
-          });
-
-          // Sort in ascending order (oldest first) before returning
-          return filtered.slice(0, limit).sort((a, b) => {
-            const tsA = new Date(a.created_at).getTime();
-            const tsB = new Date(b.created_at).getTime();
-            if (tsA !== tsB) return tsA - tsB;
-            return a.client_id.localeCompare(b.client_id);
-          });
-        } else {
-          // Forward: get messages with created_at > cursor timestamp
-          const messages = await db.messages
-            .where('[session_client_id+created_at]')
-            .between(
-              [sessionClientId, cursorDate],
-              [sessionClientId, '￿'],
-              false, // exclude lower bound (cursorDate)
-              true, // include upper bound
-            )
-            .limit(limit * 2)
-            .toArray();
-
-          // Filter strictly greater than cursor
-          const filtered = messages.filter((m) => {
-            const ts = new Date(m.created_at).getTime();
-            return (
-              ts > cursorTs || (ts === cursorTs && m.client_id > cursorClientId)
-            );
-          });
-
-          // Sort in ascending order (oldest first) before returning
-          return filtered.slice(0, limit).sort((a, b) => {
-            const tsA = new Date(a.created_at).getTime();
-            const tsB = new Date(b.created_at).getTime();
-            if (tsA !== tsB) return tsA - tsB;
-            return a.client_id.localeCompare(b.client_id);
-          });
-        }
+        // Use common cursor pagination method
+        return this.cursorPaginate(
+          sessionClientId,
+          cursorTs,
+          cursorClientId,
+          limit,
+          direction,
+        );
       }
     }
 
@@ -1094,6 +1043,88 @@ export class EntityRepository {
       }
 
       return messages;
+    }
+  }
+
+  /**
+   * Common cursor pagination logic for messages.
+   *
+   * Handles both backward and forward pagination with deterministic ordering
+   * using compound index [session_client_id+created_at] and client_id tie-breaking.
+   *
+   * P1-FIX: Extracted from listMessagesBySession to eliminate code duplication
+   * between backward and forward cursor pagination logic.
+   *
+   * @param sessionClientId - Session to query messages from
+   * @param cursorTs - Cursor timestamp (milliseconds since epoch)
+   * @param cursorClientId - Cursor client_id (for tie-breaking)
+   * @param limit - Maximum number of messages to return
+   * @param direction - Pagination direction ('backward' or 'forward')
+   * @returns Array of messages in ascending order (oldest first)
+   */
+  private async cursorPaginate(
+    sessionClientId: string,
+    cursorTs: number,
+    cursorClientId: string,
+    limit: number,
+    direction: 'backward' | 'forward',
+  ): Promise<LocalMessage[]> {
+    const db = getDatabase();
+    const cursorDate = new Date(cursorTs).toISOString();
+
+    if (direction === 'backward') {
+      // Backward: get messages with created_at < cursor timestamp
+      const messages = await db.messages
+        .where('[session_client_id+created_at]')
+        .between(
+          [sessionClientId, ''],
+          [sessionClientId, cursorDate],
+          false, // exclude lower bound
+          false, // exclude upper bound (cursorDate)
+        )
+        .reverse()
+        .limit(limit * 2)
+        .toArray();
+
+      // Filter strictly less than cursor (handle ties with client_id)
+      const filtered = messages.filter((m) => {
+        const ts = new Date(m.created_at).getTime();
+        return ts < cursorTs || (ts === cursorTs && m.client_id < cursorClientId);
+      });
+
+      // Sort in ascending order (oldest first) before returning
+      return filtered.slice(0, limit).sort((a, b) => {
+        const tsA = new Date(a.created_at).getTime();
+        const tsB = new Date(b.created_at).getTime();
+        if (tsA !== tsB) return tsA - tsB;
+        return a.client_id.localeCompare(b.client_id);
+      });
+    } else {
+      // Forward: get messages with created_at > cursor timestamp
+      const messages = await db.messages
+        .where('[session_client_id+created_at]')
+        .between(
+          [sessionClientId, cursorDate],
+          [sessionClientId, '￿'],
+          false, // exclude lower bound (cursorDate)
+          true, // include upper bound
+        )
+        .limit(limit * 2)
+        .toArray();
+
+      // Filter strictly greater than cursor
+      const filtered = messages.filter((m) => {
+        const ts = new Date(m.created_at).getTime();
+        return ts > cursorTs || (ts === cursorTs && m.client_id > cursorClientId);
+      });
+
+      // Sort in ascending order (oldest first) before returning
+      return filtered.slice(0, limit).sort((a, b) => {
+        const tsA = new Date(a.created_at).getTime();
+        const tsB = new Date(b.created_at).getTime();
+        if (tsA !== tsB) return tsA - tsB;
+        return a.client_id.localeCompare(b.client_id);
+      });
     }
   }
 

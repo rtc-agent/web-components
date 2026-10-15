@@ -38,6 +38,7 @@ import {
   getDatabase,
 } from './database.js';
 import { LifecycleGuard } from './lifecycle-guard.js';
+import { AsyncLock } from './utils/index.js';
 
 const log = createLogger('VirtualFS');
 
@@ -202,11 +203,11 @@ export class VirtualFS {
   private _lifecycleGuard = new LifecycleGuard('VirtualFS');
 
   /**
-   * P0-FIX: Per-file write locks to prevent TOCTOU race conditions.
+   * P0-FIX: AsyncLock for per-file write operations to prevent TOCTOU race conditions.
    * Uses promise chaining to queue concurrent writes to the same file.
-   * Key: normalized file path, Value: promise chain for sequential writes.
+   * Refactored to use AsyncLock utility for consistency with FileCacheRepository.
    */
-  private _writeLocks = new Map<string, Promise<unknown>>();
+  private _fileLock = new AsyncLock('VirtualFS.FileLock');
 
   /**
    * P0-FIX: Execute an async operation with a file-level write lock.
@@ -216,14 +217,9 @@ export class VirtualFS {
    * a second write could overwrite changes made by a first write that
    * was still in progress.
    *
-   * Uses promise chaining (not mutex) so operations queue sequentially.
+   * Uses AsyncLock utility (promise chaining) so operations queue sequentially.
    * Each call for the same path waits for the previous operation to settle
    * before starting its own. Different files run in parallel.
-   *
-   * Cleanup: the map entry is deleted in the `finally` block when the current
-   * promise is still the head of the chain (i.e., no subsequent operation has
-   * been queued after it). This avoids unbounded map growth while remaining
-   * safe under concurrent access.
    *
    * @param path Normalized file path
    * @param fn Async function to execute under the lock
@@ -236,56 +232,7 @@ export class VirtualFS {
     fn: () => Promise<T>,
     timeoutMs: number = 30000,
   ): Promise<T> {
-    const prev = this._writeLocks.get(path) ?? Promise.resolve();
-
-    // Create a promise that rejects after timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(
-        () =>
-          reject(
-            new Error(`File lock timeout: ${path} locked for >${timeoutMs}ms`),
-          ),
-        timeoutMs,
-      );
-    });
-
-    // Chain the new operation after the previous one settles, with timeout
-    const next = Promise.race([
-      prev.then(
-        () => fn(),
-        () => fn(),
-      ),
-      timeoutPromise,
-    ]);
-
-    // Wrap so we can detect when this specific operation completes
-    const settled = next.then(
-      (v) => v,
-      (e) => {
-        throw e;
-      },
-    );
-
-    this._writeLocks.set(
-      path,
-      settled
-        .finally(() => {
-          // Clean up map entry only when this operation is the current head of
-          // the chain. If a subsequent operation has already been queued (i.e.,
-          // the map entry has been updated to a newer promise), skip deletion.
-          // This avoids the fragile isFirstInChain tracking from earlier versions.
-          if (this._writeLocks.get(path) === settled) {
-            this._writeLocks.delete(path);
-          }
-        })
-        .catch(() => {
-          // Error is already propagated to the caller via `next`.
-          // This catch prevents unhandled rejection on the lock-tracking
-          // branch (settled + finally), which is only used for cleanup.
-        }),
-    );
-
-    return next;
+    return this._fileLock.acquire(path, () => fn(), { timeoutMs });
   }
   /**
    * Read file content.
