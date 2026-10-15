@@ -1,9 +1,6 @@
 import ConfigHistoryTable from '@/pages/system/configs/components/ConfigHistoryTable';
-import type { UserConfigItem } from '@/services/userConfig';
-import {
-  getUserConfigHistory,
-  rollbackUserConfig,
-} from '@/services/userConfig';
+import type { UserConfigItem } from '../service';
+import { getUserConfigHistory, rollbackUserConfig } from '../service';
 
 export interface UserConfigHistoryModalProps {
   open: boolean;

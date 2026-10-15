@@ -16,4 +16,7 @@ export default {
   'component.noticeIcon.cleared': '清空了',
   'component.noticeIcon.empty': '暫無資料',
   'component.noticeIcon.view-more': '查看更多',
+  'component.avatarDropdown.logout': '登出',
+  'component.avatarDropdown.settings': '個人設定',
+  'component.avatarDropdown.theme': '主題設定',
 };

@@ -3,9 +3,9 @@ import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { App, Tag, theme } from 'antd';
 import React, { useCallback, useMemo, useRef } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
@@ -30,6 +30,10 @@ const AuditLogsPage: React.FC = () => {
   const { token } = theme.useToken();
   const { message } = App.useApp();
   const isMobile = useIsMobile();
+  const tableLocale = useProTableLocale(
+    'pages.auditLogs.empty',
+    'No audit logs found',
+  );
 
   // === Register Page API ===
   usePageAPIRegistration(
@@ -417,14 +421,7 @@ const AuditLogsPage: React.FC = () => {
           },
         )}
         columns={columns}
-        locale={{
-          emptyText: (
-            <TableEmptyState
-              descriptionId="pages.auditLogs.empty"
-              defaultDescription="No audit logs found"
-            />
-          ),
-        }}
+        locale={tableLocale}
       />
     </PageContainer>
   );

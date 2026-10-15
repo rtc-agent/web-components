@@ -17,4 +17,7 @@ export default {
   'component.noticeIcon.cleared': 'Berhasil dikosongkan',
   'component.noticeIcon.empty': 'Tidak ada pemberitahuan',
   'component.noticeIcon.view-more': 'Melihat lebih',
+  'component.avatarDropdown.logout': 'Keluar',
+  'component.avatarDropdown.settings': 'Pengaturan Pribadi',
+  'component.avatarDropdown.theme': 'Pengaturan Tema',
 };

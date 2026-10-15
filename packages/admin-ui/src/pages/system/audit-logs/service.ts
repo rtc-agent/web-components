@@ -5,5 +5,5 @@
  * All page components should import from this file rather than @/services/ directly.
  */
 
-export { getAuditLogList } from '@/services/audit-log';
 export type { AuditLogItem } from '@/services/audit-log';
+export { getAuditLogList } from '@/services/audit-log';

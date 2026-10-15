@@ -4,15 +4,16 @@
  */
 
 import { PageContainer } from '@ant-design/pro-components';
-import { App, Button, Card, Space } from 'antd';
-import { useEffect, useRef, useState } from 'react';
 import { useIntl } from '@umijs/max';
+import { App, Button, Card, Space, theme } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 
 export default function RtcAgentTestPage() {
   const [status, setStatus] = useState<string>('Checking...');
   const [error, setError] = useState<string | null>(null);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const intl = useIntl();
 
   useEffect(() => {
@@ -48,7 +49,9 @@ export default function RtcAgentTestPage() {
   const handleTestMount = async () => {
     // Prevent double-mount
     if (document.querySelector('rtc-agent[data-test-agent="true"]')) {
-      message.warning(intl.formatMessage({ id: 'pages.rtcAgentTest.agentAlreadyRunning' }));
+      message.warning(
+        intl.formatMessage({ id: 'pages.rtcAgentTest.agentAlreadyRunning' }),
+      );
       return;
     }
 
@@ -86,32 +89,35 @@ export default function RtcAgentTestPage() {
 
   return (
     <PageContainer>
-      <Card title="RTC Agent Integration Test">
+      <Card title={intl.formatMessage({ id: 'pages.rtcAgentTest.title' })}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <h3>Status</h3>
+            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.status' })}</h3>
             <p>{status}</p>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
+            {error && <p style={{ color: token.colorError }}>{error}</p>}
           </div>
 
           <div>
-            <h3>Actions</h3>
+            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.actions' })}</h3>
             <Space>
               <Button type="primary" onClick={handleTestMount}>
-                Test Dynamic Import
+                {intl.formatMessage({
+                  id: 'pages.rtcAgentTest.testDynamicImport',
+                })}
               </Button>
               <Button onClick={() => window.location.reload()}>
-                Reload Page
+                {intl.formatMessage({ id: 'pages.rtcAgentTest.reloadPage' })}
               </Button>
             </Space>
           </div>
 
           <div>
-            <h3>Console</h3>
-            <p>Open the browser console to see detailed logs.</p>
+            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.console' })}</h3>
             <p>
-              If you see "TypeError: Cannot destructure property 'dispatcher' of
-              'useContext(...)'" in the console, the integration is broken.
+              {intl.formatMessage({ id: 'pages.rtcAgentTest.consoleHint' })}
+            </p>
+            <p>
+              {intl.formatMessage({ id: 'pages.rtcAgentTest.typeErrorHint' })}
             </p>
           </div>
         </Space>

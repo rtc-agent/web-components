@@ -8,7 +8,7 @@ import { PageContainer } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
 import { useIntl, useModel } from '@umijs/max';
 import { Alert, App, Button, Card, Space, Typography } from 'antd';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { queryKeys } from '@/utils/queryKeys';
 
 const { Title, Text, Paragraph } = Typography;
@@ -17,6 +17,16 @@ export default function RtcAgentDiagnosePage() {
   const intl = useIntl();
   const { message } = App.useApp();
   const destroyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount to prevent state updates on unmounted component
+  useEffect(() => {
+    return () => {
+      if (destroyTimerRef.current) {
+        clearTimeout(destroyTimerRef.current);
+        destroyTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Normal hook call (cannot wrap Hooks in try-catch)
   const modelState = useModel('@@initialState');

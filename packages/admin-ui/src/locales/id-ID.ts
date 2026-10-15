@@ -7,7 +7,7 @@ import settingDrawer from './id-ID/settingDrawer';
 import settings from './id-ID/settings';
 
 export default {
-  'navbar.lang': 'Bahasa',
+  'navBar.lang': 'Bahasa',
   'layout.user.link.help': 'Bantuan',
   'layout.user.link.privacy': 'Privasi',
   'layout.user.link.terms': 'Ketentuan',

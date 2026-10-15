@@ -1,7 +1,13 @@
 import { GridContent } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
 import { App, Menu } from 'antd';
-import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import BaseView from './components/base';

@@ -10,12 +10,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Access, useAccess, useIntl } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -45,6 +45,10 @@ const PermissionListPage: React.FC = () => {
   const modal = useModalState();
   const { roleMap, roleOptions, error: rolesError } = useRoleOptions();
   const isMobile = useIsMobile();
+  const tableLocale = useProTableLocale(
+    'pages.permissions.noData',
+    'No permissions found',
+  );
   const modalWidth = isMobile ? '95vw' : 520;
   const { refreshPermissions } = usePermissionRefresh();
 
@@ -343,7 +347,7 @@ const PermissionListPage: React.FC = () => {
         rowKey={(record) =>
           `${record.role_id}-${record.resource}-${record.action}`
         }
-        locale={{ emptyText: <TableEmptyState /> }}
+        locale={tableLocale}
         search={{
           labelWidth: 'auto',
         }}

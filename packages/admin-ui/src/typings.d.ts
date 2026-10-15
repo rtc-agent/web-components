@@ -79,7 +79,12 @@ declare namespace API {
     created_at: string;
   }
 
-  /** Paginated response */
+  /**
+   * Paginated response (page-based pagination)
+   * Note: For cursor-based pagination, use PaginatedResponse from @rtc-agent/protocol
+   * For page-based pagination with full metadata, use PageBasedPaginatedResponse from @rtc-agent/protocol
+   * This global type is kept for backward compatibility with Umi/Ant Design Pro patterns
+   */
   interface PaginatedResponse<T> {
     items: T[];
     total: number;

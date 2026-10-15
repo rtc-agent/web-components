@@ -5,6 +5,12 @@
  * All page components should import from this file rather than @/services/ directly.
  */
 
+export type { PermissionPolicy } from '@/services/permission';
+export {
+  createPermission,
+  deletePermission,
+  getPermissionList,
+} from '@/services/permission';
 export {
   createRole,
   deleteRole,
@@ -12,9 +18,3 @@ export {
   patchRole,
   updateRole,
 } from '@/services/role';
-export {
-  createPermission,
-  deletePermission,
-  getPermissionList,
-} from '@/services/permission';
-export type { PermissionPolicy } from '@/services/permission';

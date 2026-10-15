@@ -12,6 +12,7 @@ import React, {
 import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import {
   createTableRequest,
@@ -38,6 +39,10 @@ const MessagesPage: React.FC = () => {
   }>();
   const sessionId = tableParams.getParam('session_id') || '';
   const isMobile = useIsMobile();
+  const tableLocale = useProTableLocale(
+    'pages.messages.noData',
+    'No messages found',
+  );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [currentMessage, setCurrentMessage] = useState<MessageInfo | null>(
@@ -366,14 +371,7 @@ const MessagesPage: React.FC = () => {
               })}
             </Button>,
           ]}
-          locale={{
-            emptyText: (
-              <TableEmptyState
-                descriptionId="pages.messages.noData"
-                defaultDescription="No messages found"
-              />
-            ),
-          }}
+          locale={tableLocale}
         />
       )}
 

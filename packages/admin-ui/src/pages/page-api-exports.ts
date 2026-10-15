@@ -13,18 +13,17 @@
 // User pages
 export type { SelfAccountSettingsPageAPI } from './account/settings/page-api';
 export type { ChatbotPageAPI } from './chatbot/page-api';
-export type { AdminPageAPI } from './user/management/page-api';
+export type { RtcUserPageAPI } from './rtc-users/management/page-api';
 
 // RTC pages
 export type { MessagePageAPI } from './rtc-users/messages/page-api';
 export type { SessionPageAPI } from './rtc-users/sessions/page-api';
-export type { RtcUserPageAPI } from './rtc-users/management/page-api';
-
 // System pages
 export type { AuditLogPageAPI } from './system/audit-logs/page-api';
 export type { ServerConfigPageAPI } from './system/configs/page-api';
 export type { PermissionPageAPI } from './system/permissions/page-api';
 export type { RolePageAPI } from './system/roles/page-api';
+export type { AdminPageAPI } from './user/management/page-api';
 
 /**
  * Type-safe accessor for Page APIs

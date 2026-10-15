@@ -1,7 +1,7 @@
 import { Link, useIntl, useSearchParams } from '@umijs/max';
 import { Button, Result } from 'antd';
 import React from 'react';
-import useStyles from './style.style';
+import useStyles from './style';
 
 const RegisterResult: React.FC<Record<string, unknown>> = () => {
   const { styles } = useStyles();

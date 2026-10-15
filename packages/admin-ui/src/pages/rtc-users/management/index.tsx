@@ -13,22 +13,13 @@ import {
   ProFormTextArea,
   ProTable,
 } from '@ant-design/pro-components';
-import {
-  Access,
-  history,
-  useAccess,
-  useIntl,
-} from '@umijs/max';
+import { Access, history, useAccess, useIntl } from '@umijs/max';
 import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
-import React, {
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react';
-import { TableEmptyState } from '@/components';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -229,6 +220,10 @@ const RtcUserManagementPage: React.FC = () => {
   }>();
   const isMobile = useIsMobile(); // < 768px
   const banModalWidth = useResponsiveModalWidth(520);
+  const tableLocale = useProTableLocale(
+    'pages.rtcUsers.noData',
+    'No users found',
+  );
   const canBan = access.canRtcUserBan;
   /**
    * Permission Reuse Design with Audit Trail
@@ -708,14 +703,7 @@ const RtcUserManagementPage: React.FC = () => {
             })}
           </Button>,
         ]}
-        locale={{
-          emptyText: (
-            <TableEmptyState
-              descriptionId="pages.rtcUsers.noData"
-              defaultDescription="No users found"
-            />
-          ),
-        }}
+        locale={tableLocale}
       />
 
       {/* Ban user modal */}

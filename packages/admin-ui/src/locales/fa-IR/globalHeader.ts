@@ -17,4 +17,7 @@ export default {
   'component.noticeIcon.cleared': 'پاک شد',
   'component.noticeIcon.empty': 'بدون اعلان',
   'component.noticeIcon.view-more': 'نمایش بیشتر',
+  'component.avatarDropdown.logout': 'خروج',
+  'component.avatarDropdown.settings': 'تنظیمات شخصی',
+  'component.avatarDropdown.theme': 'تنظیمات تم',
 };

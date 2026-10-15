@@ -15,15 +15,15 @@ import {
 } from '@umijs/max';
 import { Alert, App, Button, Skeleton, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Footer } from '@/components';
-import { CONFIG_CACHE } from '@/utils/queryCacheConfig';
-import { queryKeys } from '@/utils/queryKeys';
-import type { LoginResult } from './service';
-import { getLoginConfig, login, loginWithOTP, sendEmailOTP } from './service';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { CONFIG_CACHE } from '@/utils/queryCacheConfig';
+import { queryKeys } from '@/utils/queryKeys';
 import Settings from '../../../../config/defaultSettings';
+import type { LoginResult } from './service';
+import { getLoginConfig, login, loginWithOTP, sendEmailOTP } from './service';
 
 /**
  * Validate redirect URL to prevent open redirect attacks.
@@ -177,7 +177,7 @@ const Login: React.FC = () => {
     }
   }, [loginConfig, configLoading]);
 
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     try {
       // Call the shared fetchUserInfo from initialState (defined in app.tsx).
       // This function handles token validation, API calls, and fallback logic.
@@ -192,7 +192,7 @@ const Login: React.FC = () => {
         error,
       );
     }
-  };
+  }, [initialState]);
 
   /** 密码登录 */
   const handlePasswordLogin = async (values: {
@@ -620,6 +620,14 @@ const Login: React.FC = () => {
                   style={{
                     float: 'inline-end',
                     padding: 0,
+                  }}
+                  onClick={() => {
+                    message.info(
+                      intl.formatMessage({
+                        id: 'pages.login.forgotPassword.notImplemented',
+                        defaultMessage: 'This feature is coming soon',
+                      }),
+                    );
                   }}
                 >
                   <FormattedMessage

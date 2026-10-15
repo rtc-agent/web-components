@@ -10,7 +10,7 @@
  * - Does not directly manipulate DOM
  */
 
-import type { AuditLogItem } from '@/services/auditLog';
+import type { AuditLogItem } from '@/services/audit-log';
 
 export interface AuditLogPageAPI {
   /**

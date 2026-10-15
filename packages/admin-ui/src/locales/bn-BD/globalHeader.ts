@@ -16,4 +16,7 @@ export default {
   'component.noticeIcon.cleared': 'সাফ করা হয়েছে',
   'component.noticeIcon.empty': 'বিজ্ঞপ্তি নেই',
   'component.noticeIcon.view-more': 'আরো দেখুন',
+  'component.avatarDropdown.logout': 'লগআউট',
+  'component.avatarDropdown.settings': 'ব্যক্তিগত সেটিংস',
+  'component.avatarDropdown.theme': 'থিম সেটিংস',
 };

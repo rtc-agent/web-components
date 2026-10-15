@@ -10,7 +10,7 @@
  * - Does not directly manipulate DOM
  */
 
-import type { ServerConfigItem } from '@/services/serverConfig';
+import type { ServerConfigItem } from '@/services/server-config';
 
 export interface ServerConfigPageAPI {
   /**

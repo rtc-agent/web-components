@@ -16,8 +16,8 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import React, { useMemo } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useSafeRequest } from '@/hooks/useSafeRequest';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import type { DeviceInfo, RtcUserInfo, TopSession } from '../data';
@@ -49,6 +49,14 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
   // Use custom hook for robust theme detection
   const isDark = useThemeMode();
   const isMobile = useIsMobile();
+  const devicesTableLocale = useProTableLocale(
+    'pages.rtcUsers.detail.noDevices',
+    'No devices',
+  );
+  const statsTableLocale = useProTableLocale(
+    'pages.rtcUsers.detail.noStats',
+    'No statistics data',
+  );
 
   // 获取设备列表
   // NOTE: 使用 useSafeRequest 消除类型断言，该 hook 已正确处理 formatResult
@@ -378,14 +386,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                     loading={devicesLoading}
                     pagination={false}
                     scroll={{ x: 1000 }}
-                    locale={{
-                      emptyText: (
-                        <TableEmptyState
-                          descriptionId="pages.rtcUsers.detail.noDevices"
-                          defaultDescription="No devices"
-                        />
-                      ),
-                    }}
+                    locale={devicesTableLocale}
                   />
                 ),
               },
@@ -490,14 +491,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
                         columns={topSessionColumns}
                         rowKey="session_id"
                         pagination={false}
-                        locale={{
-                          emptyText: (
-                            <TableEmptyState
-                              descriptionId="pages.rtcUsers.detail.noStats"
-                              defaultDescription="No statistics data"
-                            />
-                          ),
-                        }}
+                        locale={statsTableLocale}
                       />
                     </Card>
                   </Space>

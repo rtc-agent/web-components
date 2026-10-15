@@ -7,8 +7,8 @@
 
 export type { LoginResult } from '@/services/admin-auth';
 export {
-	getLoginConfig,
-	login,
-	loginWithOTP,
-	sendEmailOTP,
+  getLoginConfig,
+  login,
+  loginWithOTP,
+  sendEmailOTP,
 } from '@/services/admin-auth';

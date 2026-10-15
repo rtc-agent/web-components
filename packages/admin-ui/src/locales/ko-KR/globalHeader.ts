@@ -7,8 +7,7 @@ export default {
   'component.globalHeader.historyVersion': '이전 버전',
   'component.globalHeader.langSwitch': '언어 전환',
   'component.globalHeader.notification': '알림',
-  'component.globalHeader.notification.empty':
-    '모든 알림을 확인했습니다.',
+  'component.globalHeader.notification.empty': '모든 알림을 확인했습니다.',
   'component.globalHeader.message': '메시지',
   'component.globalHeader.message.empty': '모든 메시지를 확인했습니다.',
   'component.globalHeader.event': '이벤트',

@@ -2,7 +2,7 @@ import React from 'react';
 import {
   getServerConfigHistory,
   rollbackServerConfig,
-} from '@/services/serverConfig';
+} from '@/services/server-config';
 import ConfigHistoryTable from './ConfigHistoryTable';
 
 export interface ConfigHistoryModalProps {

@@ -40,9 +40,11 @@ export default {
   'app.settings.security.set': '설정',
   'app.settings.security.bind': '연동',
   'app.settings.binding.taobao': '타오바오 연동',
-  'app.settings.binding.taobao-description': '현재 타오바오 계정이 연동되지 않았습니다',
+  'app.settings.binding.taobao-description':
+    '현재 타오바오 계정이 연동되지 않았습니다',
   'app.settings.binding.alipay': '알리페이 연동',
-  'app.settings.binding.alipay-description': '현재 알리페이 계정이 연동되지 않았습니다',
+  'app.settings.binding.alipay-description':
+    '현재 알리페이 계정이 연동되지 않았습니다',
   'app.settings.binding.dingding': '딩톡 연동',
   'app.settings.binding.dingding-description':
     '현재 딩톡 계정이 연동되지 않았습니다',

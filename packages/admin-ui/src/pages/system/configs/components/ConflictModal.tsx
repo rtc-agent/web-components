@@ -1,8 +1,9 @@
 import { ModalForm } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Alert, Button, Grid, Space } from 'antd';
+import { Alert, Button, Space } from 'antd';
 import React from 'react';
-import type { OptimisticLockConflictData } from '@/services/serverConfig';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import type { OptimisticLockConflictData } from '@/services/server-config';
 
 export interface ConflictModalProps {
   open: boolean;
@@ -27,8 +28,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
   onForceAction,
 }) => {
   const intl = useIntl();
-  const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.sm;
+  const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 480;
 
   if (!conflictData) return null;

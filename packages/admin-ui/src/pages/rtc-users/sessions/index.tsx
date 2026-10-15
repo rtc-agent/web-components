@@ -6,6 +6,7 @@ import React, { useCallback, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import {
   createTableRequest,
@@ -32,6 +33,10 @@ const SessionsPage: React.FC = () => {
   }>();
   const userId = tableParams.getParam('user_id') || '';
   const isMobile = useIsMobile(); // < 768px
+  const tableLocale = useProTableLocale(
+    'pages.sessions.noData',
+    'No conversations found',
+  );
 
   // === Register Page API ===
   usePageAPIRegistration(
@@ -321,14 +326,7 @@ const SessionsPage: React.FC = () => {
               })}
             </Button>,
           ]}
-          locale={{
-            emptyText: (
-              <TableEmptyState
-                descriptionId="pages.sessions.noData"
-                defaultDescription="No conversations found"
-              />
-            ),
-          }}
+          locale={tableLocale}
         />
       )}
     </PageContainer>

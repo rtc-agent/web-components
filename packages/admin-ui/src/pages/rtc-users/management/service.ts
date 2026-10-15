@@ -1,9 +1,12 @@
 import { request } from '@umijs/max';
+import type { ConfigHistoryItem } from '@/services/server-config';
 import type { PaginatedResponse } from '@/services/types';
 import type { UserConfigItem } from '@/services/user-config';
 import {
   deleteUserConfig,
+  getUserConfigHistory,
   getUserConfigs,
+  rollbackUserConfig,
   setUserConfig,
 } from '@/services/user-config';
 import type {
@@ -16,11 +19,26 @@ import type {
 } from './data';
 
 // Re-export types and functions that components need from this service file
-export type { UserConfigItem };
-export { deleteUserConfig, getUserConfigs, setUserConfig };
+export type { ConfigHistoryItem, UserConfigItem };
+export {
+  deleteUserConfig,
+  getUserConfigHistory,
+  getUserConfigs,
+  rollbackUserConfig,
+  setUserConfig,
+};
 
 /**
- * 获取 RTC 用户列表
+ * Get RTC user list with pagination and filtering.
+ *
+ * GET /api/rtc-users
+ *
+ * @param params - Query parameters for filtering and pagination
+ * @param params.status - Filter by user status (optional)
+ * @param params.search - Search keyword for user info (optional)
+ * @param params.page - Page number (optional)
+ * @param params.page_size - Items per page (optional)
+ * @returns Paginated list of RTC users
  */
 export async function getRtcUserList(params?: {
   status?: string;
@@ -35,7 +53,13 @@ export async function getRtcUserList(params?: {
 }
 
 /**
- * 封禁 RTC 用户
+ * Ban an RTC user.
+ *
+ * POST /api/rtc-users/:id/ban
+ *
+ * @param id - User ID to ban
+ * @param data - Ban request containing reason and duration
+ * @returns Ban operation result
  */
 export async function banRtcUser(id: string, data: BanRtcUserRequest) {
   return request<BanRtcUserResponse>(
@@ -48,7 +72,12 @@ export async function banRtcUser(id: string, data: BanRtcUserRequest) {
 }
 
 /**
- * 解封 RTC 用户
+ * Unban an RTC user.
+ *
+ * POST /api/rtc-users/:id/unban
+ *
+ * @param id - User ID to unban
+ * @returns Unban operation result
  */
 export async function unbanRtcUser(id: string) {
   return request<UnbanRtcUserResponse>(
@@ -60,7 +89,12 @@ export async function unbanRtcUser(id: string) {
 }
 
 /**
- * 获取用户设备列表
+ * Get user's device list.
+ *
+ * GET /api/rtc-users/:userId/devices
+ *
+ * @param userId - User ID
+ * @returns List of user's devices
  */
 export async function getUserDevices(userId: string) {
   return request<DeviceListResponse>(
@@ -72,7 +106,13 @@ export async function getUserDevices(userId: string) {
 }
 
 /**
- * 获取用户 Token 统计
+ * Get user's token usage statistics.
+ *
+ * GET /api/rtc-users/sessions/stats
+ *
+ * @param userId - User ID
+ * @param days - Number of days to query (default: 30)
+ * @returns Token usage statistics for the specified period
  */
 export async function getUserTokenStats(userId: string, days: number = 30) {
   return request<TokenStatsResponse>('/api/rtc-users/sessions/stats', {
