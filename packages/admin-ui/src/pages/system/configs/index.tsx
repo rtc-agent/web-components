@@ -103,6 +103,8 @@ const SystemConfigsPage: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState(
     searchParams.get('category') || '',
   );
+  // Extract category from URL for precise dependency tracking
+  const urlCategory = searchParams.get('category') || '';
   const [editingConfig, setEditingConfig] = useState<ServerConfigItem | null>(
     null,
   );
@@ -490,12 +492,11 @@ const SystemConfigsPage: React.FC = () => {
 
   // Listen for URL changes (from Page API), sync active category
   useEffect(() => {
-    const urlCategory = searchParams.get('category') || '';
     if (urlCategory !== activeCategory) {
       setActiveCategory(urlCategory);
       reload();
     }
-  }, [searchParams]);
+  }, [urlCategory]); // Precise dependency: only react to category changes
 
   return (
     <PageContainer>

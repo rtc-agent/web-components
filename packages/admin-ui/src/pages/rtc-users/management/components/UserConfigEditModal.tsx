@@ -77,7 +77,7 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
         <Alert
           type="info"
           showIcon
-          title={item.description}
+          message={item.description}
           style={{ marginBottom: 16 }}
         />
       )}
@@ -95,6 +95,13 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
         })}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
         rules={[
+          {
+            required: true,
+            message: intl.formatMessage({
+              id: 'pages.config.system.changeNoteRequired',
+              defaultMessage: 'Please enter change description',
+            }),
+          },
           {
             whitespace: true,
             message: intl.formatMessage({
