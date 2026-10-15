@@ -11,31 +11,36 @@ import { getLocale } from '../core/i18n.js';
 import type { Message, Session } from '../types/index.js';
 
 /**
+ * Map of translation keys to msg()-wrapped labels.
+ *
+ * Extracted to module level to avoid recreating on every t() call.
+ * The msg() function from @lit/localize handles locale switching automatically.
+ */
+const LABELS: Record<string, () => string> = {
+  'context-compression': () => msg('上下文压缩'),
+  released: () => msg('释放'),
+  tokens: () => msg('tokens'),
+  duration: () => msg('耗时'),
+  result: () => msg('结果'),
+  reasoning: () => msg('推理过程'),
+  'conversation-summary': () => msg('对话摘要'),
+  'created-at': () => msg('创建时间'),
+  'message-count': () => msg('消息数'),
+  'input-tokens': () => msg('输入 Tokens'),
+  'output-tokens': () => msg('输出 Tokens'),
+  'cache-read': () => msg('缓存读取'),
+  'cache-write': () => msg('缓存写入'),
+  'total-cost': () => msg('总花费'),
+};
+
+/**
  * Get translated label using @lit/localize msg() system.
  *
  * All labels are wrapped in msg() for proper internationalization support.
  * The msg() function automatically handles locale switching and translation extraction.
  */
 function t(key: string): string {
-  // Map of keys to msg()-wrapped translations
-  const labels: Record<string, () => string> = {
-    'context-compression': () => msg('上下文压缩'),
-    released: () => msg('释放'),
-    tokens: () => msg('tokens'),
-    duration: () => msg('耗时'),
-    result: () => msg('结果'),
-    reasoning: () => msg('推理过程'),
-    'conversation-summary': () => msg('对话摘要'),
-    'created-at': () => msg('创建时间'),
-    'message-count': () => msg('消息数'),
-    'input-tokens': () => msg('输入 Tokens'),
-    'output-tokens': () => msg('输出 Tokens'),
-    'cache-read': () => msg('缓存读取'),
-    'cache-write': () => msg('缓存写入'),
-    'total-cost': () => msg('总花费'),
-  };
-
-  const labelFn = labels[key];
+  const labelFn = LABELS[key];
   return labelFn ? labelFn() : key;
 }
 

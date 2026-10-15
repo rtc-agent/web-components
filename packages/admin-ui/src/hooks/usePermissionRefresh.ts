@@ -183,9 +183,22 @@ export function usePermissionRefresh() {
    * - No polling: event-driven, instant sync
    * - Avoids loops: 'storage' event only fires for OTHER tabs' changes
    * - Debouncing prevents race conditions when multiple changes occur in quick succession
+   *
+   * Debounce safety:
+   * - 100ms debounce window does NOT lose updates: each storage event clears the
+   *   previous timer and schedules a new refresh. When the timer finally fires,
+   *   refreshPermissions() fetches the LATEST user info from the server, which
+   *   includes all changes that occurred during the debounce window.
+   * - If multiple storage events fire within 100ms, we only refresh once after
+   *   the last event, which is more efficient than refreshing after each event.
+   * - The serialization queue (refreshQueue) ensures that even if multiple
+   *   refreshes are scheduled, they execute sequentially without race conditions.
    */
   useEffect(() => {
     // Debounce timer ID for cross-tab sync
+    // Note: When a new storage event arrives, we clear this timer and start a new one.
+    // This is safe because refreshPermissions() always fetches the latest server state,
+    // so no updates are lost — we just defer the refresh until the batch of changes settles.
     let syncTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const handleStorageChange = (event: StorageEvent) => {
