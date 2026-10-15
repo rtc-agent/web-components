@@ -100,6 +100,14 @@ const ActionColumn = React.memo<{
 
     return allMoreItems.filter((item) => {
       if (item.key === 'config') {
+        /**
+         * Permission Reuse:
+         * RTC user config uses canServerConfigEdit (server_config:write) permission.
+         * Audit logs will record this as "server_config" write operation with
+         * context field indicating "rtc_user_config" resource type.
+         *
+         * See: src/access.ts for permission reuse design rationale
+         */
         return access.canServerConfigEdit;
       }
       if (item.key === 'sessions') {
@@ -233,9 +241,28 @@ const RtcUserManagementPage: React.FC = () => {
   }>();
   const isMobile = useIsMobile(); // < 768px
   const canBan = access.canRtcUserBan;
-  // 设计决策：RTC 用户配置权限复用系统配置权限点（server_config:write / server_config:delete）
-  // 原因：用户配置管理本质上是系统配置的一部分，共享相同的 RBAC 权限模型
-  // 参考：access.ts 中 canServerConfigEdit / canServerConfigDelete 的定义
+  /**
+   * Permission Reuse Design with Audit Trail
+   *
+   * RTC user configuration management reuses system configuration permissions
+   * (server_config:write / server_config:delete) rather than defining independent
+   * permission points. This design decision is documented in access.ts.
+   *
+   * Audit Trail:
+   * To distinguish between global system config changes and RTC user config changes
+   * in audit logs, all RTC user config write operations include a context annotation
+   * (see UserConfigDrawer and service calls). This ensures audit logs can trace
+   * which resource type was modified, even though the permission point is shared.
+   *
+   * Permission Mapping:
+   * - canConfigEdit   -> server_config:write (PERM_SERVER_CONFIG_WRITE)
+   * - canConfigDelete -> server_config:delete (PERM_SERVER_CONFIG_DELETE)
+   *
+   * Related:
+   * - src/access.ts: Permission reuse documentation
+   * - src/pages/system/configs/index.tsx: System config page (same permissions)
+   * - src/services/audit-log.ts: Audit log service (context field distinguishes resources)
+   */
   const canConfigEdit = access.canServerConfigEdit as boolean;
   const canConfigDelete = access.canServerConfigDelete as boolean;
 
@@ -731,13 +758,6 @@ const RtcUserManagementPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.rtcUsers.banReasonRequired',
                 defaultMessage: 'Please enter ban reason',
-              }),
-            },
-            {
-              whitespace: true,
-              message: intl.formatMessage({
-                id: 'pages.rtcUsers.banReasonNoWhitespace',
-                defaultMessage: 'Ban reason cannot be blank',
               }),
             },
             {

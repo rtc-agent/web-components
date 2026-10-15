@@ -22,6 +22,11 @@ import {
   PERM_SERVER_CONFIG_READ,
   PERM_SERVER_CONFIG_WRITE,
 } from '@/constants/permissions';
+import {
+  RTC_USERS_MENU_PERMISSIONS,
+  SYSTEM_MENU_PERMISSIONS,
+  hasAnyPermission,
+} from '@/constants/permission-groups';
 
 // 默认权限对象：所有权限均为 false
 // Object.freeze() 防止意外修改，确保缓存键的稳定性
@@ -249,85 +254,107 @@ export default function access(
     ? !!isAdminRole
     : perms.has(PERM_ADMIN_USER_WRITE);
 
-  const result = {
-    // canAdmin: 优先检查 admin 角色，权限作为 fallback
-    // 设计决策：避免将"管理员用户写权限"等同于"管理员身份"，防止权限提升
-    // 语义：拥有 admin 角色或 admin_user:write 权限的用户可访问 canAdmin 守卫的路由/功能
+  /**
+   * System Management Menu Visibility (Composite Permission)
+   *
+   * Business Rule:
+   * A user can see the System menu if they have the admin role OR possess
+   * at least one system-level read permission. This follows the "least
+   * privilege" principle — users only see the sub-menus they have access to,
+   * but the parent menu remains visible as long as they have at least one
+   * system-level permission.
+   *
+   * Design Rationale:
+   * - The admin role is explicitly included to ensure super-admins without
+   *   fine-grained permissions can still access the system menu
+   * - This is an OR relationship, not AND — any single permission grants visibility
+   * - Write/delete permissions are NOT included because they imply read access
+   *
+   * Permission Group:
+   * Defined in `src/constants/permission-groups.ts` as SYSTEM_MENU_PERMISSIONS
+   * for centralized management and audit purposes.
+   *
+   * Related:
+   * - config/routes.ts: /system route uses this for menu visibility
+   * - src/constants/permission-groups.ts: SYSTEM_MENU_PERMISSIONS definition
+   * - src/pages/system/index.tsx: Permission-based sub-page routing
+   */
+  const canSystemView =
+    isAdminRole || hasAnyPermission(perms, SYSTEM_MENU_PERMISSIONS);
+
+  /**
+   * RTC Users Management Menu Visibility (Composite Permission)
+   *
+   * Business Rule:
+   * A user can see the RTC Users menu if they possess at least one
+   * RTC-related permission (user read, user ban, session read, or message read).
+   *
+   * Design Rationale:
+   * - Solves parent-child route permission mismatch: parent route uses this
+   *   composite permission while child routes use specific permissions
+   * - Without this, a user with only canRtcUserBan (but not canRtcUserView)
+   *   couldn't see the menu, even though they have access to child routes
+   * - This is an OR relationship — any single RTC permission grants visibility
+   *
+   * Permission Group:
+   * Defined in `src/constants/permission-groups.ts` as RTC_USERS_MENU_PERMISSIONS
+   * for centralized management and audit purposes.
+   *
+   * Related:
+   * - config/routes.ts: /rtc-users route uses this for menu visibility
+   * - src/constants/permission-groups.ts: RTC_USERS_MENU_PERMISSIONS definition
+   */
+  const canRtcUsersMenu = hasAnyPermission(
+    perms,
+    RTC_USERS_MENU_PERMISSIONS,
+  );
+
+  const result: AccessResult = {
+    // canAdmin: Priority check on admin role, permissions as fallback
+    // Design: Avoid equating "admin_user:write" with "admin identity" to prevent privilege escalation
+    // Semantics: Users with admin role or admin_user:write permission can access canAdmin-guarded routes/features
     canAdmin,
 
-    // 系统管理菜单可见性
-    // 需求文档 §9.2：admin 角色或拥有任一系统读权限的用户可见
-    // 实现：admin 角色或拥有任一系统读权限的用户可见
-    // 显式包含 isAdminRole，确保即使未配置细粒度权限的超级管理员也能访问系统菜单。
-    canSystemView:
-      isAdminRole ||
-      canAdminUserView ||
-      canAdminRoleView ||
-      canPermissionView ||
-      canAuditLogView ||
-      canServerConfigView,
+    // System management menu visibility
+    canSystemView,
 
-    // 管理员管理
+    // Admin user management
     canAdminUserView,
     canAdminUserEdit,
     canAdminUserDelete,
 
-    // 管理员用户角色管理
+    // Admin user role management
     canAdminUserRoleEdit,
 
-    // 管理员角色管理（设计文档未定义 canAdminRoleDelete，删除操作使用 canAdminRoleEdit）
+    // Admin role management (no canAdminRoleDelete in design doc; delete uses canAdminRoleEdit)
     canAdminRoleView,
     canAdminRoleEdit,
 
-    // 权限管理（设计文档未定义 canPermissionDelete，删除操作使用 canPermissionEdit）
+    // Permission management (no canPermissionDelete in design doc; delete uses canPermissionEdit)
     canPermissionView,
     canPermissionEdit,
 
-    // 审计日志
+    // Audit log
     canAuditLogView,
 
-    // RTC 用户管理菜单可见性（组合权限：任一子权限满足即可见）
-    // 解决父路由使用 canRtcUserView 但子路由使用不同权限导致菜单不可见的问题
-    canRtcUsersMenu:
-      canRtcUserView || canRtcUserBan || canRtcSessionView || canRtcMessageView,
+    // RTC users menu visibility (composite: any RTC permission grants visibility)
+    canRtcUsersMenu,
 
-    // RTC 用户管理
+    // RTC user management
     canRtcUserView,
     canRtcUserBan,
 
-    // RTC 对话与消息管理
+    // RTC session and message management
     canRtcSessionView,
     canRtcMessageView,
 
-    // 系统配置管理
+    // Server configuration management
     canServerConfigView,
     canServerConfigEdit,
     canServerConfigDelete,
 
-    // 仪表盘
+    // Dashboard
     canDashboardView,
-
-    /**
-     * 权限复用设计说明
-     *
-     * RTC 用户配置管理（如 canConfigEdit, canConfigDelete）复用了系统配置权限点
-     * （server_config:write, server_config:delete），而非定义独立的权限点。
-     *
-     * 设计原因：
-     * 1. 业务本质：RTC 用户配置是系统配置的一部分（用户层面的配置），与全局系统配置
-     *    共享相同的 RBAC 权限模型和审批流程
-     * 2. 简化权限模型：避免引入过多细粒度权限点，降低管理员的配置负担
-     * 3. 一致性：系统配置和 RTC 用户配置的变更往往需要相同的审批权限级别
-     *
-     * 使用边界：
-     * - canServerConfigEdit/ Delete 同时控制全局系统配置和 RTC 用户配置
-     * - 如果需要独立的权限控制（如允许编辑系统配置但不能编辑 RTC 用户配置），
-     *   应在此处拆分为独立的权限点
-     *
-     * 参见：
-     * - src/pages/rtc-users/management/index.tsx（权限使用示例）
-     * - src/pages/system/configs/index.tsx（系统配置页面）
-     */
   };
 
   // Freeze the result to prevent external mutation, ensuring cache integrity.

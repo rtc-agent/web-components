@@ -212,9 +212,37 @@ export default [
     path: '/system',
     name: 'system',
     icon: 'setting',
-    // 设计决策：显式设置 access 字段，统一控制整个系统管理模块的访问权限。
-    // 子路由可进一步细化权限（如 canAdminUserView、canAuditLogView），
-    // 但父级 access 作为第一道门槛，确保无权限用户完全不可见该菜单。
+    /**
+     * Permission Hierarchy:
+     *
+     * Parent Route (/system):
+     * - access: 'canSystemView' — composite permission (admin role OR any system read permission)
+     * - Purpose: Controls menu visibility. If false, entire /system menu is hidden.
+     * - Definition: src/access.ts (see canSystemView JSDoc for business rules)
+     *
+     * Child Routes (/system/*):
+     * - Each uses a specific permission (canAdminUserView, canAuditLogView, etc.)
+     * - Purpose: Controls access to individual sub-pages within the system menu
+     * - These are MORE restrictive than the parent — users may see the menu but
+     *   not have access to all sub-pages
+     *
+     * Dependency:
+     * - canSystemView is a SUPERSET of all child permissions
+     * - If any child permission is true, canSystemView MUST be true
+     * - But canSystemView can be true while all child permissions are false
+     *   (e.g., admin role without fine-grained permissions)
+     *
+     * Security Model:
+     * - Parent acts as the "gate" — controls menu visibility
+     * - Children act as "fine-grained filters" — control page access
+     * - This two-tier model prevents unauthorized access while maintaining
+     *   a clean menu structure
+     *
+     * Related:
+     * - src/constants/permission-groups.ts: SYSTEM_MENU_PERMISSIONS definition
+     * - src/access.ts: canSystemView implementation
+     * - src/pages/system/index.tsx: Permission-based sub-page routing
+     */
     access: 'canSystemView',
     routes: [
       // /system 使用动态重定向（component: './system/index'），因为需要根据用户权限
@@ -262,10 +290,26 @@ export default [
       },
     ],
   },
-  // Account pages: intentionally no `access` field.
-  // 设计决策：任何已认证用户都可查看自己的个人资料和设置，无需 RBAC 权限控制。
-  // 安全性由 app.tsx 的 onPageChange() 保证：未登录用户会被重定向到 /user/login。
-  // 这与 /chatbot 路由的设计一致 — 认证即授权，无需额外权限守卫。
+  /**
+   * Account pages: intentionally no `access` field.
+   *
+   * Security Boundary:
+   * Any authenticated user can view their own profile and settings — no RBAC
+   * permission control is needed. Security is enforced at the application level
+   * by `src/app.tsx`'s `onPageChange()`, which redirects unauthenticated users
+   * to `/user/login` before any route renders.
+   *
+   * Why no access field:
+   * - These pages are user-specific (each user sees only their own data)
+   * - No admin-level permissions are required
+   * - Authentication (login) is the only gate — "authenticated = authorized"
+   *
+   * Consistency:
+   * This design aligns with /chatbot — both are user-facing features where
+   * authentication is the sole security boundary.
+   *
+   * See: src/app.tsx onPageChange() for authentication enforcement
+   */
   {
     name: 'account',
     layout: false,
@@ -290,10 +334,25 @@ export default [
       },
     ],
   },
-  // Chatbot: AI assistant accessible to all authenticated users.
-  // 不设置 `access` 字段 — 安全由 app.tsx 的 onPageChange() 统一保证：
-  // onPageChange 在路由切换时检查登录态，未登录用户会被重定向到 /user/login。
-  // 因此 chatbot 仅对已登录用户可见，无需额外的 RBAC 权限守卫。
+  /**
+   * Chatbot: AI assistant accessible to all authenticated users.
+   *
+   * Security Boundary:
+   * No `access` field is set — security is enforced at the application level
+   * by `src/app.tsx`'s `onPageChange()`, which redirects unauthenticated users
+   * to `/user/login` before any route renders.
+   *
+   * Why no access field:
+   * - Chatbot is a user-facing feature available to all authenticated users
+   * - No admin-level permissions are required
+   * - Authentication (login) is the only gate — "authenticated = authorized"
+   *
+   * Consistency:
+   * This design aligns with /account — both are user-facing features where
+   * authentication is the sole security boundary.
+   *
+   * See: src/app.tsx onPageChange() for authentication enforcement
+   */
   {
     path: '/chatbot',
     name: 'chatbot',
