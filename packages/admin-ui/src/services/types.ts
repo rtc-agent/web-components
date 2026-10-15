@@ -45,6 +45,8 @@ export interface ApiResponse<T = unknown> {
   errorMessage?: string;
   /** Error display mode (controls how errors are surfaced to user) */
   showType?: ErrorShowType;
+  /** Optional additional error details (validation errors, conflict info, etc.) */
+  details?: Record<string, unknown>;
 }
 
 /**

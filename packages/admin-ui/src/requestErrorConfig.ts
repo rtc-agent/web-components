@@ -283,7 +283,7 @@ export async function handleAuthError(response: {
   }
 
   // Check retry count to prevent infinite loops
-  const retryCount = config?._responseRetryCount || 0;
+  const retryCount = config?._responseRetryCount ?? 0;
   if (retryCount >= 1) {
     redirectToLogin();
     return Promise.reject(response);
@@ -296,7 +296,7 @@ export async function handleAuthError(response: {
     message.warning(
       getIntl().formatMessage({
         id: 'pages.auth.sessionExpired',
-        defaultMessage: '登录已过期，请重新登录',
+        defaultMessage: 'Session expired, please login again',
       }),
     );
     redirectToLogin();
@@ -312,7 +312,7 @@ export async function handleAuthError(response: {
       message.warning(
         getIntl().formatMessage({
           id: 'pages.auth.sessionExpired',
-          defaultMessage: '登录已过期，请重新登录',
+          defaultMessage: 'Session expired, please login again',
         }),
       );
       redirectToLogin();
@@ -627,39 +627,48 @@ export const errorConfig: RequestConfig = {
   // which implements Promise deduplication to ensure only one refresh request is in-flight at a time.
   requestInterceptors: [
     async (config: RequestOptions) => {
-      // 从 localStorage 获取 JWT token（异步解密）
-      const accessToken = await getAccessTokenDecrypted();
-      if (accessToken) {
-        // Check if token is expired before sending request
-        // If expired, skip adding token and let 401 handler trigger refresh
-        if (isTokenExpired(accessToken)) {
-          // Extract expiration time for debugging
-          const expirationTime = getTokenExpirationTime(accessToken);
-          const expirationDate = expirationTime
-            ? new Date(expirationTime).toISOString()
-            : 'unknown';
-          const currentDate = new Date().toISOString();
+      try {
+        // 从 localStorage 获取 JWT token（异步解密）
+        const accessToken = await getAccessTokenDecrypted();
+        if (accessToken) {
+          // Check if token is expired before sending request
+          // If expired, skip adding token and let 401 handler trigger refresh
+          if (isTokenExpired(accessToken)) {
+            // Extract expiration time for debugging
+            const expirationTime = getTokenExpirationTime(accessToken);
+            const expirationDate = expirationTime
+              ? new Date(expirationTime).toISOString()
+              : 'unknown';
+            const currentDate = new Date().toISOString();
 
-          console.debug(
-            '[Request Interceptor] Token expired, skipping attachment',
-            {
-              url: config.url,
-              tokenExpiration: expirationDate,
-              currentTime: currentDate,
-              timeUntilExpiryMs: expirationTime
-                ? expirationTime - Date.now()
-                : null,
-              bufferMs: 60000, // 60s buffer
-              note: '401 handler will trigger refresh if needed',
-            },
-          );
-          return config;
+            console.debug(
+              '[Request Interceptor] Token expired, skipping attachment',
+              {
+                url: config.url,
+                tokenExpiration: expirationDate,
+                currentTime: currentDate,
+                timeUntilExpiryMs: expirationTime
+                  ? expirationTime - Date.now()
+                  : null,
+                bufferMs: 60000, // 60s buffer
+                note: '401 handler will trigger refresh if needed',
+              },
+            );
+            return config;
+          }
+
+          config.headers = {
+            ...config.headers,
+            Authorization: `Bearer ${accessToken}`,
+          };
         }
-
-        config.headers = {
-          ...config.headers,
-          Authorization: `Bearer ${accessToken}`,
-        };
+      } catch (error) {
+        // Token 解析失败，记录日志但不阻断请求
+        // 让 401 处理器触发 token 刷新流程
+        console.warn(
+          '[Request Interceptor] Failed to get/parse token, proceeding without auth header:',
+          error instanceof Error ? error.message : String(error),
+        );
       }
       return config;
     },
@@ -767,7 +776,7 @@ export const errorConfig: RequestConfig = {
         }
 
         // 检查是否可重试且未达到最大重试次数
-        const retryCount = config._requestRetryCount || 0;
+        const retryCount = config._requestRetryCount ?? 0;
         if (isRetryableError(error) && retryCount < MAX_RETRIES) {
           config._requestRetryCount = retryCount + 1;
 

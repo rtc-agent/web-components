@@ -51,8 +51,11 @@ export async function getUserList(params?: UserListParams) {
 }
 
 /**
- * 创建管理员
+ * Create a new admin user.
  * POST /api/admin-users
+ *
+ * @param body - Admin user creation parameters (email, password, name, role_ids)
+ * @returns Promise<UserInfo> Created admin user information
  */
 export async function createAdminUser(body: CreateAdminUserParams) {
   return request<UserInfo>('/api/admin-users', {
@@ -62,8 +65,12 @@ export async function createAdminUser(body: CreateAdminUserParams) {
 }
 
 /**
- * 更新管理员
+ * Update an existing admin user.
  * PUT /api/admin-users/:id
+ *
+ * @param userId - Admin user ID
+ * @param body - Update parameters (name and/or password)
+ * @returns Promise<UserInfo> Updated admin user information
  */
 export async function updateAdminUser(userId: string, body: UpdateAdminUserParams) {
   return request<UserInfo>(`/api/admin-users/${encodeURIComponent(userId)}`, {
@@ -73,8 +80,11 @@ export async function updateAdminUser(userId: string, body: UpdateAdminUserParam
 }
 
 /**
- * 删除管理员
+ * Delete an admin user.
  * DELETE /api/admin-users/:id
+ *
+ * @param userId - Admin user ID to delete
+ * @returns Promise<void>
  */
 export async function deleteAdminUser(userId: string) {
   return request<void>(`/api/admin-users/${encodeURIComponent(userId)}`, {
@@ -83,9 +93,11 @@ export async function deleteAdminUser(userId: string) {
 }
 
 /**
- * 查询管理员角色
+ * Get roles assigned to an admin user.
  * GET /api/admin-users/:id/roles
- * 返回：{items: UserRoleAssignment[], total: number}
+ *
+ * @param userId - Admin user ID
+ * @returns Promise<PaginatedResponse<UserRoleAssignment>> Paginated list of role assignments
  */
 export async function getUserRoles(userId: string) {
   return request<PaginatedResponse<UserRoleAssignment>>(`/api/admin-users/${encodeURIComponent(userId)}/roles`, {
@@ -94,8 +106,12 @@ export async function getUserRoles(userId: string) {
 }
 
 /**
- * 批量分配管理员角色
+ * Assign roles to an admin user (batch operation).
  * POST /api/admin-users/:id/roles
+ *
+ * @param userId - Admin user ID
+ * @param body - Role assignment parameters (array of role_ids)
+ * @returns Promise<void>
  */
 export async function assignUserRoles(userId: string, body: AssignRolesParams) {
   return request<void>(`/api/admin-users/${encodeURIComponent(userId)}/roles`, {
@@ -105,8 +121,12 @@ export async function assignUserRoles(userId: string, body: AssignRolesParams) {
 }
 
 /**
- * 移除管理员角色
+ * Revoke a specific role from an admin user.
  * DELETE /api/admin-users/:id/roles/:roleId
+ *
+ * @param userId - Admin user ID
+ * @param roleId - Role ID to revoke
+ * @returns Promise<void>
  */
 export async function revokeUserRole(userId: string, roleId: string) {
   return request<void>(`/api/admin-users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`, {
@@ -126,9 +146,11 @@ export interface RoleUserInfo {
 }
 
 /**
- * 查询管理员角色下的管理员
+ * Get admin users assigned to a specific role.
  * GET /api/roles/:id/admin-users
- * 返回：{items: RoleUserInfo[], total: number}
+ *
+ * @param roleId - Role ID
+ * @returns Promise<PaginatedResponse<RoleUserInfo>> Paginated list of admin users with this role
  */
 export async function getRoleUsers(roleId: string) {
   return request<PaginatedResponse<RoleUserInfo>>(`/api/roles/${encodeURIComponent(roleId)}/admin-users`, {

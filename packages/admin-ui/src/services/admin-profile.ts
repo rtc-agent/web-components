@@ -9,8 +9,12 @@ interface ProfileRequestOptions {
 }
 
 /**
- * 更新当前用户个人资料（名称和密码）
+ * Update current admin user profile (name and/or password).
  * PUT /api/admin-users/me
+ *
+ * @param data - Profile update data (name and/or password)
+ * @param options - Request options (optional)
+ * @returns Promise<UserInfo> Updated user information
  */
 export async function updateProfile(
   data: {
