@@ -1,4 +1,4 @@
-import { UserOutlined } from '@ant-design/icons';
+import { MenuOutlined, UserOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
 import { Bubble, Conversations, Sender, Think, XProvider } from '@ant-design/x';
 import type {
@@ -8,7 +8,7 @@ import type {
 import XMarkdown from '@ant-design/x-markdown';
 import { useXChat } from '@ant-design/x-sdk';
 import { useIntl } from '@umijs/max';
-import { Avatar, Card } from 'antd';
+import { Avatar, Button, Card } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -80,7 +80,7 @@ const parser = (message: { content: string; role: string }): ParsedMessage => {
 const STREAMING_ACTIVE = { hasNextChunk: true, enableAnimation: true };
 const STREAMING_IDLE = { hasNextChunk: false, enableAnimation: true };
 
-const roleConfig: BubbleListProps['role'] = {
+const createRoleConfig = (aiAvatarStyle: string): BubbleListProps['role'] => ({
   user: {
     placement: 'end',
     avatar: <Avatar icon={<UserOutlined />} />,
@@ -88,15 +88,7 @@ const roleConfig: BubbleListProps['role'] = {
   ai: {
     placement: 'start',
     avatar: (
-      <Avatar
-        style={{
-          background: 'transparent',
-          fontSize: 22,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <Avatar className={aiAvatarStyle}>
         🤖
       </Avatar>
     ),
@@ -117,13 +109,15 @@ const roleConfig: BubbleListProps['role'] = {
       );
     },
   },
-};
+});
 
 const ChatbotPage: React.FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
   const idCounter = useRef(0);
   const generateId = useCallback(() => `conv-${++idCounter.current}`, []);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const roleConfig = useMemo(() => createRoleConfig(styles.aiAvatar), [styles.aiAvatar]);
 
   const welcomeText = intl.formatMessage({
     id: WELCOME_TEXT_KEY,
@@ -403,7 +397,13 @@ const ChatbotPage: React.FC = () => {
       >
         <XProvider>
           <div className={styles.layout}>
-            <div className={styles.sidebar}>
+            <Button
+              className={styles.mobileMenuButton}
+              icon={<MenuOutlined />}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle sidebar"
+            />
+            <div className={`${styles.sidebar} ${sidebarOpen ? 'open' : ''}`}>
               <Conversations
                 items={conversations}
                 activeKey={activeKey}
@@ -466,7 +466,8 @@ const ChatbotPage: React.FC = () => {
                     items={bubbleItems}
                     role={roleConfig}
                     autoScroll
-                    styles={{ root: { maxWidth: 940 } }}
+                    styles={{ root: { width: '100%' } }}
+                    className={styles.messageContainer}
                   />
                 </div>
               )}
@@ -490,7 +491,7 @@ const ChatbotPage: React.FC = () => {
                     defaultMessage: 'Type a message, press Enter to send...',
                   })}
                   autoSize={{ minRows: 4, maxRows: 8 }}
-                  style={{ maxWidth: 940, width: '100%' }}
+                  className={styles.messageContainer}
                   styles={{ input: { paddingBlock: 0 } }}
                 />
               </div>

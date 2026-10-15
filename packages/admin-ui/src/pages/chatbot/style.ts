@@ -24,7 +24,7 @@ export const useStyles = createStyles(({ css, token }) => ({
       width: 100%;
       position: absolute;
       left: -100%;
-      z-index: 1000;
+      z-index: ${token.zIndexPopupBase};
       transition: left 0.3s ease;
 
       &.open {
@@ -87,5 +87,30 @@ export const useStyles = createStyles(({ css, token }) => ({
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
+  `,
+
+  aiAvatar: css`
+    background: transparent;
+    font-size: ${token.fontSizeHeading3}px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `,
+
+  mobileMenuButton: css`
+    position: absolute;
+    top: ${token.paddingMD}px;
+    left: ${token.paddingMD}px;
+    z-index: ${token.zIndexPopupBase + 1};
+    display: none;
+
+    @media (max-width: 576px) {
+      display: block;
+    }
+  `,
+
+  messageContainer: css`
+    max-width: min(940px, 100%);
+    width: 100%;
   `,
 }));
