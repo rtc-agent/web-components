@@ -227,19 +227,30 @@ export class VirtualFS {
    *
    * @param path Normalized file path
    * @param fn Async function to execute under the lock
+   * @param timeoutMs Optional timeout in milliseconds (default: 30000). Throws if lock not acquired.
    * @returns Result of the fn operation
+   * @throws Error if lock acquisition times out
    */
   private async withFileLock<T>(
     path: string,
     fn: () => Promise<T>,
+    timeoutMs: number = 30000,
   ): Promise<T> {
     const prev = this._writeLocks.get(path) ?? Promise.resolve();
 
-    // Chain the new operation after the previous one settles
-    const next = prev.then(
-      () => fn(),
-      () => fn(),
-    );
+    // Create a promise that rejects after timeout
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`File lock timeout: ${path} locked for >${timeoutMs}ms`)), timeoutMs);
+    });
+
+    // Chain the new operation after the previous one settles, with timeout
+    const next = Promise.race([
+      prev.then(
+        () => fn(),
+        () => fn(),
+      ),
+      timeoutPromise,
+    ]);
 
     // Wrap so we can detect when this specific operation completes
     const settled = next.then(

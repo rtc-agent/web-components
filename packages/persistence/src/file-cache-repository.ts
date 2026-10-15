@@ -197,6 +197,43 @@ export class FileCacheRepository {
    * @param md5 File content MD5 hash
    * @param ext File extension
    */
+  /**
+   * Check if a cache entry is expired and should be cleaned up.
+   *
+   * Handles two TTL scenarios:
+   * 1. Synced files: use standard expiresAt
+   * 2. Pending/failed files: use extended TTL (30 days from creation) to prevent premature cleanup
+   *
+   * @param entry - The cache entry to check
+   * @returns Object indicating if expired and whether deletion is safe
+   */
+  private _isEntryExpired(entry: FileCacheEntry): {
+    expired: boolean;
+    safeToDelete: boolean;
+    extendedExpiry?: Date;
+  } {
+    const now = Date.now();
+    const isExpired = entry.expiresAt < now;
+
+    if (!isExpired) {
+      return { expired: false, safeToDelete: false };
+    }
+
+    // Synced files can be deleted immediately
+    if (entry.syncStatus === 'synced') {
+      return { expired: true, safeToDelete: true };
+    }
+
+    // Pending/failed files use extended TTL to prevent data loss
+    const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
+    if (now > extendedExpiry) {
+      return { expired: true, safeToDelete: true, extendedExpiry: new Date(extendedExpiry) };
+    }
+
+    // Still within extended TTL - preserve the file
+    return { expired: false, safeToDelete: false, extendedExpiry: new Date(extendedExpiry) };
+  }
+
   async get(md5: string, ext: string): Promise<CachedFileInfo | null> {
     this._lifecycleGuard.assertActive(); // P1-A: guard check
     const db = getDatabase();
@@ -206,15 +243,12 @@ export class FileCacheRepository {
       return null;
     }
 
-    // Check expiration (but never evict pending/failed files to prevent data loss)
-    // P3-FIX: pending/failed files use extended TTL (30 days) to prevent premature cleanup
-    const now = Date.now();
-    const isExpired = entry.expiresAt < now;
-    const isPendingOrFailed =
-      entry.syncStatus === 'pending' || entry.syncStatus === 'failed';
+    // Check expiration (but never evict pending/failed files prematurely)
+    const expiryCheck = this._isEntryExpired(entry);
 
-    if (isExpired && entry.syncStatus === 'synced') {
-      log.debug(`cache expired: ${md5}.${ext}`);
+    if (expiryCheck.expired && expiryCheck.safeToDelete) {
+      const statusNote = entry.syncStatus === 'synced' ? '' : ` (pending/failed, exceeded 30-day TTL)`;
+      log.debug(`cache expired${statusNote}: ${md5}.${ext}`);
       // Defer cleanup to idle time to avoid blocking the main thread during cache reads.
       // The entry is already treated as "not found" (returning null), so the delete
       // is purely housekeeping — safe to defer without affecting correctness.
@@ -226,31 +260,12 @@ export class FileCacheRepository {
       return null;
     }
 
-    // P1-FIX: For pending/failed files that exceed standard TTL but not extended TTL,
-    // log a warning instead of deleting. This prevents accidental data loss.
-    if (isExpired && isPendingOrFailed) {
-      const extendedExpiry = entry.createdAt + PENDING_FAILED_TTL_MS;
-      if (now > extendedExpiry) {
-        // Exceeded extended TTL (30 days) - safe to delete
-        log.debug(
-          `cache expired (pending/failed, exceeded 30-day TTL): ${md5}.${ext}`,
-        );
-        // Defer cleanup to idle time (same rationale as synced expiry above)
-        scheduleIdleTask(() => {
-          db.fileCache.delete([md5, ext]).catch((err) => {
-            log.warn(`Failed to clean up expired cache entry ${md5}.${ext}:`, err);
-          });
-        });
-        return null;
-      } else {
-        // P1-FIX: Still within extended TTL - log warning and preserve the file
-        // This prevents premature cleanup of unsynced data
-        log.warn(
-          `[FileCache] Skipping cleanup of unsynced file (${entry.syncStatus}): ${md5}.${ext}. ` +
-          `File will be preserved until extended TTL (30 days) expires on ${new Date(extendedExpiry).toISOString()}.`,
-        );
-        // Fall through to return the cached value
-      }
+    // P1-FIX: For pending/failed files still within extended TTL, log a warning
+    if (entry.syncStatus !== 'synced' && expiryCheck.extendedExpiry) {
+      log.warn(
+        `[FileCache] Skipping cleanup of unsynced file (${entry.syncStatus}): ${md5}.${ext}. ` +
+        `File will be preserved until extended TTL (30 days) expires on ${expiryCheck.extendedExpiry.toISOString()}.`,
+      );
     }
 
     // Update lastAccessedAt
