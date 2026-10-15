@@ -6,6 +6,7 @@ import {
   isValidRtc,
   isValidContentData,
   isValidUpdateDataList,
+  isValidUpdate,
   extractClientId,
   extractStringField,
 } from './type-guards.js';
@@ -543,6 +544,184 @@ describe('type-guards', () => {
     it('should handle empty string', () => {
       const record = { name: '' };
       expect(extractStringField(record, 'name')).toBe('');
+    });
+  });
+
+  // ── isValidUpdate (includes isValidUpdateItemData) ──
+
+  describe('isValidUpdate', () => {
+    it('should return true for valid Update with known entity types', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'session',
+            action: 'created',
+            entity_id: 'session-123',
+          },
+        ],
+        data_list: [
+          {
+            id: 'session-123',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'user-456',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(true);
+    });
+
+    it('should return true for Update with multiple entity types', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          { entity: 'session', action: 'created', entity_id: 'session-1' },
+          { entity: 'turn', action: 'created', entity_id: 'turn-1' },
+          { entity: 'message', action: 'created', entity_id: 'message-1' },
+        ],
+        data_list: [
+          {
+            id: 'session-1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'user-1',
+          },
+          {
+            id: 'turn-1',
+            session_id: 'session-1',
+            status: 'pending',
+          },
+          {
+            id: 'message-1',
+            session_id: 'session-1',
+            global_offset: 0,
+            role: 'user',
+            streaming_status: 'pending',
+            creator_kind: 'user',
+            creator_ref_id: 'user-1',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(true);
+    });
+
+    it('should return false for Update with unknown entity type', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'unknown_entity', // Unknown entity type
+            action: 'created',
+            entity_id: 'entity-123',
+          },
+        ],
+        data_list: [
+          {
+            id: 'entity-123',
+            some_field: 'some_value',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(false);
+    });
+
+    it('should return false for Update with invalid data for known entity', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'session',
+            action: 'created',
+            entity_id: 'session-123',
+          },
+        ],
+        data_list: [
+          {
+            // Missing required fields for Session
+            id: 'session-123',
+            status: 'active',
+            // Missing owner_kind and owner_ref_id
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(false);
+    });
+
+    it('should return true for Update with deleted action and no data', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'session',
+            action: 'deleted',
+            entity_id: 'session-123',
+          },
+        ],
+        data_list: [undefined],
+      };
+      expect(isValidUpdate(update)).toBe(true);
+    });
+
+    it('should return true for Update without data_list', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'session',
+            action: 'created',
+            entity_id: 'session-123',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(true);
+    });
+
+    it('should return false for Update with mismatched data_list length', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          { entity: 'session', action: 'created', entity_id: 'session-1' },
+          { entity: 'turn', action: 'created', entity_id: 'turn-1' },
+        ],
+        data_list: [
+          {
+            id: 'session-1',
+            status: 'active',
+            owner_kind: 'user',
+            owner_ref_id: 'user-1',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(false);
+    });
+
+    it('should return false for missing required fields', () => {
+      expect(isValidUpdate({ offset: 10, items: [] })).toBe(false);
+      expect(isValidUpdate({ id: 'update-1', items: [] })).toBe(false);
+      expect(isValidUpdate({ id: 'update-1', offset: 10 })).toBe(false);
+    });
+
+    it('should return false for invalid items', () => {
+      const update = {
+        id: 'update-1',
+        offset: 10,
+        items: [
+          {
+            entity: 'session',
+            // Missing action
+            entity_id: 'session-123',
+          },
+        ],
+      };
+      expect(isValidUpdate(update)).toBe(false);
     });
   });
 });
