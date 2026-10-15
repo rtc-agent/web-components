@@ -1,4 +1,4 @@
-import type { RoleInfo } from '@/services/types';
+import type { RoleInfo } from '@/services/role';
 
 /** Admin role form values */
 export interface RoleFormValues {

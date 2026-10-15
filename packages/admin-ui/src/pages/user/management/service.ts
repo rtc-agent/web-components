@@ -5,6 +5,8 @@
  * All page components should import from this file rather than @/services/ directly.
  */
 
+export type { UserInfo } from '@/services/admin-auth';
+export type { UserRoleAssignment } from '@/services/user-role';
 export {
   assignUserRoles,
   createAdminUser,
@@ -14,5 +16,3 @@ export {
   revokeUserRole,
   updateAdminUser,
 } from '@/services/user-role';
-export type { UserInfo } from '@/services/types';
-export type { UserRoleAssignment } from '@/services/user-role';

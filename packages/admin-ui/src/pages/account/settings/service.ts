@@ -1,4 +1,5 @@
 import { request } from '@umijs/max';
+import type { ApiResponse } from '@/services/types';
 import type { CurrentUser, GeographicItemType } from './data';
 
 /**
@@ -11,8 +12,8 @@ import type { CurrentUser, GeographicItemType } from './data';
  * @mock src/pages/account/settings/_mock.ts
  * @deprecated TODO: Replace with real backend endpoint (e.g. merge with `/api/currentUser`)
  */
-export async function queryCurrent(): Promise<{ data: CurrentUser }> {
-  return request('/api/accountSettingCurrentUser');
+export async function queryCurrent(): Promise<ApiResponse<CurrentUser>> {
+  return request<ApiResponse<CurrentUser>>('/api/accountSettingCurrentUser');
 }
 
 /**
@@ -26,7 +27,9 @@ export async function queryCurrent(): Promise<{ data: CurrentUser }> {
  * @deprecated TODO: Bundle province data in frontend or implement backend endpoint
  */
 export async function queryProvince(): Promise<GeographicItemType[]> {
-  return request('/api/geographic/province').then(({ data }) => data);
+  return request<ApiResponse<GeographicItemType[]>>(
+    '/api/geographic/province',
+  ).then(({ data }) => data ?? []);
 }
 
 /**
@@ -42,9 +45,9 @@ export async function queryProvince(): Promise<GeographicItemType[]> {
 export async function queryCity(
   province: string,
 ): Promise<GeographicItemType[]> {
-  return request(`/api/geographic/city/${encodeURIComponent(province)}`).then(
-    ({ data }) => data,
-  );
+  return request<ApiResponse<GeographicItemType[]>>(
+    `/api/geographic/city/${encodeURIComponent(province)}`,
+  ).then(({ data }) => data ?? []);
 }
 
 /**
@@ -66,9 +69,12 @@ export async function updateCurrentUser(data: {
   city?: string;
   address?: string;
   phone?: string;
-}): Promise<{ success: boolean }> {
-  return request('/api/accountSettingCurrentUser', {
-    method: 'PUT',
-    data,
-  });
+}): Promise<ApiResponse<{ success: boolean }>> {
+  return request<ApiResponse<{ success: boolean }>>(
+    '/api/accountSettingCurrentUser',
+    {
+      method: 'PUT',
+      data,
+    },
+  );
 }

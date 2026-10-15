@@ -1,4 +1,5 @@
 import { request } from '@umijs/max';
+import type { ApiResponse } from '@/services/types';
 import type { CurrentUser, ListItemDataType } from './data';
 
 /**
@@ -10,8 +11,8 @@ import type { CurrentUser, ListItemDataType } from './data';
  *
  * TODO: Replace with real backend endpoint or merge with `/api/currentUser`.
  */
-export async function queryCurrent(): Promise<{ data: CurrentUser }> {
-  return request('/api/currentUserDetail');
+export async function queryCurrent(): Promise<ApiResponse<CurrentUser>> {
+  return request<ApiResponse<CurrentUser>>('/api/currentUserDetail');
 }
 
 /**
@@ -25,8 +26,11 @@ export async function queryCurrent(): Promise<{ data: CurrentUser }> {
  */
 export async function queryFakeList(params: {
   count: number;
-}): Promise<{ data: { list: ListItemDataType[] } }> {
-  return request('/api/fake_list_Detail', {
-    params,
-  });
+}): Promise<ApiResponse<{ list: ListItemDataType[] }>> {
+  return request<ApiResponse<{ list: ListItemDataType[] }>>(
+    '/api/fake_list_Detail',
+    {
+      params,
+    },
+  );
 }

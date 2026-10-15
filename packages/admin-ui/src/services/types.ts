@@ -43,6 +43,8 @@ export interface ApiResponse<T = unknown> {
   errorCode?: string;
   /** Human-readable error message (present when success is false) */
   errorMessage?: string;
+  /** Error display mode (controls how errors are surfaced to user) */
+  showType?: ErrorShowType;
 }
 
 /**
@@ -77,9 +79,57 @@ export const ApiErrorCodes = {
   INTERNAL_ERROR: 'internal_error',
   /** Request rate limit exceeded */
   RATE_LIMITED: 'rate_limited',
+  /** Optimistic lock conflict (version mismatch) */
+  CONFLICT: 'conflict',
 } as const;
 
 export type ApiErrorCode = (typeof ApiErrorCodes)[keyof typeof ApiErrorCodes];
+
+/**
+ * Single field validation error detail.
+ * Returned when errorCode is VALIDATION_ERROR.
+ */
+export interface ValidationErrorItem {
+  /** The field that failed validation (e.g. "name", "email") */
+  field: string;
+  /** Machine-readable rule identifier (e.g. "required", "pattern", "max") */
+  rule: string;
+  /** Human-readable error message for display */
+  message: string;
+  /** The rejected value, if available */
+  rejected_value?: unknown;
+}
+
+/**
+ * Validation error response shape.
+ * Returned when request data fails server-side validation.
+ */
+export interface ApiValidationError extends ApiErrorResponse {
+  errorCode: typeof ApiErrorCodes.VALIDATION_ERROR;
+  /** Array of per-field validation failures */
+  details: {
+    errors: ValidationErrorItem[];
+  };
+}
+
+/**
+ * Optimistic lock conflict response shape.
+ * Returned when an update is attempted with a stale version.
+ * The caller should re-fetch the latest version and retry or surface
+ * the conflict to the user for explicit resolution.
+ */
+export interface ApiConflictError extends ApiErrorResponse {
+  errorCode: typeof ApiErrorCodes.CONFLICT;
+  /** Additional context about the conflict */
+  details: {
+    /** The key/identifier of the conflicting resource */
+    key: string;
+    /** The version the client submitted (stale) */
+    client_version: number;
+    /** The current version on the server */
+    server_version: number;
+  };
+}
 
 /**
  * Error display modes, aligned with the enum in requestErrorConfig.
@@ -96,65 +146,4 @@ export enum ErrorShowType {
   NOTIFICATION = 3,
   /** Redirect to another page (e.g. login) */
   REDIRECT = 9,
-}
-
-/**
- * Admin role definition.
- * Note: This type mirrors the backend Role entity. If backend schema changes,
- * regenerate types via `pnpm run openapi` or update manually to match.
- * Last synced with backend schema: 2026-10-13
- */
-export interface RoleInfo {
-  /** Unique role identifier */
-  id: string;
-  /** Internal role name (e.g. "admin") */
-  name: string;
-  /** Human-readable display name */
-  display_name: string;
-  /** Role description */
-  description?: string;
-  /** Whether this is a built-in system role (cannot be deleted) */
-  is_system?: boolean;
-  /** Whether the role is currently enabled */
-  is_enabled?: boolean;
-  /** Creation timestamp (ISO 8601) */
-  created_at?: string;
-  /** Last update timestamp (ISO 8601) */
-  updated_at?: string;
-}
-
-/**
- * A single permission entry: which resource can perform which action.
- * Example: { resource: "rtc_user", action: "read" }
- */
-export interface PermissionInfo {
-  /** Resource type being protected (e.g. "rtc_user", "admin_user") */
-  resource: string;
-  /** Allowed action (e.g. "read", "write", "delete", "ban") */
-  action: string;
-}
-
-/** Authenticated admin user information */
-export interface UserInfo {
-  /** Unique user identifier */
-  id: string;
-  /** Admin email address (used for login) */
-  email: string;
-  /** Display name */
-  name: string;
-  /** URL to avatar image */
-  avatar_url?: string;
-  /**
-   * Roles assigned to this admin.
-   * Returned by: GET /api/auth/me, GET /api/auth/login (in user field)
-   * Not returned by: lightweight endpoints that only need basic user info
-   */
-  roles?: RoleInfo[];
-  /**
-   * Aggregated permissions from all assigned roles.
-   * Returned by: GET /api/auth/me (after role resolution)
-   * Note: This is a computed field based on roles, not stored directly.
-   * If roles change, permissions will be recalculated on next auth request.
-   */
-  permissions?: PermissionInfo[];
 }

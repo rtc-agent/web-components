@@ -1,5 +1,5 @@
 import { request } from '@umijs/max';
-import type { UserInfo } from './types';
+import type { UserInfo } from './admin-auth';
 
 /** Request options for profile service functions */
 interface ProfileRequestOptions {

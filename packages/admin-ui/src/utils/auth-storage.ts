@@ -23,7 +23,7 @@
 
 import { clearPermissionCache } from '@/access';
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
-import type { RoleInfo, UserInfo } from '@/services/types';
+import type { RoleInfo, UserInfo } from '@/services/admin-auth';
 import {
   clearEncryptionKey,
   decryptToken,

@@ -1,5 +1,6 @@
 import { request } from '@umijs/max';
-import type { PaginatedRequest, PaginatedResponse, UserInfo } from './types';
+import type { PaginatedRequest, PaginatedResponse } from './types';
+import type { UserInfo } from './admin-auth';
 
 /**
  * 管理员用户与管理员角色关联响应

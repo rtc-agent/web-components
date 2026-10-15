@@ -2,7 +2,11 @@
 import type { RequestConfig } from '@umijs/max';
 import { getIntl, history, request } from '@umijs/max';
 import { PUBLIC_PATHS } from '@/constants/routes';
-import { ApiErrorCodes, ErrorShowType } from '@/services/types';
+import {
+  ApiErrorCodes,
+  type ApiResponse,
+  ErrorShowType,
+} from '@/services/types';
 import {
   clearAuth,
   getAccessTokenDecrypted,
@@ -316,7 +320,7 @@ export async function handleAuthError(response: {
     }
 
     // Retry original request with new token
-    if (config && config.url) {
+    if (config?.url) {
       config.headers = {
         ...config.headers,
         Authorization: `Bearer ${newToken}`,
@@ -325,7 +329,10 @@ export async function handleAuthError(response: {
 
       // Important: must use getResponse: true to get full response object
       // Response interceptor needs to return response object (with .data property)
-      return request(config.url, { ...config, getResponse: true }) as Promise<any>;
+      return request(config.url, {
+        ...config,
+        getResponse: true,
+      }) as Promise<any>;
     }
 
     return null;
@@ -438,15 +445,6 @@ export function isTokenExpired(token: string): boolean {
   return Date.now() >= expirationTime - BUFFER_MS;
 }
 
-// 与后端约定的响应数据格式
-interface ResponseStructure {
-  success: boolean;
-  data: unknown;
-  errorCode?: string;
-  errorMessage?: string;
-  showType?: ErrorShowType;
-}
-
 // 自动重试配置：针对瞬态网络错误和服务端错误
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
@@ -503,9 +501,12 @@ export const errorConfig: RequestConfig = {
     // errorCode/errorMessage/showType in `info` for errorHandler to display.
     errorThrower: (res) => {
       const { success, data, errorCode, errorMessage, showType } =
-        res as unknown as ResponseStructure;
+        res as unknown as ApiResponse;
       if (!success) {
-        const error = new Error(errorMessage) as Error & { name: string; info: unknown };
+        const error = new Error(errorMessage) as Error & {
+          name: string;
+          info: unknown;
+        };
         error.name = 'BizError';
         error.info = { errorCode, errorMessage, showType, data };
         throw error; // 抛出自制的错误
@@ -562,7 +563,7 @@ export const errorConfig: RequestConfig = {
 
       // 我们的 errorThrower 抛出的错误。
       if (error.name === 'BizError') {
-        const errorInfo = error.info as ResponseStructure | undefined;
+        const errorInfo = error.info as ApiResponse | undefined;
         if (errorInfo) {
           showBizError(
             errorInfo.errorCode,

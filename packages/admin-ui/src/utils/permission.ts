@@ -3,7 +3,7 @@
  */
 
 import { PERM_ADMIN_USER_WRITE } from '@/constants/permissions';
-import type { UserInfo } from '@/services/types';
+import type { UserInfo } from '@/services/admin-auth';
 
 /**
  * Build CurrentUser object from UserInfo

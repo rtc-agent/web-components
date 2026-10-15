@@ -126,6 +126,7 @@ describe('BaseView geographic selects', () => {
     vi.clearAllMocks();
 
     vi.mocked(service.queryCurrent).mockResolvedValue({
+      success: true,
       data: {
         address: '西湖区工专路 77 号',
         avatar: '',
@@ -176,6 +177,7 @@ describe('BaseView geographic selects', () => {
 
   it('does not set incomplete geographic initial values', async () => {
     vi.mocked(service.queryCurrent).mockResolvedValue({
+      success: true,
       data: {
         address: '西湖区工专路 77 号',
         avatar: '',

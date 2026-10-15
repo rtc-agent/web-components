@@ -56,9 +56,7 @@ const getOperationTabList = (
           id: 'pages.account.center.articles',
           defaultMessage: 'Article',
         })}{' '}
-        <span style={{ fontSize: 14 }}>
-          ({counts?.articles ?? '—'})
-        </span>
+        <span style={{ fontSize: 14 }}>({counts?.articles ?? '—'})</span>
       </span>
     ),
   },
@@ -70,9 +68,7 @@ const getOperationTabList = (
           id: 'pages.account.center.applications',
           defaultMessage: 'Application',
         })}{' '}
-        <span style={{ fontSize: 14 }}>
-          ({counts?.applications ?? '—'})
-        </span>
+        <span style={{ fontSize: 14 }}>({counts?.applications ?? '—'})</span>
       </span>
     ),
   },
@@ -84,9 +80,7 @@ const getOperationTabList = (
           id: 'pages.account.center.projects',
           defaultMessage: 'Project',
         })}{' '}
-        <span style={{ fontSize: 14 }}>
-          ({counts?.projects ?? '—'})
-        </span>
+        <span style={{ fontSize: 14 }}>({counts?.projects ?? '—'})</span>
       </span>
     ),
   },
@@ -252,7 +246,7 @@ const Center: React.FC = () => {
             const result = await queryCurrent();
             return {
               success: true,
-              data: result.data,
+              data: result.data ?? null,
             };
           } catch (err) {
             console.error(

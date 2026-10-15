@@ -8,9 +8,35 @@
  */
 
 import { request } from '@umijs/max';
-import type { RoleInfo, PermissionInfo, UserInfo } from './types';
+import type { RoleInfo } from './role';
+import type { PermissionInfo } from './permission';
 
-export type { RoleInfo, PermissionInfo, UserInfo };
+/** Authenticated admin user information */
+export interface UserInfo {
+  /** Unique user identifier */
+  id: string;
+  /** Admin email address (used for login) */
+  email: string;
+  /** Display name */
+  name: string;
+  /** URL to avatar image */
+  avatar_url?: string;
+  /**
+   * Roles assigned to this admin.
+   * Returned by: GET /api/auth/me, GET /api/auth/login (in user field)
+   * Not returned by: lightweight endpoints that only need basic user info
+   */
+  roles?: RoleInfo[];
+  /**
+   * Aggregated permissions from all assigned roles.
+   * Returned by: GET /api/auth/me (after role resolution)
+   * Note: This is a computed field based on roles, not stored directly.
+   * If roles change, permissions will be recalculated on next auth request.
+   */
+  permissions?: PermissionInfo[];
+}
+
+export type { RoleInfo, PermissionInfo };
 
 /** Request options for auth service functions */
 interface AuthRequestOptions {
@@ -25,7 +51,12 @@ export interface LoginConfig {
   otp_enabled: boolean;
 }
 
-/** 获取登录配置 */
+/**
+ * 获取登录配置
+ * GET /api/auth/config
+ *
+ * @returns Promise<LoginConfig> 登录配置（密码启用状态、OTP 启用状态）
+ */
 export async function getLoginConfig() {
   return request<LoginConfig>('/api/auth/config', {
     method: 'GET',
@@ -62,6 +93,10 @@ export interface RefreshTokenResult {
 /**
  * 管理员登录
  * POST /api/auth/login
+ *
+ * @param body - 登录凭证（邮箱、密码）
+ * @param options - 请求选项（可选）
+ * @returns Promise<LoginResult> 登录结果（包含 token 和用户信息）
  */
 export async function login(body: LoginParams, options?: AuthRequestOptions) {
   return request<LoginResult>('/api/auth/login', {
@@ -74,6 +109,10 @@ export async function login(body: LoginParams, options?: AuthRequestOptions) {
 /**
  * 刷新 Token
  * POST /api/auth/refresh
+ *
+ * @param body - 刷新请求（包含 refresh_token）
+ * @param options - 请求选项（可选）
+ * @returns Promise<RefreshTokenResult> 新的 token 信息
  */
 export async function refreshToken(body: { refresh_token: string }, options?: AuthRequestOptions) {
   return request<RefreshTokenResult>('/api/auth/refresh', {
@@ -86,6 +125,9 @@ export async function refreshToken(body: { refresh_token: string }, options?: Au
 /**
  * 获取当前管理员信息
  * GET /api/auth/me
+ *
+ * @param options - 请求选项（可选）
+ * @returns Promise<UserInfo> 当前管理员的详细信息（包含角色和权限）
  */
 export async function getCurrentUser(options?: AuthRequestOptions) {
   return request<UserInfo>('/api/auth/me', {
@@ -97,6 +139,10 @@ export async function getCurrentUser(options?: AuthRequestOptions) {
 /**
  * 登出
  * POST /api/auth/logout
+ *
+ * @param body - 登出请求（包含 refresh_token 用于服务端失效）
+ * @param options - 请求选项（可选）
+ * @returns Promise<{ status: string }> 登出状态
  */
 export async function logout(body: { refresh_token: string }, options?: AuthRequestOptions) {
   return request<{ status: string }>('/api/auth/logout', {
@@ -125,6 +171,10 @@ export interface OTPLoginParams {
 /**
  * 发送邮箱验证码
  * POST /api/auth/otp/send
+ *
+ * @param body - 发送请求（包含目标邮箱）
+ * @param options - 请求选项（可选）
+ * @returns Promise<SendOTPResult> 发送结果
  */
 export async function sendEmailOTP(body: SendOTPParams, options?: AuthRequestOptions) {
   return request<SendOTPResult>('/api/auth/otp/send', {
@@ -137,6 +187,10 @@ export async function sendEmailOTP(body: SendOTPParams, options?: AuthRequestOpt
 /**
  * 邮箱验证码登录
  * POST /api/auth/login/otp
+ *
+ * @param body - 登录请求（包含邮箱和验证码）
+ * @param options - 请求选项（可选）
+ * @returns Promise<LoginResult> 登录结果（包含 token 和用户信息）
  */
 export async function loginWithOTP(body: OTPLoginParams, options?: AuthRequestOptions) {
   return request<LoginResult>('/api/auth/login/otp', {
