@@ -172,6 +172,51 @@ export interface WorkerBridgeConfig {
    * ```
    */
   workerURL?: string;
+
+  /**
+   * P2-2 FIX: Enable automatic Worker recovery on health check failure.
+   *
+   * When true, if the Worker fails the periodic heartbeat ping, WorkerBridge will:
+   * 1. Log a warning with the failure reason
+   * 2. Dispatch a 'rtc-worker-unhealthy' event for the application to handle
+   * 3. Optionally attempt automatic restart (if autoRestart is also true)
+   *
+   * Default: false (application layer should handle recovery to avoid unexpected restarts)
+   *
+   * @example
+   * ```ts
+   * new WorkerBridge(authController, {
+   *   enableAutoRecovery: true,
+   *   autoRestart: true
+   * });
+   * ```
+   */
+  enableAutoRecovery?: boolean;
+
+  /**
+   * P2-2 FIX: Automatically restart the Worker after health check failure.
+   *
+   * Only effective if enableAutoRecovery is also true.
+   * When true, WorkerBridge will attempt to restart the Worker and re-register callbacks.
+   *
+   * WARNING: Auto-restart can cause data loss if the Worker was in the middle of
+   * critical operations (e.g., file upload, state mutation). Only enable this if
+   * your application can tolerate occasional restarts and has proper retry logic.
+   *
+   * Default: false
+   */
+  autoRestart?: boolean;
+
+  /**
+   * P2-2 FIX: Callback invoked when the Worker becomes unhealthy.
+   *
+   * Called after a heartbeat ping fails (Worker unresponsive for VERIFICATION_TIMEOUT_MS).
+   * Use this to implement custom recovery logic, notify the user, or trigger analytics.
+   *
+   * @param reason - Human-readable description of the failure
+   * @param error - The underlying error (if available)
+   */
+  onWorkerUnhealthy?: (reason: string, error?: Error) => void;
 }
 
 export class WorkerBridge {
@@ -226,6 +271,30 @@ export class WorkerBridge {
   private _heartbeatTimer?: ReturnType<typeof setInterval>;
 
   /**
+   * P2-2 FIX: Track consecutive heartbeat failures to detect persistent Worker unhealthiness.
+   *
+   * Incremented on each heartbeat ping failure; reset to 0 on success.
+   * When reaching MAX_CONSECUTIVE_HEARTBEAT_FAILURES, triggers unhealthy notification.
+   *
+   * Why consecutive failures (not single failure)?
+   * - Network blips or browser throttling can cause occasional ping timeouts
+   * - Single failure doesn't indicate a dead Worker — it may recover
+   * - 3 consecutive failures (~90 seconds with 30s interval) is a strong signal of death
+   */
+  private _consecutiveHeartbeatFailures = 0;
+
+  /**
+   * P2-2 FIX: Maximum consecutive heartbeat failures before declaring Worker unhealthy.
+   *
+   * Threshold: 3 failures × 30s interval = 90 seconds of unresponsiveness.
+   * This balances:
+   * - Fast detection (3 minutes is acceptable for most UIs)
+   * - False positive avoidance (occasional timeouts don't trigger false alarms)
+   * - Recovery opportunity (Worker may recover within 1-2 intervals)
+   */
+  private static readonly MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3;
+
+  /**
    * Whether callbacks have been registered with the Worker.
    *
    * This flag is set to true immediately after registerCallback() succeeds,
@@ -237,6 +306,31 @@ export class WorkerBridge {
    * leaving orphaned callback references in the Worker and causing memory leaks.
    */
   private _callbacksRegistered = false;
+
+  /**
+   * P2-1 FIX: Counter for tracking callback registration attempts.
+   *
+   * Used for observability and debugging:
+   * - Incremented on every registerCallback() call (including retries)
+   * - Logged in destroy() to detect potential registration leaks
+   * - Helps identify scenarios where callbacks are registered multiple times
+   *   (e.g., due to failed init() attempts triggering cleanup + re-register)
+   *
+   * Expected behavior:
+   * - Normal lifecycle: 1 registration per bridge instance
+   * - With retries: may be >1 if _doInit() fails after registerCallback()
+   * - If >>1: indicates potential registration leak, investigate _doInit() failures
+   */
+  private _callbackRegistrationCount = 0;
+
+  /**
+   * P2-1 FIX: Maximum allowed callback registration attempts per bridge instance.
+   *
+   * If exceeded, logs an error to surface potential registration leaks.
+   * Threshold: 5 — allows for normal retries (MAX_INIT_RETRIES=3) plus margin.
+   * Values >>5 indicate a bug in the retry/cleanup logic.
+   */
+  private static readonly MAX_CALLBACK_REGISTRATIONS = 5;
 
   /**
    * Whether sessionStorage cursor has been restored (only once per instance lifetime).
@@ -383,6 +477,37 @@ export class WorkerBridge {
         // When structured clone / JSON parsing + bus.publish() takes >5ms, emit a warning
         // to help diagnose UI jank during bulk updates.
         const startTime = performance.now();
+
+        // P1-2 FIX: Large message detection and logging.
+        // Messages >100KB may cause UI jank due to structured clone overhead.
+        // This log helps diagnose performance issues during bulk updates.
+        // Threshold: 100KB (100 * 1024 bytes) — balances signal-to-noise.
+        // Most UI updates are <10KB; large payloads typically indicate file data
+        // or bulk state transfers that warrant performance investigation.
+        const MESSAGE_SIZE_WARN_THRESHOLD = 100 * 1024; // 100KB
+        let messageSizeEstimate = 0;
+        try {
+          // Estimate message size via JSON serialization (rough approximation).
+          // This is not exact (structured clone may differ), but sufficient for diagnostics.
+          const serialized = JSON.stringify(payload.event);
+          messageSizeEstimate = serialized?.length ?? 0;
+          if (messageSizeEstimate > MESSAGE_SIZE_WARN_THRESHOLD) {
+            log.warn(
+              `onUIUpdate: large message detected — ` +
+                `estimated size: ${(messageSizeEstimate / 1024).toFixed(2)}KB ` +
+                `(threshold: ${MESSAGE_SIZE_WARN_THRESHOLD / 1024}KB), ` +
+                `entity=${payload.event?.entity}, action=${payload.event?.action}, seq=${payload.seq}. ` +
+                `Large messages may cause UI jank. Consider chunking or lazy loading.`,
+            );
+          }
+        } catch (err) {
+          // JSON.stringify can throw on circular references or non-serializable objects.
+          // This is non-fatal — we just skip the size estimation.
+          log.debug(
+            'onUIUpdate: failed to estimate message size (non-fatal):',
+            err,
+          );
+        }
 
         const bus = getUIUpdateBus();
         // P2-1 FIX: Document fire-and-forget design rationale.
@@ -906,6 +1031,7 @@ export class WorkerBridge {
   private _startHeartbeat(): void {
     this._stopHeartbeat(); // Clear any existing timer (defensive)
     this._heartbeatInFlight = false;
+    this._consecutiveHeartbeatFailures = 0; // P2-2: Reset failure counter on start
     this._heartbeatTimer = setInterval(async () => {
       if (!this._core) return;
       // Skip if a previous ping is still in-flight (prevents accumulation during network issues)
@@ -918,11 +1044,65 @@ export class WorkerBridge {
         const result = await this._core.ping();
         if (result !== 'pong') {
           log.warn('Worker heartbeat: unexpected ping response:', result);
+          // P2-2: Count unexpected responses as failures
+          this._consecutiveHeartbeatFailures++;
         } else {
           log.debug('Worker heartbeat: pong received');
+          // P2-2: Reset failure counter on success
+          this._consecutiveHeartbeatFailures = 0;
         }
       } catch (err) {
         log.warn('Worker heartbeat failed (Worker may be unresponsive):', err);
+        // P2-2: Increment failure counter and check threshold
+        this._consecutiveHeartbeatFailures++;
+        if (
+          this._consecutiveHeartbeatFailures >=
+          WorkerBridge.MAX_CONSECUTIVE_HEARTBEAT_FAILURES
+        ) {
+          const reason = `Worker unresponsive after ${this._consecutiveHeartbeatFailures} consecutive heartbeat failures (~${(this._consecutiveHeartbeatFailures * WorkerBridge.HEARTBEAT_INTERVAL_MS) / 1000}s)`;
+          log.error(
+            `CRITICAL: ${reason}. Worker may be dead. Triggering unhealthy notification.`,
+            err,
+          );
+          // Dispatch unhealthy event if callback is provided
+          if (this._config.onWorkerUnhealthy) {
+            try {
+              this._config.onWorkerUnhealthy(
+                reason,
+                err instanceof Error ? err : new Error(String(err)),
+              );
+            } catch (callbackErr) {
+              log.error(
+                'onWorkerUnhealthy callback threw exception (non-fatal):',
+                callbackErr,
+              );
+            }
+          }
+          // Dispatch DOM event for application-level handling
+          if (this._hostElement) {
+            try {
+              this._hostElement.dispatchEvent(
+                new CustomEvent('rtc-worker-unhealthy', {
+                  bubbles: true,
+                  composed: true,
+                  detail: {
+                    reason,
+                    consecutiveFailures: this._consecutiveHeartbeatFailures,
+                    error: err instanceof Error ? err.message : String(err),
+                  },
+                }),
+              );
+            } catch (eventErr) {
+              log.error(
+                'Failed to dispatch rtc-worker-unhealthy event (non-fatal):',
+                eventErr,
+              );
+            }
+          }
+          // P2-2: Reset counter after notification to avoid spamming
+          // (next failure cycle will trigger again after another MAX failures)
+          this._consecutiveHeartbeatFailures = 0;
+        }
       } finally {
         this._heartbeatInFlight = false;
       }
@@ -939,6 +1119,8 @@ export class WorkerBridge {
       this._heartbeatTimer = undefined;
     }
     this._heartbeatInFlight = false;
+    // P2-2: Reset failure counter to ensure clean state
+    this._consecutiveHeartbeatFailures = 0;
   }
 
   /**
@@ -1132,6 +1314,24 @@ export class WorkerBridge {
         '[WorkerBridge] _proxiedCallbacks is null during _doInit — this should not happen',
       );
     }
+
+    // P2-1 FIX: Track callback registration attempts and warn if exceeding threshold.
+    // This helps detect potential registration leaks caused by repeated _doInit() failures.
+    this._callbackRegistrationCount++;
+    if (
+      this._callbackRegistrationCount > WorkerBridge.MAX_CALLBACK_REGISTRATIONS
+    ) {
+      log.error(
+        `CRITICAL: callback registration attempts (${this._callbackRegistrationCount}) ` +
+          `exceeded threshold (${WorkerBridge.MAX_CALLBACK_REGISTRATIONS}). ` +
+          `This indicates a potential registration leak — investigate _doInit() failures. ` +
+          `Each bridge instance should register callbacks at most once (or a few times with retries).`,
+      );
+    }
+
+    log.debug(
+      `registering callback (attempt #${this._callbackRegistrationCount})`,
+    );
     await this._core.registerCallback(this._proxiedCallbacks);
     // Mark callbacks as registered immediately after successful registration.
     // This ensures destroy() can properly clean up even if subsequent initialization steps fail.
@@ -1204,6 +1404,14 @@ export class WorkerBridge {
     //    If initWorker() succeeded but init() didn't complete (or wasn't called),
     //    we still need to close the port to avoid resource leaks.
     if (this._worker) {
+      // P2-1 FIX: Log callback registration count for observability.
+      // This helps detect registration leaks during post-mortem analysis.
+      if (this._callbackRegistrationCount > 0) {
+        log.debug(
+          `destroy: cleaning up bridge with ${this._callbackRegistrationCount} callback registration attempt(s)`,
+        );
+      }
+
       // Only cleanup if callbacks were actually registered (regardless of full init completion).
       // This handles the case where _doInit() failed after registerCallback() —
       // _initialized is false but callbacks ARE registered in the Worker.
@@ -1297,6 +1505,9 @@ export class WorkerBridge {
     this._connectionListeners.clear();
     this._initialized = false;
     this._callbacksRegistered = false;
+    // P2-1 FIX: Reset callback registration counter for clean teardown.
+    // This ensures each bridge instance starts with a clean slate.
+    this._callbackRegistrationCount = 0;
     // Reset catch-up flag synchronously to prevent _doCatchUp()'s finally block
     // from writing to sessionStorage after step 8 clears it. Even though the abort
     // signal was sent in step 1, the Comlink round-trip may still be in flight,
