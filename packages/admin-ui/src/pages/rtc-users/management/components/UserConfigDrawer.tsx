@@ -73,9 +73,13 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   const isMobile = useIsMobile();
 
   /** 加载用户配置 */
-  // NOTE: umi 内置的 useRequest 默认 formatResult: result => result?.data，
-  // 而 request() 已经通过响应拦截器解包了 { success, data } 结构，
-  // 所以此处需要用恒等函数覆盖，避免二次解包导致 data 为 undefined。
+  // NOTE: 此处使用 umi 内置的 useRequest 而非 @tanstack/react-query，原因如下：
+  // 1. 该组件是 Drawer 内的二级数据加载（非 ProTable），需要与 Drawer 的 open 状态强绑定
+  // 2. useRequest 的 ready + refreshDeps 组合能简洁表达"仅当 open && userId 时加载"的语义
+  // 3. 若迁移到 useQuery，需要额外的 enabled 条件判断和独立的 cache key 管理，收益有限
+  // 4. umi 内置的 useRequest 默认 formatResult: result => result?.data，
+  //    而 request() 已经通过响应拦截器解包了 { success, data } 结构，
+  //    所以此处需要用恒等函数覆盖，避免二次解包导致 data 为 undefined。
   const {
     data: configsData,
     loading,
@@ -416,6 +420,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         title={`${intl.formatMessage({ id: 'pages.config.user.drawerTitle' })}${user.name || user.email || user.id}`}
         open={open}
         onClose={onClose}
+        // NOTE: Drawer 宽度未使用 useResponsiveModalWidth()，因为 Drawer 通常需要比 Modal 更宽
+        // 以容纳表格等复杂内容。此处 900px 是 Drawer 的常用宽度，移动端使用 90% 保证可读性。
         width={isMobile ? '90%' : 900}
         destroyOnHidden
       >

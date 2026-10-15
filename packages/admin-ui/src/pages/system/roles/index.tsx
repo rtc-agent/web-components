@@ -35,10 +35,10 @@ import {
   getRequiredRule,
   getWhitespaceRule,
 } from '@/constants/form-rules';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { queryKeys } from '@/utils/queryKeys';
@@ -81,9 +81,8 @@ const RoleListPage: React.FC = () => {
   );
   /** Permission toggle key (resource:action), prevents race condition on rapid clicks */
   const togglingPermissionRef = useRef<string | null>(null);
-  const isMobile = useIsMobile();
-  const modalWidth = isMobile ? '95vw' : 520;
-  const permissionModalWidth = isMobile ? '95vw' : 800;
+  const modalWidth = useResponsiveModalWidth(520);
+  const permissionModalWidth = useResponsiveModalWidth(800);
   const { refreshPermissions } = usePermissionRefresh();
   /** Debounce timer ref for async role name validation (prevents excessive API calls) */
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

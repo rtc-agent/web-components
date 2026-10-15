@@ -196,6 +196,7 @@ const AuditLogsPage: React.FC = () => {
         dataIndex: 'operator_name',
         valueType: 'text',
         search: false,
+        width: 140,
         render: (_, record) => record.operator_name || record.operator_id,
       },
       {
@@ -221,6 +222,7 @@ const AuditLogsPage: React.FC = () => {
         dataIndex: 'operator_ip',
         valueType: 'text',
         search: false,
+        width: 130,
         hideInTable: isMobile,
       },
       {
@@ -236,6 +238,7 @@ const AuditLogsPage: React.FC = () => {
             { text },
           ]),
         ),
+        width: 160,
         render: (_, record) => {
           const event = EVENT_TYPE_MAP[record.event_type];
           return (
@@ -258,6 +261,7 @@ const AuditLogsPage: React.FC = () => {
             { text },
           ]),
         ),
+        width: 130,
         render: (_, record) => (
           <Tag>
             {RESOURCE_TYPE_MAP[record.resource_type] || record.resource_type}
@@ -272,6 +276,7 @@ const AuditLogsPage: React.FC = () => {
         dataIndex: 'resource_id',
         valueType: 'text',
         ellipsis: true,
+        width: 180,
         hideInTable: isMobile,
         fieldProps: {
           placeholder: intl.formatMessage({
@@ -289,6 +294,7 @@ const AuditLogsPage: React.FC = () => {
         valueType: 'text',
         search: false,
         ellipsis: true,
+        width: 200,
         hideInTable: isMobile,
         render: (_, record) => {
           if (!record.details) return '-';
@@ -321,6 +327,7 @@ const AuditLogsPage: React.FC = () => {
         valueType: 'dateTime',
         search: false,
         sorter: true,
+        width: 180,
       },
       {
         title: intl.formatMessage({

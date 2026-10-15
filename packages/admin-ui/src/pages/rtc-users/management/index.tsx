@@ -29,6 +29,7 @@ import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
@@ -227,6 +228,7 @@ const RtcUserManagementPage: React.FC = () => {
     status: string;
   }>();
   const isMobile = useIsMobile(); // < 768px
+  const banModalWidth = useResponsiveModalWidth(520);
   const canBan = access.canRtcUserBan;
   /**
    * Permission Reuse Design with Audit Trail
@@ -731,7 +733,7 @@ const RtcUserManagementPage: React.FC = () => {
             banModal.close();
           }
         }}
-        width={isMobile ? '95vw' : 520}
+        width={banModalWidth}
         modalProps={{
           destroyOnClose: true,
           onCancel: () => banModal.close(),
@@ -780,6 +782,8 @@ const RtcUserManagementPage: React.FC = () => {
       </ModalForm>
 
       {/* User config drawer */}
+      {/* NOTE: UserConfigDrawer 内部使用 useRequest 而非 ProTable 管理 loading 状态，
+       * 这是有意为之的"例外"。详见 UserConfigDrawer.tsx 中的注释说明。 */}
       <UserConfigDrawer
         open={configModal.state.open}
         onClose={() => configModal.close()}
