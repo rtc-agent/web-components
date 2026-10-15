@@ -33,6 +33,7 @@ import {
   DocLink,
   ErrorBoundary,
   Footer,
+  GlobalLoadingOverlay,
   GlobalRtcAgent,
   LangDropdown,
   OfflineBanner,
@@ -81,7 +82,7 @@ const MessageThemeConfig: React.FC = () => {
 
     return () => {
       // Cleanup on unmount (optional, but good practice)
-      setGlobalFeedbackInstances(null as any);
+      setGlobalFeedbackInstances(null);
     };
   }, [message, notification]);
 
@@ -97,8 +98,14 @@ const loadThemeSettings = (): Partial<LayoutSettings> => {
     if (stored) {
       return JSON.parse(stored) as Partial<LayoutSettings>;
     }
-  } catch (_e) {
-    // Ignore parse errors, use defaults
+  } catch (error) {
+    // Log parse errors in development for easier debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(
+        '[loadThemeSettings] Failed to parse theme settings from localStorage, using defaults',
+        error,
+      );
+    }
   }
 
   // Detect system color scheme preference
@@ -223,21 +230,37 @@ export async function getInitialState(): Promise<InitialState> {
     // so their failure never blocks the authentication flow.
     try {
       setDocumentDirection();
-    } catch (e) {
+    } catch (error) {
       const currentLocale = navigator.language || 'unknown';
-      console.warn(
-        `[getInitialState] setDocumentDirection failed (locale: ${currentLocale}), using default ltr`,
-        e,
-      );
+      const errorMessage = `[getInitialState] setDocumentDirection failed (locale: ${currentLocale}), using default ltr`;
+      console.warn(errorMessage, error);
+      // Dispatch custom event for optional error reporting integration (e.g., Sentry, Datadog)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('rtc:i18n-error', {
+            detail: {
+              type: 'setDocumentDirection',
+              locale: currentLocale,
+              error,
+            },
+          }),
+        );
+      }
     }
     try {
       loadDayjsLocale();
-    } catch (e) {
+    } catch (error) {
       const currentLocale = navigator.language || 'unknown';
-      console.warn(
-        `[getInitialState] loadDayjsLocale failed (locale: ${currentLocale}), using default en`,
-        e,
-      );
+      const errorMessage = `[getInitialState] loadDayjsLocale failed (locale: ${currentLocale}), using default en`;
+      console.warn(errorMessage, error);
+      // Dispatch custom event for optional error reporting integration (e.g., Sentry, Datadog)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('rtc:i18n-error', {
+            detail: { type: 'loadDayjsLocale', locale: currentLocale, error },
+          }),
+        );
+      }
     }
 
     const fetchUserInfo = async (
@@ -312,7 +335,15 @@ export async function getInitialState(): Promise<InitialState> {
           } finally {
             clearTimeout(timeoutId);
             initManager.initTimeoutId = null;
-            // Clear promise after completion to allow future re-initialization
+            // Design note: Clear promise immediately after completion to allow
+            // future re-initialization. This is intentional behavior:
+            // - Fast consecutive calls may trigger duplicate fetches
+            // - This is acceptable because:
+            //   1. Concurrent refresh is prevented by auth-storage.refreshAccessToken (Promise dedup)
+            //   2. Route changes are typically spaced out in practice
+            //   3. The alternative (keeping promise forever) would prevent legitimate re-fetches
+            // If duplicate fetches become problematic, consider implementing a debounce
+            // or time-window based deduplication strategy.
             initManager.initPromise = null;
           }
         })();
@@ -356,7 +387,7 @@ export async function getInitialState(): Promise<InitialState> {
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
       loading: false,
-      degraded: false,
+      degraded: true, // P0 修复：明确标记为降级状态，让 onPageChange 能够正确处理
     };
   }
 }
@@ -558,9 +589,9 @@ export const layout: RunTimeLayoutConfig = ({
     // unAccessible: <div>unAccessible</div>,
     // 增加一个 loading 的状态
     childrenContentRender: (children: React.ReactNode) => {
-      // if (initialState?.loading) return <PageLoading />;
       return (
         <>
+          {initialState?.loading && <GlobalLoadingOverlay />}
           {children}
           <SettingDrawer
             disableUrlParams
@@ -610,8 +641,10 @@ export const request: RequestConfig = {
 };
 
 export function rootContainer(container: React.ReactNode) {
+  // Pass current pathname to ErrorBoundary for route-based reset
+  const { location } = history;
   return (
-    <ErrorBoundary>
+    <ErrorBoundary locationPathname={location.pathname}>
       <App>
         <MessageThemeConfig />
         <OfflineBanner />
