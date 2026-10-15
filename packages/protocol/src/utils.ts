@@ -23,7 +23,13 @@ export function parseJwtPayload(token: string): Record<string, unknown> | null {
     if (parts.length !== 3) return null;
     const payloadSegment = parts[1];
     if (payloadSegment === undefined) return null;
-    return JSON.parse(atob(payloadSegment));
+    const parsed: unknown = JSON.parse(atob(payloadSegment));
+    // JWT payloads must be JSON objects per RFC 7519.
+    // Reject arrays, primitives, and null to honor the return type contract.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
   } catch {
     return null;
   }

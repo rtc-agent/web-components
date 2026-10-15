@@ -20,6 +20,7 @@ import {
   UpdateAction,
   UpdateEntity,
 } from './enums.js';
+import { createLogger } from './logger.js';
 import type {
   ContentData,
   ContentType,
@@ -36,6 +37,8 @@ import type {
   UpdateItem,
   UserMessageContent,
 } from './index.js';
+
+const log = createLogger('TypeGuards');
 
 /**
  * Check whether a value is a non-null object.
@@ -363,11 +366,10 @@ export function isToolCallInputContent(
   c: ContentData,
 ): c is TypedContentData<'toolcall_input'> {
   if (c.type !== 'toolcall_input' || !isNonNullObject(c.data)) return false;
-  const d = c.data as Record<string, unknown>;
   return (
-    typeof d.id === 'string' &&
-    typeof d.tool_name === 'string' &&
-    typeof d.input === 'string'
+    typeof c.data.id === 'string' &&
+    typeof c.data.tool_name === 'string' &&
+    typeof c.data.input === 'string'
   );
 }
 
@@ -381,11 +383,10 @@ export function isToolCallOutputContent(
   c: ContentData,
 ): c is TypedContentData<'toolcall_output'> {
   if (c.type !== 'toolcall_output' || !isNonNullObject(c.data)) return false;
-  const d = c.data as Record<string, unknown>;
   return (
-    typeof d.id === 'string' &&
-    typeof d.tool_name === 'string' &&
-    typeof d.input === 'string'
+    typeof c.data.id === 'string' &&
+    typeof c.data.tool_name === 'string' &&
+    typeof c.data.input === 'string'
   );
 }
 
@@ -399,7 +400,7 @@ export function isValidUserMessageContent(
   data: unknown,
 ): data is UserMessageContent {
   if (!isNonNullObject(data)) return false;
-  if (typeof (data as Record<string, unknown>).text !== 'string') return false;
+  if (typeof data.text !== 'string') return false;
 
   // Optional files: if present, must be an array
   if ('files' in data && data.files !== undefined) {
@@ -435,10 +436,10 @@ export function isErrorContentData(
   return (
     c.type === 'error' &&
     isNonNullObject(c.data) &&
-    typeof (c.data as Record<string, unknown>).category === 'string' &&
-    typeof (c.data as Record<string, unknown>).title === 'string' &&
-    typeof (c.data as Record<string, unknown>).message === 'string' &&
-    typeof (c.data as Record<string, unknown>).retryable === 'boolean'
+    typeof c.data.category === 'string' &&
+    typeof c.data.title === 'string' &&
+    typeof c.data.message === 'string' &&
+    typeof c.data.retryable === 'boolean'
   );
 }
 
@@ -451,8 +452,8 @@ export function isPromptContentData(
   return (
     c.type === 'prompt' &&
     isNonNullObject(c.data) &&
-    typeof (c.data as Record<string, unknown>).name === 'string' &&
-    typeof (c.data as Record<string, unknown>).prompt === 'string'
+    typeof c.data.name === 'string' &&
+    typeof c.data.prompt === 'string'
   );
 }
 
@@ -593,8 +594,9 @@ function isValidUpdateItemData(item: UpdateItem, data: unknown): boolean {
       // Accept any non-null object
       return isNonNullObject(data);
     default:
-      // Unknown entity type - log warning and accept
-      return true;
+      // Unknown entity type - reject to maintain strict validation
+      log.warn(`Unknown update entity type: ${item.entity}`);
+      return false;
   }
 }
 
