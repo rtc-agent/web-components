@@ -12,6 +12,20 @@
  * class. Splitting would scatter the integration logic across files, making it
  * harder to understand the data flow between IndexedDB, S3, and the WebSocket client.
  *
+ * EXPORT ORGANIZATION:
+ * --------------------
+ * This file's exports are organized into clear sections:
+ * 1. Public API: Core types and classes (LifecycleGuard, RtcProcessor, etc.)
+ * 2. Public API: Database & entity repositories
+ * 3. Public API: File operations & cache (virtual FS, upload progress, etc.)
+ * 4. Public API: Debug & history management
+ * 5. Public API: Sync & background tasks
+ * 6. Public API: Script engine & tools
+ * 7. Internal: Utilities for worker package (offset manager, permissions, etc.)
+ *
+ * The "Internal" section contains exports used by the worker package and other
+ * internal consumers. While accessible, they are not part of the primary public API.
+ *
  * ARCHITECTURE NOTE (P2-4):
  * -------------------------
  * This file has grown beyond 2000 lines and handles multiple responsibilities:
@@ -53,6 +67,7 @@ import {
   RTCAgentClient,
   type RTCAgentClientOptions,
   S3Client,
+  type UploadedPart,
 } from '@rtc-agent/client';
 import type {
   CompactSessionRequest,
@@ -119,32 +134,68 @@ const MAX_RETRY_COUNT = 3;
 /** Concurrency level for resumeInterruptedUploads (sliding window) */
 const RESUME_CONCURRENCY = 2;
 
-export * from './database.js';
-export { DebugHistoryManager } from './debug-history-manager.js';
-export * from './debug-history-repository.js';
-export * from './entity-repository.js';
-export * from './file-cache-repository.js';
-export * from './file-op-coordinator.js';
-export { FileSyncTransaction } from './file-sync-transaction.js';
+// =============================================================================
+// Public API: Core Types & Classes
+// =============================================================================
+
 export { LifecycleClosedError, LifecycleGuard } from './lifecycle-guard.js';
-export * from './offset-manager.js';
-export * from './permission.js';
 export { ResourceScope } from './resource-scope.js';
 export {
   type AskUserDialogFn,
   type ConfirmDialogFn,
   RtcProcessor,
 } from './rtc-processor.js';
-export * from './script-engine.js';
-export * from './sync-task-tracker.js';
-export * from './time-utils.js';
-export { createBuiltinTools } from './tools/builtin.js';
-export * from './tools/index.js';
-export { TrackedBackgroundTask } from './tracked-background-task.js';
-export * from './ui-update-bus.js';
+
+// =============================================================================
+// Public API: Database & Entity Repositories
+// =============================================================================
+
+export * from './database.js';
+export * from './entity-repository.js';
+
+// =============================================================================
+// Public API: File Operations & Cache
+// =============================================================================
+
+export * from './file-cache-repository.js';
+export { FileOpCoordinator } from './file-op-coordinator.js';
+export { FileSyncTransaction } from './file-sync-transaction.js';
 export * from './upload-progress-repository.js';
 export * from './virtual-fs.js';
 export * from './virtual-fs-init.js';
+
+// =============================================================================
+// Public API: Debug & History
+// =============================================================================
+
+export { DebugHistoryManager } from './debug-history-manager.js';
+export * from './debug-history-repository.js';
+
+// =============================================================================
+// Public API: Sync & Background Tasks
+// =============================================================================
+
+export * from './sync-task-tracker.js';
+export { TrackedBackgroundTask } from './tracked-background-task.js';
+
+// =============================================================================
+// Public API: Script Engine & Tools
+// =============================================================================
+
+export * from './script-engine.js';
+export { createBuiltinTools } from './tools/builtin.js';
+export * from './tools/index.js';
+
+// =============================================================================
+// Internal (for worker package): Utilities & Infrastructure
+// =============================================================================
+// These exports are used by the worker package and other internal consumers.
+// They are not part of the primary public API but must be accessible.
+
+export * from './offset-manager.js';
+export * from './permission.js';
+export * from './time-utils.js';
+export * from './ui-update-bus.js';
 
 /**
  * Persistence layer configuration.
@@ -558,7 +609,9 @@ export class PersistenceLayer implements IPersistenceLayer {
       // Add to dedup cache
       this._processedEventIds.add(eventId);
       // Evict oldest entries if cache size exceeds threshold
-      if (this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE) {
+      if (
+        this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE
+      ) {
         this._evictOldestEventIds();
       }
     }
@@ -602,7 +655,9 @@ export class PersistenceLayer implements IPersistenceLayer {
     });
 
     // Evict oldest entries if cache size exceeds threshold
-    if (this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE) {
+    if (
+      this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE
+    ) {
       this._evictOldestEventIds();
     }
 
@@ -626,7 +681,9 @@ export class PersistenceLayer implements IPersistenceLayer {
    * This prevents memory leaks while maintaining effective deduplication.
    */
   private _evictOldestEventIds(): void {
-    const evictCount = Math.floor(PersistenceLayer.EVENT_DEDUP_CACHE_SIZE * 0.2);
+    const evictCount = Math.floor(
+      PersistenceLayer.EVENT_DEDUP_CACHE_SIZE * 0.2,
+    );
     const iterator = this._processedEventIds.values();
     for (let i = 0; i < evictCount; i++) {
       const result = iterator.next();
@@ -1053,8 +1110,8 @@ export class PersistenceLayer implements IPersistenceLayer {
         totalParts = existing.totalParts;
 
         // Build completed parts map from server-confirmed data
-        const serverPartMap = new Map(
-          serverParts.map((p) => [p.partNumber, p]),
+        const serverPartMap = new Map<number, UploadedPart>(
+          serverParts.map((p: UploadedPart) => [p.partNumber, p]),
         );
         for (const localPart of existing.completedParts) {
           const serverPart = serverPartMap.get(localPart.partNumber);
@@ -1142,7 +1199,7 @@ export class PersistenceLayer implements IPersistenceLayer {
             uploadId,
             partNum,
             partData,
-            (partLoaded, _partTotal) => {
+            (partLoaded: number, _partTotal: number) => {
               // Accumulate part progress to global progress
               onProgress?.(partBytesUploaded + partLoaded, blob.size);
             },

@@ -27,7 +27,7 @@
  *   persistence -> storage-client <- client
  */
 
-import { S3Client } from '@rtc-agent/client';
+import type { S3Client, UploadedPart } from '@rtc-agent/client';
 import { createLogger } from '@rtc-agent/protocol';
 import type { UploadPartRecord } from './database.js';
 import type { UploadProgressRepository } from './upload-progress-repository.js';
@@ -100,7 +100,9 @@ export async function uploadMultipart(
       totalParts = existing.totalParts;
 
       // Build completed parts map from server-confirmed data
-      const serverPartMap = new Map(serverParts.map((p) => [p.partNumber, p]));
+      const serverPartMap = new Map<number, UploadedPart>(
+        serverParts.map((p: UploadedPart) => [p.partNumber, p]),
+      );
       for (const localPart of existing.completedParts) {
         const serverPart = serverPartMap.get(localPart.partNumber);
         if (serverPart) {
@@ -187,7 +189,7 @@ export async function uploadMultipart(
           uploadId,
           partNum,
           partData,
-          (partLoaded, _partTotal) => {
+          (partLoaded: number, _partTotal: number) => {
             // Accumulate part progress to global progress
             onProgress?.(partBytesUploaded + partLoaded, blob.size);
           },
