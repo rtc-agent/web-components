@@ -908,6 +908,14 @@ export class RTCAgentDatabase extends Dexie {
   }
 
   /**
+   * Check if the database schema has been degraded (version lower than expected).
+   * Can be called at any time to verify schema health.
+   */
+  isSchemaDegraded(): boolean {
+    return this.verno < EXPECTED_SCHEMA_VERSION;
+  }
+
+  /**
    * P1-FIX: Attempt to recover from a degraded migration state.
    *
    * When migration fails, the database may be in a degraded state with

@@ -745,7 +745,7 @@ export class VirtualFS {
     // once during scan and once during result formatting, doubling I/O operations.
     const matchedEntries = new Map<string, FileSystemEntry>();
     const skippedFiles: string[] = []; // P1-FIX: Track files skipped due to size
-    const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
+    const vcsDirs = new Set(['.git', '.svn', '.hg', '.bzr', '.jj', '.sl']);
 
     // P2-1 FIX: Reuse TextEncoder instance to avoid repeated instantiation overhead.
     // TextEncoder creation is relatively cheap but reusing a single instance is more efficient
@@ -771,7 +771,7 @@ export class VirtualFS {
 
       // Exclude VCS directories
       const pathParts = entry.path.split('/');
-      if (pathParts.some((part) => vcsDirs.includes(part))) {
+      if (pathParts.some((part) => vcsDirs.has(part))) {
         return;
       }
 

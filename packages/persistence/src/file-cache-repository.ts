@@ -1316,6 +1316,19 @@ export class FileCacheRepository {
   resetLifecycleGuard(): void {
     this._lifecycleGuard = new LifecycleGuard('FileCacheRepository');
   }
+
+  /**
+   * Terminate all MD5 Worker instances and reset pool state.
+   * Call this during application teardown to prevent memory leaks.
+   */
+  static destroyWorkerPool(): void {
+    for (const worker of FileCacheRepository._md5WorkerPool) {
+      worker.terminate();
+    }
+    FileCacheRepository._md5WorkerPool = [];
+    FileCacheRepository._md5WorkerBusy.clear();
+    FileCacheRepository._pendingMd5Tasks = 0;
+  }
 }
 
 // ========== Singleton ==========
