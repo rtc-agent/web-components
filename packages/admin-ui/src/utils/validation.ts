@@ -197,7 +197,10 @@ export const VALIDATION_RULES = {
     };
     return [
       { required: true, message: 'Phone number is required' },
-      { pattern: patterns[areaCode] || patterns['86'], message: 'Invalid phone format' },
+      {
+        pattern: patterns[areaCode] || patterns['86'],
+        message: 'Invalid phone format',
+      },
     ];
   },
 } as const;

@@ -80,7 +80,12 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
  */
 export function getFriendlyErrorMessage(
   error: BizError | unknown,
-  intl?: { formatMessage: (descriptor: { id: string; defaultMessage?: string }) => string },
+  intl?: {
+    formatMessage: (descriptor: {
+      id: string;
+      defaultMessage?: string;
+    }) => string;
+  },
   defaultMessage = 'Operation failed',
 ): string {
   // Narrow unknown to a shape we can safely probe
@@ -115,6 +120,26 @@ export function getFriendlyErrorMessage(
     }
   }
 
+  // P2-FIX: Detect network errors and provide user-friendly messages.
+  // Network errors often lack structured error codes but have recognizable patterns.
+  const errorMessage = (err.message as string) || '';
+  if (
+    errorMessage.toLowerCase().includes('network') ||
+    errorMessage.toLowerCase().includes('timeout') ||
+    errorMessage.toLowerCase().includes('failed to fetch') ||
+    errorMessage.toLowerCase().includes('load failed') ||
+    (err.name as string)?.toLowerCase() === 'typeerror'
+  ) {
+    if (intl) {
+      return intl.formatMessage({
+        id: 'error.networkError',
+        defaultMessage:
+          'Network error. Please check your connection and try again.',
+      });
+    }
+    return 'Network error. Please check your connection and try again.';
+  }
+
   // 使用错误消息或默认消息
-  return (err.message as string) || defaultMessage;
+  return errorMessage || defaultMessage;
 }

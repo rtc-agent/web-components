@@ -194,6 +194,10 @@ export const iframeCacheManager = new IframeCacheManager();
 
 /**
  * Hook: 使用 iframe 缓存
+ *
+ * Note: This hook wraps the global singleton for convenience.
+ * Returned values are NOT reactive — they are read at call time.
+ * Use `hasVisited()` / `getCachedIframe()` for up-to-date checks.
  */
 export function useIframeCache() {
   return {
@@ -203,6 +207,6 @@ export function useIframeCache() {
     cacheIframe: (key: string, element: HTMLElement) =>
       iframeCacheManager.cacheIframe(key, element),
     getCachedIframe: (key: string) => iframeCacheManager.getCachedIframe(key),
-    visitedKeys: iframeCacheManager.getVisitedKeys(),
+    getVisitedKeys: () => iframeCacheManager.getVisitedKeys(),
   };
 }

@@ -7,4 +7,9 @@
  */
 
 // Re-export utility types from protocol package
-export type { Unpacked, Nullable, DeepPartial, DeepReadonly } from '@rtc-agent/protocol';
+export type {
+  DeepPartial,
+  DeepReadonly,
+  Nullable,
+  Unpacked,
+} from '@rtc-agent/protocol';

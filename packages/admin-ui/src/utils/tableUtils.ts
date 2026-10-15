@@ -1,5 +1,5 @@
-import dayjs from 'dayjs';
 import type { MessageInstance } from 'antd/es/message/interface';
+import dayjs from 'dayjs';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 /**
@@ -74,7 +74,12 @@ export function createTableRequest<T>(
     sort?: Record<string, 'ascend' | 'descend' | null>,
   ) => Promise<T[] | { items: T[]; total: number }>,
   message: MessageInstance,
-  intl: { formatMessage: (descriptor: { id: string; defaultMessage?: string }) => string },
+  intl: {
+    formatMessage: (descriptor: {
+      id: string;
+      defaultMessage?: string;
+    }) => string;
+  },
   errorMessage: { id: string; defaultMessage: string },
 ) {
   return async (

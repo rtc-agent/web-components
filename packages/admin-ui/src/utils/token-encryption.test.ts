@@ -2,13 +2,17 @@
  * Token Encryption Utility Tests
  *
  * 验证 token 加密/解密功能的正确性和安全性。
+ *
+ * P1 修复 (2026-10-14): 更新测试以反映新的错误处理行为：
+ * - encryptToken 和 decryptToken 现在会在失败时抛出错误
+ * - 不再降级到明文存储或返回原值
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  encryptToken,
-  decryptToken,
   clearEncryptionKey,
+  decryptToken,
+  encryptToken,
 } from './token-encryption';
 
 describe('token-encryption', () => {
@@ -83,20 +87,25 @@ describe('token-encryption', () => {
       expect(decrypted).toBe(plaintext);
     });
 
-    it('should return original value if not in encrypted format (no colon)', async () => {
+    it('should return original value if not in encrypted format (no colon) - legacy support', async () => {
       const plaintext = 'plain-token-without-encryption';
       const decrypted = await decryptToken(plaintext);
 
-      // 没有冒号分隔符，视为未加密，直接返回
+      // P1 修复：没有冒号分隔符，视为未加密的旧格式，直接返回（向后兼容）
+      // 这是唯一允许返回原值的情况，用于支持历史数据迁移
       expect(decrypted).toBe(plaintext);
     });
 
-    it('should return original value if encryption format is invalid', async () => {
+    it('should throw error if encryption format is invalid (P1 fix)', async () => {
+      // P1 修复：格式不正确时抛出错误，而非返回原值
+      // 这防止了"解密失败但静默返回损坏数据"的安全隐患
       const invalidEncrypted = 'invalid:format:with:multiple:colons';
-      const decrypted = await decryptToken(invalidEncrypted);
 
-      // 格式不正确，返回原值
-      expect(decrypted).toBe(invalidEncrypted);
+      // 由于 format 检查会在解密前失败，这里会抛出错误
+      // 但注意：split(':') 会得到 ['invalid', 'format', 'with', 'multiple', 'colons']
+      // 代码只取前两个元素，所以实际上会尝试解密
+      // 由于解密会失败（不是有效的 base64），会抛出错误
+      await expect(decryptToken(invalidEncrypted)).rejects.toThrow();
     });
 
     it('should handle decryption with wrong key gracefully', async () => {
@@ -115,12 +124,22 @@ describe('token-encryption', () => {
       expect(decrypted).toBe(plaintext);
     });
 
-    it('should handle empty encrypted string', async () => {
+    it('should throw error for empty encrypted string (P1 fix)', async () => {
+      // P1 修复：空加密字符串（格式不正确）应抛出错误
       const encrypted = ':';
-      const decrypted = await decryptToken(encrypted);
+      await expect(decryptToken(encrypted)).rejects.toThrow();
+    });
 
-      // 格式不正确，返回原值
-      expect(decrypted).toBe(encrypted);
+    it('should throw error for corrupted ciphertext (P1 fix)', async () => {
+      // P1 修复：损坏的密文应抛出错误，而非返回原值
+      const plaintext = 'test-token-12345';
+      const encrypted = await encryptToken(plaintext);
+
+      // 篡改密文部分
+      const parts = encrypted.split(':');
+      const tampered = `${parts[0]}:corrupted-ciphertext-base64`;
+
+      await expect(decryptToken(tampered)).rejects.toThrow();
     });
   });
 
@@ -203,5 +222,9 @@ describe('token-encryption', () => {
       const ciphertext = encrypted.split(':')[1];
       expect(ciphertext).not.toContain(plaintext);
     });
+
+    // NOTE: Testing Web Crypto API unavailability requires browser environment
+    // In Node.js test environment, crypto.subtle is always available
+    // This behavior is documented in token-encryption.ts JSDoc
   });
 });
