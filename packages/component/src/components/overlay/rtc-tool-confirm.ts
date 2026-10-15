@@ -138,10 +138,18 @@ export class RtcToolConfirm extends LitElement {
 
   /**
    * Format tool name for display with nice capitalization.
+   * Handles both hyphenated names (e.g., "file-write") and camelCase (e.g., "fileWrite").
    */
   private _formatToolName(name: string): string {
     if (!name) return 'Tool';
-    // Convert camelCase to spaced words
+    // If name contains hyphens, split and capitalize each word
+    if (name.includes('-')) {
+      return name
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+    // Otherwise, convert camelCase to spaced words
     return name
       .replace(/([A-Z])/g, ' $1')
       .replace(/^./, (s) => s.toUpperCase())

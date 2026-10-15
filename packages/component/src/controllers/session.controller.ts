@@ -191,23 +191,14 @@ export class SessionController extends CachedContextController<
   ): Promise<{ ok: boolean; error?: string }> {
     // P2-5: Pre-check persistence availability before operation
     // This prevents silent failures where persistFn() would fail due to missing persistence.
-    // For delete operations, we allow in-memory-only mode (with warning) for debugging.
-    // For rename operations, persistence is required to maintain consistency.
+    // When persistence is unavailable, we allow in-memory-only mode (with warning) for
+    // offline / pre-connect fallback. This matches the documented behavior of the
+    // `persistence` property.
     if (!this.persistence) {
-      if (operation === 'rename') {
-        log.error(
-          `_executeSessionOperation: rename requires persistence layer, aborting`,
-        );
-        return {
-          ok: false,
-          error: `persistence-unavailable: rename requires persistence`,
-        };
-      } else if (operation === 'delete') {
-        log.warn(
-          'NO persistence layer, doing in-memory only delete',
-        );
-        // Proceed with in-memory delete (existing behavior)
-      }
+      log.warn(
+        `NO persistence layer, doing in-memory only ${operation}`,
+      );
+      // Proceed with in-memory operation
     }
 
     // 1. Persist + sync (fire-and-forget the RPC, but await the local write)

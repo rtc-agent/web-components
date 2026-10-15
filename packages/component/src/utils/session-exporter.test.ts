@@ -298,8 +298,10 @@ describe('session-exporter', () => {
         createdAt: new Date('2026-09-29T14:23:00').getTime(),
         updatedAt: Date.now(),
         status: 'active',
-        totalInputTokens: 1000,
-        totalOutputTokens: 500,
+        tokenUsage: {
+          totalInputTokens: 1000,
+          totalOutputTokens: 500,
+        },
       } as Session;
 
       const messages: Message[] = [
@@ -328,10 +330,12 @@ describe('session-exporter', () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         status: 'active',
-        totalInputTokens: 12458,
-        totalOutputTokens: 3271,
-        totalCachedReadTokens: 8120,
-        totalCostUsd: 0.042,
+        tokenUsage: {
+          totalInputTokens: 12458,
+          totalOutputTokens: 3271,
+          totalCachedReadTokens: 8120,
+          totalCostUsd: 0.042,
+        },
       } as Session;
 
       const html = await generateSessionHTML(session, []);

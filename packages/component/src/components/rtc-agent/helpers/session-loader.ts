@@ -104,20 +104,24 @@ export async function loadSessions(
     rootClientSessionId: s.root_client_session_id,
     status: s.status as SessionStatus | undefined,
     // Token usage fields (auto-populated after backend session.updated push).
-    totalInputTokens: s.total_input_tokens,
-    totalOutputTokens: s.total_output_tokens,
-    totalTokens: s.total_tokens,
-    currentContextTokens: s.current_context_tokens,
-    totalCachedReadTokens: s.total_cached_read_tokens,
-    totalCachedWriteTokens: s.total_cached_write_tokens,
-    totalReasoningTokens: s.total_reasoning_tokens,
-    totalCostUsd: s.total_cost_usd,
-    lastTokenUpdateAt: s.last_token_update_at,
+    tokenUsage: {
+      totalInputTokens: s.total_input_tokens,
+      totalOutputTokens: s.total_output_tokens,
+      totalTokens: s.total_tokens,
+      currentContextTokens: s.current_context_tokens,
+      totalCachedReadTokens: s.total_cached_read_tokens,
+      totalCachedWriteTokens: s.total_cached_write_tokens,
+      totalReasoningTokens: s.total_reasoning_tokens,
+      totalCostUsd: s.total_cost_usd,
+      lastTokenUpdateAt: s.last_token_update_at,
+    },
     // Token estimation fields (real-time computed by backend, pushed via session.updated).
-    compressionThreshold: s.compression_threshold,
-    compressionProgress: s.compression_progress,
-    roundsUntilCompression: s.rounds_until_compression,
-    estimatedNextRoundTokens: s.estimated_next_round_tokens,
+    tokenEstimation: {
+      compressionThreshold: s.compression_threshold,
+      compressionProgress: s.compression_progress,
+      roundsUntilCompression: s.rounds_until_compression,
+      estimatedNextRoundTokens: s.estimated_next_round_tokens,
+    },
   }));
   deps.session.actions.setSessions(uiSessions);
 

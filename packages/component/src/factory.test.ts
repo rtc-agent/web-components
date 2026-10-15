@@ -211,11 +211,11 @@ describe('createRtcAgent', () => {
     expect(typeof agent.destroy).toBe('function');
   });
 
-  it('should remove element from DOM on destroy()', () => {
+  it('should remove element from DOM on destroy()', async () => {
     const agent = createRtcAgent({});
     document.body.appendChild(agent);
     expect(document.body.contains(agent)).toBe(true);
-    agent.destroy();
+    await agent.destroy();
     expect(document.body.contains(agent)).toBe(false);
   });
 
@@ -247,7 +247,7 @@ describe('createRtcAgent', () => {
     expect(agent._pendingAuthProvider!.logout).toBe(authProvider.logout);
   });
 
-  it('should clear pending auth references on destroy()', () => {
+  it('should clear pending auth references on destroy()', async () => {
     const agent = createRtcAgent({
       auth: {
         getToken: () => 'token',
@@ -258,7 +258,7 @@ describe('createRtcAgent', () => {
     });
     expect(agent._pendingAuthProvider).toBeDefined();
 
-    agent.destroy();
+    await agent.destroy();
     expect(agent._pendingAuthProvider).toBeUndefined();
   });
 
@@ -482,7 +482,7 @@ describe('createRtcAgent', () => {
       expect(beforeDestroy).toHaveBeenCalledTimes(1);
     });
 
-    it('should clean up DOM event listeners on destroy', () => {
+    it('should clean up DOM event listeners on destroy', async () => {
       const ready = vi.fn();
       const sessionCreated = vi.fn();
 
@@ -497,7 +497,7 @@ describe('createRtcAgent', () => {
       expect(ready).toHaveBeenCalledTimes(1);
 
       // Destroy the agent
-      agent.destroy();
+      await agent.destroy();
 
       // Clear mock to check no new calls
       ready.mockClear();
@@ -624,7 +624,7 @@ describe('createRtcAgent', () => {
       });
     });
 
-    it('should clean up EventBus listeners on destroy', () => {
+    it('should clean up EventBus listeners on destroy', async () => {
       const toolCallStart = vi.fn();
       const toolCallSuccess = vi.fn();
 
@@ -639,7 +639,7 @@ describe('createRtcAgent', () => {
       expect(toolCallStart).toHaveBeenCalledTimes(1);
 
       // Destroy the agent
-      agent.destroy();
+      await agent.destroy();
 
       // Clear mock to check no new calls
       toolCallStart.mockClear();
@@ -765,7 +765,7 @@ describe('createRtcAgent', () => {
       expect(beforeMessageSend).not.toHaveBeenCalled();
     });
 
-    it('should clean up beforeMessageSend hook on destroy', () => {
+    it('should clean up beforeMessageSend hook on destroy', async () => {
       const beforeMessageSend = vi.fn().mockReturnValue(true);
       const agent = createRtcAgent({
         on: { beforeMessageSend },
@@ -775,7 +775,7 @@ describe('createRtcAgent', () => {
 
       expect(agent._beforeMessageSendHook).toBeDefined();
 
-      agent.destroy();
+      await agent.destroy();
 
       // After destroy, the hook should still exist on the element
       // (destroy doesn't clear it, but the element is removed from DOM)

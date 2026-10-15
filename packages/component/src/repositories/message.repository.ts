@@ -152,7 +152,7 @@ export class MessageRepository {
     const current = this._getState(sessionId);
     this._setState(sessionId, {
       ...current,
-      messages, // Removed redundant spread: callers are expected to pass fresh arrays
+      messages: [...messages], // Defensive copy to protect against external mutations
     });
   }
 

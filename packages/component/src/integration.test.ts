@@ -245,7 +245,7 @@ describe('createRtcAgent integration', () => {
       agent.destroy();
     });
 
-    it('should not trigger events after destroy', () => {
+    it('should not trigger events after destroy', async () => {
       const ready = vi.fn();
       const toolCallStart = vi.fn();
 
@@ -262,7 +262,7 @@ describe('createRtcAgent integration', () => {
       expect(toolCallStart).toHaveBeenCalledTimes(1);
 
       // Destroy
-      agent.destroy();
+      await agent.destroy();
 
       // Clear mocks
       ready.mockClear();
