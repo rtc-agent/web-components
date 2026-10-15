@@ -489,16 +489,23 @@ export class VirtualFS {
     const db = getDatabase();
     const normalizedPaths = files.map((f) => normalizePath(f.path));
 
-    // P1-FIX: Use recursive nested locks to hold all file locks during the transaction.
-    // Each path is locked before proceeding to the next, and all locks are held until
-    // the transaction completes. This prevents concurrent write() operations from
-    // interfering with the batch.
+    // P2-2 ANALYSIS: Recursive lock acquisition is safe for async functions.
+    // Each withFileLock() callback holds its lock until the callback completes.
+    // Recursive calls are made within the callback, so outer locks are held while
+    // inner locks are acquired. At the recursion bottom (index >= paths.length),
+    // all locks are held simultaneously until the transaction completes.
+    //
+    // Stack safety: async functions return Promises, so V8's call stack doesn't
+    // grow with recursion depth. The Promise chain is heap-allocated and won't
+    // cause stack overflow even with 1000+ files.
+    //
+    // Lock ordering: locks are acquired in array order to prevent deadlocks.
     const executeWithAllLocks = async (
       paths: string[],
       index: number,
     ): Promise<void> => {
       if (index >= paths.length) {
-        // All locks acquired, execute the transaction
+        // All locks acquired recursively, execute the transaction
         await db.transaction('rw', db.fileSystemEntries, async () => {
           for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -564,7 +571,8 @@ export class VirtualFS {
         return;
       }
 
-      // Acquire lock for current path, then recursively acquire remaining locks
+      // Acquire lock for current path, then recursively acquire remaining locks.
+      // Lock is held until this callback completes (after recursive call returns).
       const currentPath = paths[index];
       if (currentPath === undefined) return; // Guard: index should be within bounds
       await this.withFileLock(currentPath, () =>
@@ -739,6 +747,11 @@ export class VirtualFS {
     const skippedFiles: string[] = []; // P1-FIX: Track files skipped due to size
     const vcsDirs = ['.git', '.svn', '.hg', '.bzr', '.jj', '.sl'];
 
+    // P2-1 FIX: Reuse TextEncoder instance to avoid repeated instantiation overhead.
+    // TextEncoder creation is relatively cheap but reusing a single instance is more efficient
+    // when processing thousands of files. This reduces garbage collection pressure.
+    const encoder = new TextEncoder();
+
     // Build collection based on path scope
     let collection: Dexie.Collection<FileSystemEntry, unknown>;
     if (normalizedPath === '/') {
@@ -788,7 +801,8 @@ export class VirtualFS {
 
       // P1-FIX: Skip files larger than 10MB to prevent memory overflow
       // Use byte size (not character count) for accurate size check
-      const fileSizeBytes = new TextEncoder().encode(entry.content).byteLength;
+      // P2-1 FIX: Use reused encoder instance instead of creating new one each time
+      const fileSizeBytes = encoder.encode(entry.content).byteLength;
       if (fileSizeBytes > MAX_FILE_SIZE) {
         skippedFiles.push(entry.path);
         log.warn(

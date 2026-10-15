@@ -1008,60 +1008,65 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     // Fire-and-forget: don't await, but detect zombie state when all callbacks fail
     Promise.allSettled(promises).then(() => {
-      // P2-1: Performance monitoring - measure broadcast duration
-      performance.mark('broadcast-end');
-      const broadcastMeasure = performance.measure(
-        'broadcast-ui-update',
-        'broadcast-start',
-        'broadcast-end',
-      );
-
-      // ZOMBIE STATE DETECTION:
-      // If ALL callbacks failed in this round, the system is in a zombie state:
-      // events are broadcast but no tabs receive them. This typically indicates
-      // all connected tabs crashed or disconnected abnormally.
-      //
-      // NOTE: We use the allFailedCount counter (tracked per-callback in the
-      // promise wrappers above) instead of checking Promise.allSettled results,
-      // because the outer promises always resolve by design.
-      //
-      // Recovery strategy: Clear all callbacks and failure counts to allow fresh
-      // registration. The next tab that connects will re-register callbacks,
-      // restoring normal operation. This is the safest recovery path because
-      // attempting to resurrect stale callbacks could cause data corruption.
-      if (callbacks.length > 0 && allFailedCount === callbacks.length) {
-        // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
-        // log.warn would be filtered out in production logs, making this invisible.
-        log.error(
-          `CRITICAL: broadcastUIUpdate: all ${callbacks.length} callbacks rejected, ` +
-          `system entering zombie state. Triggering full cleanup and recovery. ` +
-          `This indicates all connected tabs crashed or disconnected abnormally. ` +
-          `Recovery: callbacks cleared, next registerCallback() will restore normal operation. ` +
-          `Pending operations: ${this._operationControllers.size} file operations will continue ` +
-          `(not aborted — they may still succeed independently). ` +
-          `Diagnostic: Check browser console for tab crashes, OOM kills, or network disconnections.`,
+      // P3-1 FIX: Wrap performance measurement in try-finally to ensure cleanup
+      // always executes, preventing memory leaks from accumulated performance marks
+      try {
+        // P2-1: Performance monitoring - measure broadcast duration
+        performance.mark('broadcast-end');
+        const broadcastMeasure = performance.measure(
+          'broadcast-ui-update',
+          'broadcast-start',
+          'broadcast-end',
         );
-        // Clear all callbacks and failure counts to prevent cascading failures.
-        // Note: We intentionally do NOT abort pending file operations here.
-        // Unlike the previous (broken) implementation, file operations are independent
-        // of the callback broadcast path — they have their own AbortControllers and
-        // will complete or fail based on network conditions, not tab liveness.
-        // Aborting them would waste partially-completed uploads/downloads.
-        this.callbacks.clear();
-        this._callbackFailureCounts.clear();
-      }
 
-      // Log slow broadcasts (>16ms frame budget) for performance debugging
-      if (broadcastMeasure.duration > 16) {
-        log.debug(
-          `broadcastUIUpdate slow: ${broadcastMeasure.duration.toFixed(2)}ms for ${callbacks.length} callbacks`,
-        );
-      }
+        // ZOMBIE STATE DETECTION:
+        // If ALL callbacks failed in this round, the system is in a zombie state:
+        // events are broadcast but no tabs receive them. This typically indicates
+        // all connected tabs crashed or disconnected abnormally.
+        //
+        // NOTE: We use the allFailedCount counter (tracked per-callback in the
+        // promise wrappers above) instead of checking Promise.allSettled results,
+        // because the outer promises always resolve by design.
+        //
+        // Recovery strategy: Clear all callbacks and failure counts to allow fresh
+        // registration. The next tab that connects will re-register callbacks,
+        // restoring normal operation. This is the safest recovery path because
+        // attempting to resurrect stale callbacks could cause data corruption.
+        if (callbacks.length > 0 && allFailedCount === callbacks.length) {
+          // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
+          // log.warn would be filtered out in production logs, making this invisible.
+          log.error(
+            `CRITICAL: broadcastUIUpdate: all ${callbacks.length} callbacks rejected, ` +
+              `system entering zombie state. Triggering full cleanup and recovery. ` +
+              `This indicates all connected tabs crashed or disconnected abnormally. ` +
+              `Recovery: callbacks cleared, next registerCallback() will restore normal operation. ` +
+              `Pending operations: ${this._operationControllers.size} file operations will continue ` +
+              `(not aborted — they may still succeed independently). ` +
+              `Diagnostic: Check browser console for tab crashes, OOM kills, or network disconnections.`,
+          );
+          // Clear all callbacks and failure counts to prevent cascading failures.
+          // Note: We intentionally do NOT abort pending file operations here.
+          // Unlike the previous (broken) implementation, file operations are independent
+          // of the callback broadcast path — they have their own AbortControllers and
+          // will complete or fail based on network conditions, not tab liveness.
+          // Aborting them would waste partially-completed uploads/downloads.
+          this.callbacks.clear();
+          this._callbackFailureCounts.clear();
+        }
 
-      // Clean up performance marks to prevent memory accumulation
-      performance.clearMarks('broadcast-start');
-      performance.clearMarks('broadcast-end');
-      performance.clearMeasures('broadcast-ui-update');
+        // Log slow broadcasts (>16ms frame budget) for performance debugging
+        if (broadcastMeasure.duration > 16) {
+          log.debug(
+            `broadcastUIUpdate slow: ${broadcastMeasure.duration.toFixed(2)}ms for ${callbacks.length} callbacks`,
+          );
+        }
+      } finally {
+        // P3-1 FIX: Ensure performance cleanup always executes, even if above code throws
+        // Clean up performance marks to prevent memory accumulation
+        performance.clearMarks('broadcast-start');
+        performance.clearMarks('broadcast-end');
+        performance.clearMeasures('broadcast-ui-update');
+      }
     });
   }
 
