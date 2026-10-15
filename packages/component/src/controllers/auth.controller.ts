@@ -690,6 +690,33 @@ export class AuthController implements ReactiveController {
    * - getExchangeToken() fails → logout
    * - tokenExchange() fails → retry 1 time (handled by OAuth2Client), still fails → logout
    *
+   * SECURITY CONSIDERATIONS - Retry Strategy:
+   * -----------------------------------------
+   * The retry mechanism (max 5 retries, ~31s total wait) intentionally reuses the same
+   * external JWT across attempts. This is acceptable because:
+   *
+   * 1. HTTPS Protection: All communication occurs over TLS, preventing network interception
+   *    of the JWT in transit.
+   *
+   * 2. Server-Side Deduplication: The backend uses the `subject_token` (external JWT) for
+   *    idempotency deduplication. Multiple exchanges of the same JWT produce the same result
+   *    without creating duplicate sessions or tokens.
+   *
+   * 3. Short Retry Window: The maximum retry duration (~31 seconds) limits the exposure
+   *    window. Even if an attacker intercepts the JWT (which requires breaking TLS), they
+   *    can only replay it within this narrow window.
+   *
+   * 4. JWT Expiration: External JWTs typically have short lifetimes (minutes). By the time
+   *    retries complete, the JWT may have expired, limiting replay value.
+   *
+   * 5. Refresh Path: This retry logic applies to both initial token exchange and refresh.
+   *    In the refresh path, a failed exchange triggers logout, preventing indefinite retries.
+   *
+   * Mitigation for High-Security Deployments:
+   * - Implement JWT binding (e.g., cnf claim for DPoP)
+   * - Use shorter-lived external JWTs (< 1 minute)
+   * - Add server-side rate limiting per subject_token
+   *
    * @returns true if exchange succeeded, false otherwise
    */
   private _performTokenExchange(): Promise<boolean> {
@@ -1211,20 +1238,22 @@ export class AuthController implements ReactiveController {
    * tokens after first use).
    */
   private async _executeRefreshWithGuard(): Promise<TokenExpiredAction> {
-    // Timeout protection: prevent indefinite hanging during token refresh
-    const REFRESH_TIMEOUT_MS = AUTH_CONFIG.tokenRefreshTimeoutMs;
+    const success = await this._withTimeout(
+      this._doRefreshWithCoordination(),
+      AUTH_CONFIG.tokenRefreshTimeoutMs,
+      'Token refresh timeout',
+    );
+    return success ? 'refresh' : 'relogin';
+  }
 
+  /**
+   * Coordinate refresh across tabs and handle deferred refresh.
+   * Extracted to separate method for clarity.
+   */
+  private async _doRefreshWithCoordination(): Promise<boolean> {
+    // If a refresh is already in-flight, wait for it
     if (this._refreshing) {
-      const success = await Promise.race([
-        this._refreshing,
-        new Promise<boolean>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Token refresh timeout')),
-            REFRESH_TIMEOUT_MS,
-          ),
-        ),
-      ]);
-      return success ? 'refresh' : 'relogin';
+      return this._refreshing;
     }
 
     // Check if another tab is already refreshing (cross-tab coordination).
@@ -1233,30 +1262,25 @@ export class AuthController implements ReactiveController {
     // a redundant refresh.
     if (this._deferredRefresh) {
       log.debug('Waiting for another tab to complete refresh');
-      const success = await Promise.race([
+      const success = await this._withTimeout(
         this._deferredRefresh,
-        new Promise<boolean>((resolve) =>
-          setTimeout(() => {
-            log.debug(
-              'Other tab refresh wait timed out, proceeding independently',
-            );
-            resolve(false);
-          }, AUTH_CONFIG.crossTabRefreshTimeoutMs),
-        ),
-      ]);
+        AUTH_CONFIG.crossTabRefreshTimeoutMs,
+        'Other tab refresh wait timed out, proceeding independently',
+      );
       this._deferredRefresh = undefined;
       this._deferredResolve = undefined;
       // If the other tab succeeded, state was already updated by the broadcast handler.
       // If it failed or timed out, fall through to start our own refresh.
       if (success) {
-        return 'refresh';
+        return true;
       }
       // Other tab failed or timed out — proceed with our own refresh below.
       log.debug('Other tab failed, proceeding with own refresh');
     }
 
     // Record when this tab started refreshing (for leader election)
-    this._refreshStartTime = Date.now();
+    // Add random jitter (0-100ms) to reduce cross-tab tie probability
+    this._refreshStartTime = Date.now() + Math.random() * 100;
 
     // Broadcast to other tabs that this tab is refreshing
     this._broadcast({
@@ -1266,19 +1290,39 @@ export class AuthController implements ReactiveController {
 
     this._refreshing = this._doRefreshWithBroadcast();
     try {
-      const success = await Promise.race([
-        this._refreshing,
-        new Promise<boolean>((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Token refresh timeout')),
-            REFRESH_TIMEOUT_MS,
-          ),
-        ),
-      ]);
-      return success ? 'refresh' : 'relogin';
+      return await this._refreshing;
     } finally {
       this._refreshing = undefined;
       this._refreshStartTime = undefined;
+    }
+  }
+
+  /**
+   * Wrap a promise with a timeout to prevent indefinite hanging.
+   *
+   * @param promise The promise to wrap
+   * @param timeoutMs Timeout in milliseconds
+   * @param errorMsg Error message to log on timeout (does not throw)
+   * @returns The promise result, or false on timeout
+   */
+  private async _withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMsg: string,
+  ): Promise<T | false> {
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error(errorMsg)), timeoutMs),
+        ),
+      ]);
+    } catch (err) {
+      if (err instanceof Error && err.message === errorMsg) {
+        log.warn(errorMsg);
+        return false;
+      }
+      throw err;
     }
   }
 

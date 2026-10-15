@@ -193,6 +193,25 @@ export class WorkerBridge {
   /** Host element reference for dispatching events (avoids document.querySelector in multi-instance scenarios) */
   private _hostElement: HTMLElement | null = null;
 
+  /**
+   * In-flight token request promise for deduplication.
+   *
+   * **Race condition scenario:**
+   * Worker may request tokens concurrently from multiple callbacks (e.g., reconnection + heartbeat).
+   * Without deduplication, each request would trigger a separate call to AuthController.getAccessTokenAsync(),
+   * causing redundant network requests and potential token refresh races.
+   *
+   * **Deduplication mechanism:**
+   * The first caller creates this promise and caches it. Subsequent callers await the same promise.
+   * After completion (success or failure), the promise is cleared to allow retry.
+   *
+   * **Why this is safe:**
+   * - JavaScript is single-threaded: check-and-assign is atomic
+   * - Promise is cleared in `finally`, ensuring cleanup even on exceptions
+   * - Multiple callers can await the same promise and receive the same result
+   */
+  private _tokenRequestPromise: Promise<string> | null = null;
+
   /** Connection state listeners (main-thread side). */
   private _connectionListeners = new Set<
     (event: ConnectionStateEvent) => void
@@ -433,7 +452,16 @@ export class WorkerBridge {
       // TIMEOUT PROTECTION: 5-second timeout prevents infinite blocking if AuthController hangs.
       // Without this, a stuck getAccessTokenAsync() would block the Worker's token request
       // indefinitely, preventing reconnection and causing silent failures.
+      //
+      // DEDUPLICATION: Uses _tokenRequestPromise to prevent concurrent requests.
+      // If multiple callbacks request tokens simultaneously, they all await the same promise.
       requestToken: async (): Promise<string> => {
+        // Deduplication: if a request is already in-flight, await it instead of starting a new one
+        if (this._tokenRequestPromise) {
+          log.debug('token request already in-flight, awaiting existing promise');
+          return this._tokenRequestPromise;
+        }
+
         const TIMEOUT_MS = 5000;
         let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
@@ -445,23 +473,30 @@ export class WorkerBridge {
             );
           }, TIMEOUT_MS);
         });
-        try {
-          const token = await Promise.race([
-            this._auth.getAccessTokenAsync(),
-            timeoutPromise,
-          ]);
-          if (!token) {
-            throw new Error('[WorkerBridge] no access token available');
+
+        this._tokenRequestPromise = (async () => {
+          try {
+            const token = await Promise.race([
+              this._auth.getAccessTokenAsync(),
+              timeoutPromise,
+            ]);
+            if (!token) {
+              throw new Error('[WorkerBridge] no access token available');
+            }
+            return token;
+          } finally {
+            // CRITICAL: Clear timeout to prevent unhandled rejection when getAccessTokenAsync()
+            // resolves first. Without this, the timer fires after 5s and rejects an already-settled
+            // Promise, causing an unhandled promise rejection warning.
+            if (timeoutId !== undefined) {
+              clearTimeout(timeoutId);
+            }
+            // Clear the promise after completion (success or failure) to allow retry
+            this._tokenRequestPromise = null;
           }
-          return token;
-        } finally {
-          // CRITICAL: Clear timeout to prevent unhandled rejection when getAccessTokenAsync()
-          // resolves first. Without this, the timer fires after 5s and rejects an already-settled
-          // Promise, causing an unhandled promise rejection warning.
-          if (timeoutId !== undefined) {
-            clearTimeout(timeoutId);
-          }
-        }
+        })();
+
+        return this._tokenRequestPromise;
       },
       // Worker requests token refresh -> AuthController.handleTokenExpired().
       // Returns 'refresh' if refreshed, 'relogin' if re-login is required.

@@ -309,173 +309,180 @@ export class RTCAgentClient implements IRTCAgentClient {
     this.shouldReconnect = true;
     this.setConnectionState('connecting');
 
-    // P1-FIX: Register network status listeners to trigger reconnection on recovery.
-    // When the browser goes offline, WebSocket connections are suspended. Upon coming
-    // back online, we proactively reconnect instead of waiting for Centrifuge's timeout.
-    //
-    // SECURITY: Only trigger reconnection if we were previously connected (wasConnected=true).
-    // This prevents attempting to reconnect on initial page load before any connection was established,
-    // which could cause unnecessary network traffic and race conditions with the initial connect() call.
-    this._onOnlineHandler = () => {
-      log.info('Network online event received, triggering reconnection');
-      if (
-        this.connectionState === 'disconnected' &&
-        this.shouldReconnect &&
-        this.wasConnected
-      ) {
-        // Clear any pending reconnect timer to reconnect immediately
-        if (this._reconnectTimer) {
-          clearTimeout(this._reconnectTimer);
-          this._reconnectTimer = undefined;
-        }
-        this.connect().catch((err) => {
-          log.error('Reconnection after online event failed:', err);
-        });
-      }
-    };
-    this._onOfflineHandler = () => {
-      log.warn('Network offline event received, connection suspended');
-      // Centrifuge will detect the connection drop; we just log for observability
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', this._onOnlineHandler);
-      window.addEventListener('offline', this._onOfflineHandler);
-    }
-
-    this.centrifuge = new Centrifuge(this.options.endpoint, {
-      // Weak network tolerance: increase timeout from default 5s to 15s.
-      // This timeout applies to all RPC calls (including history()),
-      // transport connections, and ready() calls.
-      timeout: 30000,
-      getToken: async () => {
-        return this._getToken();
-      },
-    });
-
-    this.centrifuge.on('connecting', (ctx) => {
-      // If we should not reconnect (e.g. token expired, relogin required), block the connection.
-      if (!this.shouldReconnect) {
-        this.centrifuge?.disconnect();
-        return;
-      }
-      // Distinguish first connect from reconnect (Issue 2).
-      const state = this.wasConnected ? 'reconnecting' : 'connecting';
-      this.setConnectionState(state, ctx?.reason);
-    });
-    this.centrifuge.on('connected', () => {
-      log.debug('centrifuge connected, setting state to connected');
-      this.wasConnected = true;
-      // Reset exponential backoff on successful connection
-      this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
-      // P2-6: Initialize heartbeat timestamp and start monitoring
-      this._lastMessageTime = Date.now();
-      this._startHeartbeatMonitoring();
-      this.setConnectionState('connected');
-      this.subscribeChannels();
-    });
-    this.centrifuge.on('disconnected', (ctx) => {
-      log.debug(
-        'centrifuge disconnected, reason:',
-        ctx?.reason,
-        '| code:',
-        ctx?.code,
-        '| wasConnected:',
-        this.wasConnected,
-        '| shouldReconnect:',
-        this.shouldReconnect,
-        '| activeGapFills:',
-        this.gapFillTasks.size,
-      );
-
-      // Disconnect handling strategy:
-      // Each case represents a distinct disconnect category with its own recovery semantics.
-      // Cases 1-2 use early return (terminal or async-handled).
-      // Case 3 falls through to setConnectionState (delayed auto-reconnect).
-      // Default falls through to setConnectionState (normal disconnect).
-
-      // Case 1: Account banned — terminal disconnect, no reconnection.
-      // Server uses disconnect code 4501 (application-specific, no auto-reconnect).
-      if (ctx?.code === 4501) {
-        log.warn('account banned, disconnect code 4501, reason:', ctx?.reason);
-        this.shouldReconnect = false;
-        this.wasConnected = false;
-        // Call onAccountBanned callback if provided
-        if (this.options.onAccountBanned) {
-          const banReason = ctx?.reason || 'account banned';
-          this.options.onAccountBanned(banReason);
-        }
-        this.setConnectionState('disconnected', 'account banned (code 4501)');
-        return;
-      }
-
-      // Case 2: Server-side token rejection — trigger token refresh flow.
-      // Even if the JWT is not expired, we need to trigger the refresh mechanism.
-      if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {
-        // Critical fix: immediately disconnect the Centrifuge instance to prevent it from
-        // auto-reconnecting with the cached old token. Centrifuge reuses cached tokens on
-        // reconnect, so the newly refreshed token would never take effect.
-        const oldCentrifuge = this.centrifuge;
-        this.centrifuge = null; // Clear reference to prevent subsequent ops on old instance.
-        oldCentrifuge?.disconnect(); // Explicit disconnect to stop auto-reconnect.
-        // Fix: Remove all event listeners from the old instance to prevent memory leaks.
-        // Centrifuge SDK provides removeAllListeners() method for cleanup.
+    try {
+      // P1-FIX: Register network status listeners to trigger reconnection on recovery.
+      // When the browser goes offline, WebSocket connections are suspended. Upon coming
+      // back online, we proactively reconnect instead of waiting for Centrifuge's timeout.
+      //
+      // SECURITY: Only trigger reconnection if we were previously connected (wasConnected=true).
+      // This prevents attempting to reconnect on initial page load before any connection was established,
+      // which could cause unnecessary network traffic and race conditions with the initial connect() call.
+      this._onOnlineHandler = () => {
+        log.info('Network online event received, triggering reconnection');
         if (
-          oldCentrifuge &&
-          typeof oldCentrifuge.removeAllListeners === 'function'
+          this.connectionState === 'disconnected' &&
+          this.shouldReconnect &&
+          this.wasConnected
         ) {
-          oldCentrifuge.removeAllListeners();
-        }
-        // Fire-and-forget: handleInvalidToken() manages its own error handling and
-        // reconnection scheduling. We return here to avoid falling through to the
-        // generic setConnectionState() below — handleInvalidToken() will set the
-        // appropriate connection state itself.
-        // Fix: Add catch to prevent unhandled promise rejection
-        this.handleInvalidToken().catch((err) => {
-          log.error('handleInvalidToken failed:', err);
-          this.setConnectionState('disconnected', 'token refresh failed');
-        });
-        return;
-      }
-
-      // Case 3: Message-size-limit exceeded — server rejects the connection.
-      // Centrifuge does not auto-retry this type of server-side rejection.
-      if (ctx?.reason === 'message size limit exceeded') {
-        log.warn(
-          'message size limit exceeded, will retry connection after delay',
-        );
-        // P1-FIX: Clear any existing reconnect timer to prevent multiple concurrent timers.
-        if (this._reconnectTimer) {
-          clearTimeout(this._reconnectTimer);
-        }
-        // Delay reconnect to give the server some buffer time.
-        this._reconnectTimer = setTimeout(() => {
-          this._reconnectTimer = undefined;
-          if (this.shouldReconnect && this.connectionState === 'disconnected') {
-            log.debug('attempting reconnect after message size limit error');
-            this.reconnect().catch((err) => {
-              log.error('reconnect failed:', err);
-            });
+          // Clear any pending reconnect timer to reconnect immediately
+          if (this._reconnectTimer) {
+            clearTimeout(this._reconnectTimer);
+            this._reconnectTimer = undefined;
           }
-        }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
-        // Falls through to setConnectionState below
+          this.connect().catch((err) => {
+            log.error('Reconnection after online event failed:', err);
+          });
+        }
+      };
+      this._onOfflineHandler = () => {
+        log.warn('Network offline event received, connection suspended');
+        // Centrifuge will detect the connection drop; we just log for observability
+      };
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', this._onOnlineHandler);
+        window.addEventListener('offline', this._onOfflineHandler);
       }
-      // Default: Normal disconnect (network error, server restart, timeout, etc.)
-      // Falls through to setConnectionState below
 
-      this.setConnectionState('disconnected', ctx?.reason);
-    });
-    this.centrifuge.on('error', (ctx) => {
-      log.error('centrifuge error:', ctx?.error);
-      this.emit('error', new Error(ctx?.error?.message ?? 'centrifuge error'));
-    });
+      this.centrifuge = new Centrifuge(this.options.endpoint, {
+        // Weak network tolerance: increase timeout from default 5s to 15s.
+        // This timeout applies to all RPC calls (including history()),
+        // transport connections, and ready() calls.
+        timeout: 30000,
+        getToken: async () => {
+          return this._getToken();
+        },
+      });
 
-    log.debug('calling centrifuge.connect() synchronously');
-    this.centrifuge.connect();
-    log.debug(
-      'centrifuge.connect() returned, state:',
-      this.connectionState,
-      '(WebSocket not yet established)',
-    );
+      this.centrifuge.on('connecting', (ctx) => {
+        // If we should not reconnect (e.g. token expired, relogin required), block the connection.
+        if (!this.shouldReconnect) {
+          this.centrifuge?.disconnect();
+          return;
+        }
+        // Distinguish first connect from reconnect (Issue 2).
+        const state = this.wasConnected ? 'reconnecting' : 'connecting';
+        this.setConnectionState(state, ctx?.reason);
+      });
+      this.centrifuge.on('connected', () => {
+        log.debug('centrifuge connected, setting state to connected');
+        this.wasConnected = true;
+        // Reset exponential backoff on successful connection
+        this._reconnectDelay = RTCAgentClient.RECONNECT_INITIAL_DELAY_MS;
+        // P2-6: Initialize heartbeat timestamp and start monitoring
+        this._lastMessageTime = Date.now();
+        this._startHeartbeatMonitoring();
+        this.setConnectionState('connected');
+        this.subscribeChannels();
+      });
+      this.centrifuge.on('disconnected', (ctx) => {
+        log.debug(
+          'centrifuge disconnected, reason:',
+          ctx?.reason,
+          '| code:',
+          ctx?.code,
+          '| wasConnected:',
+          this.wasConnected,
+          '| shouldReconnect:',
+          this.shouldReconnect,
+          '| activeGapFills:',
+          this.gapFillTasks.size,
+        );
+
+        // Disconnect handling strategy:
+        // Each case represents a distinct disconnect category with its own recovery semantics.
+        // Cases 1-2 use early return (terminal or async-handled).
+        // Case 3 falls through to setConnectionState (delayed auto-reconnect).
+        // Default falls through to setConnectionState (normal disconnect).
+
+        // Case 1: Account banned — terminal disconnect, no reconnection.
+        // Server uses disconnect code 4501 (application-specific, no auto-reconnect).
+        if (ctx?.code === 4501) {
+          log.warn('account banned, disconnect code 4501, reason:', ctx?.reason);
+          this.shouldReconnect = false;
+          this.wasConnected = false;
+          // Call onAccountBanned callback if provided
+          if (this.options.onAccountBanned) {
+            const banReason = ctx?.reason || 'account banned';
+            this.options.onAccountBanned(banReason);
+          }
+          this.setConnectionState('disconnected', 'account banned (code 4501)');
+          return;
+        }
+
+        // Case 2: Server-side token rejection — trigger token refresh flow.
+        // Even if the JWT is not expired, we need to trigger the refresh mechanism.
+        if (ctx?.reason === 'invalid token' && this.options.onTokenExpired) {
+          // Critical fix: immediately disconnect the Centrifuge instance to prevent it from
+          // auto-reconnecting with the cached old token. Centrifuge reuses cached tokens on
+          // reconnect, so the newly refreshed token would never take effect.
+          const oldCentrifuge = this.centrifuge;
+          this.centrifuge = null; // Clear reference to prevent subsequent ops on old instance.
+          oldCentrifuge?.disconnect(); // Explicit disconnect to stop auto-reconnect.
+          // Fix: Remove all event listeners from the old instance to prevent memory leaks.
+          // Centrifuge SDK provides removeAllListeners() method for cleanup.
+          if (
+            oldCentrifuge &&
+            typeof oldCentrifuge.removeAllListeners === 'function'
+          ) {
+            oldCentrifuge.removeAllListeners();
+          }
+          // Fire-and-forget: handleInvalidToken() manages its own error handling and
+          // reconnection scheduling. We return here to avoid falling through to the
+          // generic setConnectionState() below — handleInvalidToken() will set the
+          // appropriate connection state itself.
+          // Fix: Add catch to prevent unhandled promise rejection
+          this.handleInvalidToken().catch((err) => {
+            log.error('handleInvalidToken failed:', err);
+            this.setConnectionState('disconnected', 'token refresh failed');
+          });
+          return;
+        }
+
+        // Case 3: Message-size-limit exceeded — server rejects the connection.
+        // Centrifuge does not auto-retry this type of server-side rejection.
+        if (ctx?.reason === 'message size limit exceeded') {
+          log.warn(
+            'message size limit exceeded, will retry connection after delay',
+          );
+          // P1-FIX: Clear any existing reconnect timer to prevent multiple concurrent timers.
+          if (this._reconnectTimer) {
+            clearTimeout(this._reconnectTimer);
+          }
+          // Delay reconnect to give the server some buffer time.
+          this._reconnectTimer = setTimeout(() => {
+            this._reconnectTimer = undefined;
+            if (this.shouldReconnect && this.connectionState === 'disconnected') {
+              log.debug('attempting reconnect after message size limit error');
+              this.reconnect().catch((err) => {
+                log.error('reconnect failed:', err);
+              });
+            }
+          }, RTCAgentClient.RECONNECT_AFTER_SIZE_LIMIT_DELAY_MS);
+          // Falls through to setConnectionState below
+        }
+        // Default: Normal disconnect (network error, server restart, timeout, etc.)
+        // Falls through to setConnectionState below
+
+        this.setConnectionState('disconnected', ctx?.reason);
+      });
+      this.centrifuge.on('error', (ctx) => {
+        log.error('centrifuge error:', ctx?.error);
+        this.emit('error', new Error(ctx?.error?.message ?? 'centrifuge error'));
+      });
+
+      log.debug('calling centrifuge.connect() synchronously');
+      this.centrifuge.connect();
+      log.debug(
+        'centrifuge.connect() returned, state:',
+        this.connectionState,
+        '(WebSocket not yet established)',
+      );
+    } catch (err) {
+      // CRITICAL: Ensure cleanup on connection failure to prevent resource leaks
+      log.error('connect() failed, cleaning up resources:', err);
+      this.disconnect();
+      throw err;
+    }
   }
 
   disconnect(): void {
@@ -1898,6 +1905,13 @@ export class RTCAgentClient implements IRTCAgentClient {
     if (!this.options.onPublication) return;
 
     // P2-2: Monitor large WebSocket messages for performance debugging
+    // Note: JSON.stringify is called for every message to estimate size.
+    // For most messages (<10KB), this takes <1ms. For large messages (>10KB),
+    // it may block the main thread for 1-5ms, which is acceptable for debugging.
+    // If this becomes a performance issue, consider:
+    // 1. Only checking size in dev mode (requires build-time flag)
+    // 2. Using a sampling rate (e.g., check every 10th message)
+    // 3. Removing size monitoring entirely
     const LARGE_MESSAGE_THRESHOLD = 10 * 1024; // 10KB
     try {
       const messageStr = JSON.stringify(event.data);
