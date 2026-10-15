@@ -307,9 +307,36 @@ export class EventBindingController implements ReactiveController {
 
       // Clean up existing state
       fork.actions.clearFork();
-      // FIX #61: Cancel any running processLoop before clearing reference
+      // FIX #61: Cancel any running processLoop before clearing reference.
+      // Wrap with timeout protection (consistent with disconnectedCallback pattern):
+      // cancel() signals the processLoop to stop, but the loop may be awaiting
+      // async operations. We give it 100ms to gracefully shut down.
+      // The timer is cleared via .finally() to prevent leaking when cancel resolves first.
       const rtcProcessor = getRtcProcessor();
-      rtcProcessor?.cancel();
+      if (rtcProcessor) {
+        const cancelPromise = Promise.resolve(rtcProcessor.cancel());
+        let cancelTimeoutId: ReturnType<typeof setTimeout> | undefined;
+        const timeoutPromise = new Promise<void>((resolve) => {
+          cancelTimeoutId = setTimeout(() => {
+            log.warn(
+              'logout: RTC processor cancellation timeout, proceeding with cleanup',
+            );
+            resolve();
+          }, 100);
+        });
+        Promise.race([cancelPromise, timeoutPromise])
+          .catch((err) => {
+            log.warn(
+              'logout: RTC processor cancellation error (non-fatal):',
+              err,
+            );
+          })
+          .finally(() => {
+            if (cancelTimeoutId !== undefined) {
+              clearTimeout(cancelTimeoutId);
+            }
+          });
+      }
       setRtcProcessor(undefined);
 
       // Unsubscribe connection state listener

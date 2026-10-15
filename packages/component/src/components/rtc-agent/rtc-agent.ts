@@ -1810,8 +1810,9 @@ export class RtcAgent extends LitElement {
     // This is a "best effort" cancellation — not guaranteed to be synchronous.
     if (this._rtcProcessor) {
       const cancelPromise = Promise.resolve(this._rtcProcessor.cancel());
+      let cancelTimeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => {
+        cancelTimeoutId = setTimeout(() => {
           log.warn(
             'RTC processor cancellation timeout, proceeding with cleanup',
           );
@@ -1821,9 +1822,17 @@ export class RtcAgent extends LitElement {
       // Suppress unhandled rejections: the timeout always resolves, but the
       // cancel() Promise may reject. Promise.race settles with the first result,
       // so we add .catch() to prevent unhandled rejection warnings in the console.
-      Promise.race([cancelPromise, timeoutPromise]).catch((err) => {
-        log.warn('RTC processor cancellation error (non-fatal):', err);
-      });
+      // CRITICAL: .finally() clears the timeout to prevent leaking the timer
+      // when cancelPromise resolves first (the common case).
+      Promise.race([cancelPromise, timeoutPromise])
+        .catch((err) => {
+          log.warn('RTC processor cancellation error (non-fatal):', err);
+        })
+        .finally(() => {
+          if (cancelTimeoutId !== undefined) {
+            clearTimeout(cancelTimeoutId);
+          }
+        });
       this._rtcProcessor = undefined;
     }
 
@@ -2189,14 +2198,27 @@ export class RtcAgent extends LitElement {
         log.error('Mode transition focus failed:', err);
       });
 
-    // Add timeout protection to focus promise chain
-    const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Mode transition timeout')), 5000),
-    );
-
-    Promise.race([focusPromise, timeoutPromise]).catch((err) => {
-      log.warn('Mode transition did not complete within timeout:', err);
+    // Add timeout protection to focus promise chain.
+    // CRITICAL: The timer MUST be cleared when the race completes (via either path)
+    // to prevent leaking the setTimeout closure for the full timeout duration.
+    // Without clearTimeout, each mode transition leaks a 5-second timer + closure.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error('Mode transition timeout')),
+        5000,
+      );
     });
+
+    Promise.race([focusPromise, timeoutPromise])
+      .catch((err) => {
+        log.warn('Mode transition did not complete within timeout:', err);
+      })
+      .finally(() => {
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
+      });
 
     // When restoring from minimized, clear notification animation and unread count.
     if (this._appliedMode === 'minimized' && mode !== 'minimized') {
