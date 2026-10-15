@@ -113,7 +113,7 @@ function getPermissionCacheKey(
     user.permissions instanceof Set
       ? Array.from(user.permissions).sort().join(',')
       : '';
-  return `${user.id ?? ''}:${user.access ?? ''}:${roleId}:${perms}`;
+  return `${user.userid ?? ''}:${user.access ?? ''}:${roleId}:${perms}`;
 }
 
 export default function access(
@@ -183,7 +183,11 @@ export default function access(
       '[access] currentUser.permissions is not a Set. ' +
         'This may indicate a backend API change or data corruption. ' +
         'Returning all permissions as false.',
-      { actualType: typeof perms, value: perms },
+      {
+        userId: currentUser.userid,
+        actualType: typeof perms,
+        value: perms,
+      },
     );
     _cachedPermissions = DEFAULT_PERMISSIONS;
     _cachedPermissionsKey = cacheKey;

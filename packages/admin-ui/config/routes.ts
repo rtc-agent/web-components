@@ -79,6 +79,30 @@ export default [
     name: 'dashboard',
     icon: 'dashboard',
     component: './dashboard/container',
+    /**
+     * Access Inheritance for Dashboard Child Routes:
+     *
+     * Umi Max automatically inherits the `access` field from parent routes to child routes.
+     * Child routes without an explicit `access` field will use the parent's access code.
+     *
+     * Implementation:
+     * - See src/.umi/plugin-access/index.tsx, useAccessMarkedRoutes() function
+     * - Lines 27-34: if (!accessCode && parentAccessCode) { accessCode = parentAccessCode; }
+     *
+     * Security Model:
+     * - Parent route (/dashboard) sets: access: 'canDashboardView'
+     * - All child routes (grafana, rtc-agent, etc.) inherit this permission automatically
+     * - Explicit `access` fields on child routes are NOT needed and would be redundant
+     *
+     * Why This Design:
+     * - Single source of truth: permission defined once at parent level
+     * - Cleaner configuration: no duplication across 8+ child routes
+     * - Consistent behavior: all dashboard sub-pages require the same permission
+     *
+     * Note:
+     * If different sub-pages need different permissions, add explicit `access` to those children.
+     * The inheritance only applies when child routes don't specify their own `access` field.
+     */
     access: 'canDashboardView',
     routes: [
       // TODO: jaeger/pyroscope dashboards not yet implemented
@@ -102,7 +126,7 @@ export default [
         name: 'grafana',
         icon: 'lineChart',
         path: '/dashboard/grafana',
-        // NOTE: No access field needed — inherits 'canDashboardView' from parent /dashboard
+        // Inherits 'canDashboardView' from parent (see parent route JSDoc for details)
         routes: [
           {
             path: '/dashboard/grafana',

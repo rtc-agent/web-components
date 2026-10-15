@@ -1,3 +1,35 @@
+/**
+ * Simple Routes Configuration (Template Backup)
+ *
+ * PURPOSE:
+ * This file is a backup template used by the "simplify" script (scripts/simple.js).
+ * It contains a minimal route configuration for users who want to strip down the
+ * full-featured admin-ui to a basic starter template.
+ *
+ * USAGE:
+ * - Run `pnpm run simple` to replace routes.ts with this simplified version
+ * - The script will:
+ *   1. Delete feature-rich page directories (dashboard, form, list, profile, etc.)
+ *   2. Replace routes.ts with this file's content
+ *   3. Remove related dependencies from package.json
+ *   4. Delete this file and the script itself (irreversible operation)
+ *
+ * WARNING:
+ * - This operation is DESTRUCTIVE and IRREVERSIBLE
+ * - Always commit your changes before running `pnpm run simple`
+ * - This file is intentionally kept in the repository as a template
+ *
+ * CONTENTS:
+ * The routes below represent a minimal admin setup with:
+ * - User authentication (login)
+ * - Welcome page
+ * - Basic admin page (with canAdmin access control)
+ * - Query table example
+ * - 404 handler
+ *
+ * All advanced features (dashboard, RTC users, system management, account, chatbot)
+ * are removed in the simplified version.
+ */
 export default [
   {
     path: '/user',
