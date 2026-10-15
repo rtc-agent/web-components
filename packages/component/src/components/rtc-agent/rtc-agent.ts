@@ -1662,6 +1662,23 @@ export class RtcAgent extends LitElement {
         logger: log,
       });
 
+      // Guard: component may have been destroyed during the await.
+      // Skip all side effects and clean up any resources created by connectWithRetry.
+      if (this._isDestroyed) {
+        log.debug(
+          'Component destroyed during connection, skipping side effects',
+        );
+        if (result.rtcProcessor) {
+          void result.rtcProcessor.cancel();
+        }
+        if (result.unsubConnection) {
+          result.unsubConnection();
+        }
+        // Tear down the persistence layer that was created after destroy()
+        void this._persistence.disconnect();
+        return;
+      }
+
       this._connectionFailed = result.connectionFailed;
       this._connectionError = result.connectionError;
       if (result.rtcProcessor) {
