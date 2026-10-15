@@ -29,6 +29,7 @@
  * @module EventBindingController
  */
 
+import { msg } from '@lit/localize';
 import type { RtcProcessor } from '@rtc-agent/persistence';
 import type { Logger } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
@@ -359,13 +360,13 @@ export class EventBindingController implements ReactiveController {
 
       const result = await session.actions.deleteSession(sessionId);
       if (result.ok) {
-        toast.actions.show('会话已删除', 'success');
+        toast.actions.show(msg('会话已删除'), 'success');
       } else {
         const errorMap: Record<string, string> = {
-          'delete-failed': '删除失败，请稍后重试',
+          'delete-failed': msg('删除失败，请稍后重试'),
         };
         toast.actions.show(
-          errorMap[result.error ?? ''] ?? result.error ?? '删除失败',
+          errorMap[result.error ?? ''] ?? result.error ?? msg('删除失败'),
           'error',
         );
       }
@@ -380,10 +381,10 @@ export class EventBindingController implements ReactiveController {
       );
       if (!result.ok) {
         const errorMap: Record<string, string> = {
-          'rename-failed': '重命名失败，请稍后重试',
+          'rename-failed': msg('重命名失败，请稍后重试'),
         };
         toast.actions.show(
-          errorMap[result.error ?? ''] ?? result.error ?? '重命名失败',
+          errorMap[result.error ?? ''] ?? result.error ?? msg('重命名失败'),
           'error',
         );
       }
@@ -584,9 +585,9 @@ export class EventBindingController implements ReactiveController {
       const result = await handleRestoreDefault(filePath);
 
       if (result.success) {
-        toast.actions.show('已恢复默认内容', 'success');
+        toast.actions.show(msg('已恢复默认内容'), 'success');
       } else {
-        toast.actions.show(result.error ?? '恢复失败', 'error');
+        toast.actions.show(result.error ?? msg('恢复失败'), 'error');
       }
     };
 

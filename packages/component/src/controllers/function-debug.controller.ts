@@ -9,6 +9,7 @@
  * Provided by: <rtc-agent> (root)
  */
 
+import { msg, str } from '@lit/localize';
 import { createLogger } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import {
@@ -173,7 +174,7 @@ export class FunctionDebugController implements ReactiveController {
     try {
       params = JSON.parse(this._state.currentParams || '{}');
     } catch {
-      this._addLog('error', '参数 JSON 解析失败，请检查格式');
+      this._addLog('error', msg('参数 JSON 解析失败，请检查格式'));
       return;
     }
 
@@ -187,13 +188,13 @@ export class FunctionDebugController implements ReactiveController {
     this.host.requestUpdate();
 
     const startTime = performance.now();
-    this._addLog('info', `开始执行 ${fn.name}`);
+    this._addLog('info', msg(str`开始执行 ${fn.name}`));
 
     try {
       const result = await this._registry.execute(fn.name, params);
       const durationMs = Math.round(performance.now() - startTime);
 
-      this._addLog('info', `执行成功 (${durationMs}ms)`, result);
+      this._addLog('info', msg(str`执行成功 (${durationMs}ms)`), result);
 
       this._state = {
         ...this._state,
@@ -214,7 +215,10 @@ export class FunctionDebugController implements ReactiveController {
       const durationMs = Math.round(performance.now() - startTime);
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      this._addLog('error', `执行失败 (${durationMs}ms): ${errorMessage}`);
+      this._addLog(
+        'error',
+        msg(str`执行失败 (${durationMs}ms): ${errorMessage}`),
+      );
 
       this._state = {
         ...this._state,

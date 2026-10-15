@@ -61,12 +61,18 @@ export function formatRelativeTime(timestamp: number, locale?: string): string {
   const lang = locale ?? getLocale();
   const duration = (timestamp - Date.now()) / 1000;
 
+  // Get or create a cached RelativeTimeFormat instance for the locale
+  const rtf = getCachedRelativeTimeFormatter(lang);
+
   // Special case: very recent times (< 5 seconds) show "just now"
+  // Intl.RelativeTimeFormat with numeric: 'auto' handles this automatically:
+  // - en: "just now"
+  // - zh: "刚刚"
+  // - other locales: locale-appropriate "just now" translation
   if (Math.abs(duration) < 5) {
-    return lang.startsWith('zh') ? '刚刚' : 'just now';
+    return rtf.format(0, 'seconds');
   }
 
-  const rtf = getCachedRelativeTimeFormatter(lang);
   let normalizedDuration = duration;
 
   for (const division of DIVISIONS) {
