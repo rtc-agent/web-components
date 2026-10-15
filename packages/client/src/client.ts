@@ -270,11 +270,16 @@ export class RTCAgentClient implements IRTCAgentClient {
    */
   private _lastActivityTime: number = 0;
   private _heartbeatCheckTimer?: ReturnType<typeof setInterval>;
-  // HEARTBEAT_TIMEOUT_MS: 45 seconds
-  // Rationale: Centrifuge's default ping interval is 25s. A 45s timeout allows
-  // for one missed ping plus processing delay, while still detecting stale
-  // connections within a reasonable timeframe for real-time communication.
-  private static readonly HEARTBEAT_TIMEOUT_MS = 45000; // 45 seconds
+  // HEARTBEAT_TIMEOUT_MS: 60 seconds
+  // Rationale: Must be significantly larger than gap fill timeout (30s) to avoid
+  // false positives. Gap fill can take up to 30s, and we need buffer for:
+  // - Processing delay after gap fill completes
+  // - Network latency and jitter
+  // - Multiple missed pings before declaring connection stale
+  // Centrifuge's default ping interval is 25s. A 60s timeout allows for 2 missed
+  // pings plus processing delay, while still detecting stale connections within
+  // a reasonable timeframe for real-time communication.
+  private static readonly HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds
   private static readonly HEARTBEAT_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
 
   /**
@@ -890,6 +895,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     targetOffset: number,
   ): Promise<void> {
     const MAX_WAIT_MS = 30000; // 30 seconds timeout
+    // Note: This timeout must be less than HEARTBEAT_TIMEOUT_MS (60s) to ensure
+    // gap fill completes before heartbeat check triggers a false-positive reconnect.
+    // The 30s value provides sufficient time for large gap fills while maintaining
+    // a 30s buffer before heartbeat timeout.
     const INITIAL_POLL_INTERVAL_MS =
       RTCAgentClient.GAP_FILL_INITIAL_POLL_INTERVAL_MS;
     const MAX_POLL_INTERVAL_MS = RTCAgentClient.GAP_FILL_MAX_POLL_INTERVAL_MS;
