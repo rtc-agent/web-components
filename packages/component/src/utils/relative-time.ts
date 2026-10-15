@@ -55,19 +55,26 @@ export function clearRelativeTimeFormatterCache(): void {
  * Format a timestamp as relative time
  * @param timestamp Millisecond timestamp
  * @param locale Optional locale override (defaults to current i18n locale)
- * @returns Relative time string, e.g. "3 minutes ago", "2 hours ago", "5 days ago"
+ * @returns Relative time string, e.g. "just now", "3 minutes ago", "2 hours ago", "5 days ago"
  */
 export function formatRelativeTime(timestamp: number, locale?: string): string {
   const lang = locale ?? getLocale();
-  const rtf = getCachedRelativeTimeFormatter(lang);
-  let duration = (timestamp - Date.now()) / 1000;
+  const duration = (timestamp - Date.now()) / 1000;
 
-  for (const division of DIVISIONS) {
-    if (Math.abs(duration) < division.amount) {
-      return rtf.format(Math.round(duration), division.name);
-    }
-    duration /= division.amount;
+  // Special case: very recent times (< 5 seconds) show "just now"
+  if (Math.abs(duration) < 5) {
+    return lang.startsWith('zh') ? '刚刚' : 'just now';
   }
 
-  return rtf.format(Math.round(duration), 'years');
+  const rtf = getCachedRelativeTimeFormatter(lang);
+  let normalizedDuration = duration;
+
+  for (const division of DIVISIONS) {
+    if (Math.abs(normalizedDuration) < division.amount) {
+      return rtf.format(Math.round(normalizedDuration), division.name);
+    }
+    normalizedDuration /= division.amount;
+  }
+
+  return rtf.format(Math.round(normalizedDuration), 'years');
 }

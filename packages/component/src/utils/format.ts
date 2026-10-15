@@ -4,6 +4,10 @@
  * Shared formatting and content helpers used across multiple components.
  * Avoids duplicating timestamp/date logic and content extraction in
  * rtc-message, rtc-toolcall-card, rtc-user-message, etc.
+ *
+ * Locale handling: All formatting functions automatically use the current
+ * locale from getLocale() (i18n system). This ensures consistent formatting
+ * across the application and proper internationalization support.
  */
 
 import { msg, str } from '@lit/localize';

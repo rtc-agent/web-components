@@ -100,8 +100,40 @@ describe('formatRelativeTime', () => {
 
   it('should handle timestamp equal to now (0 seconds)', () => {
     const result = formatRelativeTime(FIXED_NOW, 'zh-CN');
-    // Should be "now" or "0s ago" depending on Intl implementation
-    expect(typeof result).toBe('string');
-    expect(result.length).toBeGreaterThan(0);
+    // Should show "刚刚" (just now) for very recent times
+    expect(result).toBe('刚刚');
+  });
+
+  // ── "Just now" special case (< 5 seconds) ──
+
+  it('should show "刚刚" for times less than 5 seconds ago (Chinese)', () => {
+    const threeSecsAgo = FIXED_NOW - 3 * 1000;
+    const result = formatRelativeTime(threeSecsAgo, 'zh-CN');
+    expect(result).toBe('刚刚');
+  });
+
+  it('should show "just now" for times less than 5 seconds ago (English)', () => {
+    const threeSecsAgo = FIXED_NOW - 3 * 1000;
+    const result = formatRelativeTime(threeSecsAgo, 'en-US');
+    expect(result).toBe('just now');
+  });
+
+  it('should show "just now" for times less than 5 seconds in the future (Chinese)', () => {
+    const threeSecsAhead = FIXED_NOW + 3 * 1000;
+    const result = formatRelativeTime(threeSecsAhead, 'zh-CN');
+    expect(result).toBe('刚刚');
+  });
+
+  it('should show "just now" for times less than 5 seconds in the future (English)', () => {
+    const threeSecsAhead = FIXED_NOW + 3 * 1000;
+    const result = formatRelativeTime(threeSecsAhead, 'en-US');
+    expect(result).toBe('just now');
+  });
+
+  it('should not show "just now" for times >= 5 seconds', () => {
+    const fiveSecsAgo = FIXED_NOW - 5 * 1000;
+    const result = formatRelativeTime(fiveSecsAgo, 'zh-CN');
+    expect(result).not.toBe('刚刚');
+    expect(result).toContain('秒');
   });
 });

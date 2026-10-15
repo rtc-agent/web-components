@@ -1401,60 +1401,79 @@
 </trans-unit>
 <trans-unit id="s947257d41e7aab7d">
   <source>todoWrite (<x id="0" equiv-text="${formatPluralCount(count, msg('task'), msg('tasks'))}"/>)</source>
+  <target>todoWrite (<x id="0" equiv-text="${formatPluralCount(count, msg('task'), msg('tasks'))}"/>)</target>
 </trans-unit>
 <trans-unit id="sd9603bef07a9524c">
   <source>task</source>
+  <target>task</target>
 </trans-unit>
 <trans-unit id="s07d8162a04b6c10d">
   <source>tasks</source>
+  <target>tasks</target>
 </trans-unit>
 <trans-unit id="s629e175c492fd7f7">
   <source>{"key": "value"}</source>
+  <target>{"key": "value"}</target>
 </trans-unit>
 <trans-unit id="s712e0c2901638007">
   <source>Restore <x id="0" equiv-text="${this.appLabel}"/></source>
+  <target>Restore <x id="0" equiv-text="${this.appLabel}"/></target>
 </trans-unit>
 <trans-unit id="s4fb9037269845800">
   <source>会话数据异常</source>
+  <target>Session data error</target>
 </trans-unit>
 <trans-unit id="s66e3a8c7805e7daf">
   <source>账户状态</source>
+  <target>Account status</target>
 </trans-unit>
 <trans-unit id="s6ff762f7ac4e7c12">
   <source>上下文数据异常，请刷新页面</source>
+  <target>Context data error, please refresh the page</target>
 </trans-unit>
 <trans-unit id="sbcb55128f179852f">
   <source>上下文压缩</source>
+  <target>Context compression</target>
 </trans-unit>
 <trans-unit id="s93fab8f021712b13">
   <source>tokens</source>
+  <target>tokens</target>
 </trans-unit>
 <trans-unit id="sbb38c0092664f800">
   <source>耗时</source>
+  <target>Duration</target>
 </trans-unit>
 <trans-unit id="s9b44dd63415705d8">
   <source>对话摘要</source>
+  <target>Conversation summary</target>
 </trans-unit>
 <trans-unit id="s78a3267a35a36ee2">
   <source>创建时间</source>
+  <target>Created time</target>
 </trans-unit>
 <trans-unit id="s569780ee5a95cd28">
   <source>消息数</source>
+  <target>Message count</target>
 </trans-unit>
 <trans-unit id="s64226a2fbbc47ec5">
   <source>输入 Tokens</source>
+  <target>Input Tokens</target>
 </trans-unit>
 <trans-unit id="sea59542a04b0e13a">
   <source>输出 Tokens</source>
+  <target>Output Tokens</target>
 </trans-unit>
 <trans-unit id="s7afb5b8fb8d4615b">
   <source>缓存读取</source>
+  <target>Cache read</target>
 </trans-unit>
 <trans-unit id="s1bf8b891f507cf30">
   <source>缓存写入</source>
+  <target>Cache write</target>
 </trans-unit>
 <trans-unit id="s7668d2b6b4359f58">
   <source>总花费</source>
+  <target>Total cost</target>
 </trans-unit>
 </body>
 </file>
