@@ -102,46 +102,21 @@ const AdminUserManagementPage: React.FC = () => {
     'admin',
     useCallback(
       (): AdminPageAPI => ({
-        // Read table data
+        // Sync URL filters and trigger table reload
         list: async (params = {}) => {
-          const { current = 1, pageSize = 20, keyword } = params;
+          const { keyword } = params;
 
-          // Sync URL (no page refresh)
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
           tableParams.set({ keyword });
 
-          try {
-            const response = await getUserList({
-              page: current,
-              page_size: pageSize,
-              keyword,
-            });
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-            return {
-              success: true,
-              data: response.items,
-              total: response.total,
-            };
-          } catch (error) {
-            console.error('[Admin Page API] list failed:', {
-              params,
-              error,
-            });
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.adminUsers.loadFailed',
-                  defaultMessage: 'Failed to load administrators',
-                }),
-              ),
-            );
-            return {
-              success: false,
-              data: [],
-              total: 0,
-            };
-          }
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
         },
 
         // Refresh table

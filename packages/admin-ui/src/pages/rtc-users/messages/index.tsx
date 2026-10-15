@@ -106,17 +106,6 @@ const MessagesPage: React.FC = () => {
         valueType: 'text',
         hideInTable: true,
         initialValue: sessionId,
-        formItemProps: {
-          rules: [
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.messages.sessionIdRequired',
-                defaultMessage: 'Session ID is required',
-              }),
-            },
-          ],
-        },
       },
       {
         title: intl.formatMessage({

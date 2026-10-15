@@ -7,7 +7,6 @@ import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
-import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
 import type { AuditLogPageAPI } from './page-api';
 import type { AuditLogItem } from './service';
@@ -37,11 +36,9 @@ const AuditLogsPage: React.FC = () => {
     'auditLog',
     useCallback(
       (): AuditLogPageAPI => ({
-        // Read table data
+        // Sync URL filters and trigger table reload
         list: async (params = {}) => {
           const {
-            current = 1,
-            pageSize = 20,
             actor_id,
             resource_type,
             event_type,
@@ -50,7 +47,7 @@ const AuditLogsPage: React.FC = () => {
             end_time,
           } = params;
 
-          // Sync URL (no page refresh)
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
           tableParams.set({
             actor_id,
             resource_type,
@@ -60,44 +57,14 @@ const AuditLogsPage: React.FC = () => {
             end_time,
           });
 
-          try {
-            const response = await getAuditLogList({
-              page: current,
-              page_size: pageSize,
-              actor_id,
-              resource_type,
-              event_type,
-              target_id,
-              start_time,
-              end_time,
-            });
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-            return {
-              success: true,
-              data: response.items,
-              total: response.total,
-            };
-          } catch (error) {
-            console.error('[AuditLog Page API] list failed:', {
-              params,
-              error,
-            });
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.auditLogs.loadFailed',
-                  defaultMessage: 'Failed to load audit logs',
-                }),
-              ),
-            );
-            return {
-              success: false,
-              data: [],
-              total: 0,
-            };
-          }
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
         },
 
         // Refresh table

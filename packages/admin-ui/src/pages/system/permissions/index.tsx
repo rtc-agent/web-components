@@ -6,8 +6,8 @@ import {
   ProFormSelect,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl } from '@umijs/max';
 import { useQueryClient } from '@tanstack/react-query';
+import { Access, useAccess, useIntl } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
@@ -68,47 +68,21 @@ const PermissionListPage: React.FC = () => {
     'permission',
     useCallback(
       (): PermissionPageAPI => ({
-        // Read table data
+        // Sync URL filters and trigger table reload
         list: async (params = {}) => {
-          const { current = 1, pageSize = 20, role_id, resource } = params;
+          const { role_id, resource } = params;
 
-          // Sync URL (no page refresh)
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
           tableParams.set({ role_id, resource });
 
-          try {
-            const response = await getPermissionList({
-              page: current,
-              page_size: pageSize,
-              role_id,
-              resource,
-            });
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-            return {
-              success: true,
-              data: response.items,
-              total: response.total,
-            };
-          } catch (error) {
-            console.error('[Permission Page API] list failed:', {
-              params,
-              error,
-            });
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.permissions.loadFailed',
-                  defaultMessage: 'Failed to load permissions',
-                }),
-              ),
-            );
-            return {
-              success: false,
-              data: [],
-              total: 0,
-            };
-          }
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
         },
 
         // Refresh table

@@ -2,12 +2,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useAccess, useIntl, useSearchParams } from '@umijs/max';
 import { App, Button, Tabs, Tag, theme } from 'antd';
-import React, {
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
@@ -425,7 +420,10 @@ const SystemConfigsPage: React.FC = () => {
               getFriendlyErrorMessage(
                 error,
                 intl,
-                'Failed to load configuration list',
+                intl.formatMessage({
+                  id: 'pages.config.system.loadFailed',
+                  defaultMessage: 'Failed to load configuration list',
+                }),
               ),
             );
             return { data: [], total: 0, success: false };
@@ -453,7 +451,10 @@ const SystemConfigsPage: React.FC = () => {
               getFriendlyErrorMessage(
                 error,
                 intl,
-                'Failed to update configuration',
+                intl.formatMessage({
+                  id: 'pages.config.system.updateFailed',
+                  defaultMessage: 'Failed to update configuration',
+                }),
               ),
             );
             return { success: false };
@@ -474,7 +475,10 @@ const SystemConfigsPage: React.FC = () => {
               getFriendlyErrorMessage(
                 error,
                 intl,
-                'Failed to delete configuration',
+                intl.formatMessage({
+                  id: 'pages.config.system.deleteFailed',
+                  defaultMessage: 'Failed to delete configuration',
+                }),
               ),
             );
             return { success: false };

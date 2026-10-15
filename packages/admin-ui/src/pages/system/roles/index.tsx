@@ -27,7 +27,6 @@ import React, {
   useState,
 } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
-import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import {
   getMaxLengthRule,
   getMinLengthRule,
@@ -35,6 +34,7 @@ import {
   getRequiredRule,
   getWhitespaceRule,
 } from '@/constants/form-rules';
+import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
@@ -95,46 +95,21 @@ const RoleListPage: React.FC = () => {
     'role',
     useCallback(
       (): RolePageAPI => ({
-        // Read table data
+        // Sync URL filters and trigger table reload
         list: async (params = {}) => {
-          const { current = 1, pageSize = 20, keyword } = params;
+          const { keyword } = params;
 
-          // Sync URL (no page refresh)
+          // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
           tableParams.set({ keyword });
 
-          try {
-            const response = await getRoleList({
-              page: current,
-              page_size: pageSize,
-              keyword,
-            });
+          // Trigger table reload via actionRef (ProTable request will handle data fetching)
+          actionRef.current?.reload();
 
-            return {
-              success: true,
-              data: response.items,
-              total: response.total,
-            };
-          } catch (error) {
-            console.error('[Role Page API] list failed:', {
-              params,
-              error,
-            });
-            message.error(
-              getFriendlyErrorMessage(
-                error,
-                intl,
-                intl.formatMessage({
-                  id: 'pages.roles.loadFailed',
-                  defaultMessage: 'Failed to load admin roles',
-                }),
-              ),
-            );
-            return {
-              success: false,
-              data: [],
-              total: 0,
-            };
-          }
+          return {
+            success: true,
+            data: [],
+            total: 0,
+          };
         },
 
         // Refresh table
@@ -782,24 +757,16 @@ const RoleListPage: React.FC = () => {
               id: 'pages.roles.nameNoWhitespace',
               defaultMessage: 'Admin role name cannot be only spaces',
             }),
-            getMinLengthRule(
-              3,
-              intl.formatMessage,
-              {
-                id: 'pages.roles.nameMinLength',
-                defaultMessage:
-                  'Admin role name must be at least {min} characters',
-              },
-            ),
-            getPatternRule(
-              /^[a-z][a-z0-9_]*$/,
-              intl.formatMessage,
-              {
-                id: 'pages.roles.namePattern',
-                defaultMessage:
-                  'Admin role name can only contain lowercase letters, numbers, and underscores, and must start with a letter',
-              },
-            ),
+            getMinLengthRule(3, intl.formatMessage, {
+              id: 'pages.roles.nameMinLength',
+              defaultMessage:
+                'Admin role name must be at least {min} characters',
+            }),
+            getPatternRule(/^[a-z][a-z0-9_]*$/, intl.formatMessage, {
+              id: 'pages.roles.namePattern',
+              defaultMessage:
+                'Admin role name can only contain lowercase letters, numbers, and underscores, and must start with a letter',
+            }),
             {
               validator: async (_rule, value) => {
                 if (!value || isEdit) return Promise.resolve();
@@ -868,14 +835,10 @@ const RoleListPage: React.FC = () => {
               id: 'pages.roles.displayNameWhitespace',
               defaultMessage: 'Display name cannot be only spaces',
             }),
-            getMaxLengthRule(
-              100,
-              intl.formatMessage,
-              {
-                id: 'pages.roles.displayNameMaxLength',
-                defaultMessage: 'Display name cannot exceed {max} characters',
-              },
-            ),
+            getMaxLengthRule(100, intl.formatMessage, {
+              id: 'pages.roles.displayNameMaxLength',
+              defaultMessage: 'Display name cannot exceed {max} characters',
+            }),
           ]}
         />
         <ProFormTextArea
@@ -898,14 +861,10 @@ const RoleListPage: React.FC = () => {
               id: 'pages.roles.descriptionWhitespace',
               defaultMessage: 'Description cannot be empty or only spaces',
             }),
-            getMaxLengthRule(
-              500,
-              intl.formatMessage,
-              {
-                id: 'pages.roles.descriptionMaxLength',
-                defaultMessage: 'Description cannot exceed {max} characters',
-              },
-            ),
+            getMaxLengthRule(500, intl.formatMessage, {
+              id: 'pages.roles.descriptionMaxLength',
+              defaultMessage: 'Description cannot exceed {max} characters',
+            }),
           ]}
         />
       </ModalForm>
@@ -962,58 +921,67 @@ const RoleListPage: React.FC = () => {
                     defaultMessage: 'Resource type',
                   })}
                 </th>
-                {ACTION_TYPES.map((action: { value: string; label: string }) => (
-                  <th
-                    key={action.value}
-                    style={{ textAlign: 'center', padding: '12px 8px' }}
-                  >
-                    {action.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {RESOURCE_TYPES.map((resource: { value: string; label: string }) => (
-                <tr
-                  key={resource.value}
-                  style={{
-                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                  }}
-                >
-                  <td style={{ padding: '12px 8px' }}>
-                    {resource.label}
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        color: token.colorTextSecondary,
-                      }}
-                    >
-                      {resource.value}
-                    </div>
-                  </td>
-                  {ACTION_TYPES.map((action: { value: string; label: string }) => (
-                    <td
+                {ACTION_TYPES.map(
+                  (action: { value: string; label: string }) => (
+                    <th
                       key={action.value}
                       style={{ textAlign: 'center', padding: '12px 8px' }}
                     >
-                      <Checkbox
-                        checked={hasPermission(resource.value, action.value)}
-                        disabled={
-                          togglingPermissionRef.current ===
-                          `${resource.value}:${action.value}`
-                        }
-                        onChange={(e) =>
-                          handleTogglePermission(
-                            resource.value,
-                            action.value,
-                            e.target.checked,
-                          )
-                        }
-                      />
+                      {action.label}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {RESOURCE_TYPES.map(
+                (resource: { value: string; label: string }) => (
+                  <tr
+                    key={resource.value}
+                    style={{
+                      borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                    }}
+                  >
+                    <td style={{ padding: '12px 8px' }}>
+                      {resource.label}
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: token.colorTextSecondary,
+                        }}
+                      >
+                        {resource.value}
+                      </div>
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {ACTION_TYPES.map(
+                      (action: { value: string; label: string }) => (
+                        <td
+                          key={action.value}
+                          style={{ textAlign: 'center', padding: '12px 8px' }}
+                        >
+                          <Checkbox
+                            checked={hasPermission(
+                              resource.value,
+                              action.value,
+                            )}
+                            disabled={
+                              togglingPermissionRef.current ===
+                              `${resource.value}:${action.value}`
+                            }
+                            onChange={(e) =>
+                              handleTogglePermission(
+                                resource.value,
+                                action.value,
+                                e.target.checked,
+                              )
+                            }
+                          />
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                ),
+              )}
             </tbody>
           </table>
         </div>

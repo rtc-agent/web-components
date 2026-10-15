@@ -8,7 +8,7 @@ import type {
 import XMarkdown from '@ant-design/x-markdown';
 import { useXChat } from '@ant-design/x-sdk';
 import { useIntl } from '@umijs/max';
-import { Avatar, Button, Card } from 'antd';
+import { App, Avatar, Button, Card } from 'antd';
 import React, {
   useCallback,
   useEffect,
@@ -87,11 +87,7 @@ const createRoleConfig = (aiAvatarStyle: string): BubbleListProps['role'] => ({
   },
   ai: {
     placement: 'start',
-    avatar: (
-      <Avatar className={aiAvatarStyle}>
-        🤖
-      </Avatar>
-    ),
+    avatar: <Avatar className={aiAvatarStyle}>🤖</Avatar>,
     typing: { effect: 'typing', step: 2, interval: 20 },
     contentRender: (
       content: string,
@@ -114,10 +110,14 @@ const createRoleConfig = (aiAvatarStyle: string): BubbleListProps['role'] => ({
 const ChatbotPage: React.FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
+  const { message } = App.useApp();
   const idCounter = useRef(0);
   const generateId = useCallback(() => `conv-${++idCounter.current}`, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const roleConfig = useMemo(() => createRoleConfig(styles.aiAvatar), [styles.aiAvatar]);
+  const roleConfig = useMemo(
+    () => createRoleConfig(styles.aiAvatar),
+    [styles.aiAvatar],
+  );
 
   const welcomeText = intl.formatMessage({
     id: WELCOME_TEXT_KEY,
@@ -217,6 +217,8 @@ const ChatbotPage: React.FC = () => {
   generateIdRef.current = generateId;
   const intlRef = useRef(intl);
   intlRef.current = intl;
+  const messageRef = useRef(message);
+  messageRef.current = message;
 
   // Register Page API for function handlers
   usePageAPIRegistration(
@@ -232,6 +234,12 @@ const ChatbotPage: React.FC = () => {
               contentLength: content?.length,
               error,
             });
+            messageRef.current.error(
+              intlRef.current.formatMessage({
+                id: 'pages.chatbot.sendMessageFailed',
+                defaultMessage: 'Failed to send message',
+              }),
+            );
             return { success: false };
           }
         },
@@ -274,6 +282,12 @@ const ChatbotPage: React.FC = () => {
               oldKey,
               error,
             });
+            messageRef.current.error(
+              intlRef.current.formatMessage({
+                id: 'pages.chatbot.clearConversationFailed',
+                defaultMessage: 'Failed to clear conversation',
+              }),
+            );
             return { success: false };
           }
         },
@@ -299,6 +313,12 @@ const ChatbotPage: React.FC = () => {
             return { success: true, conversationKey: key };
           } catch (error) {
             console.error('[ChatbotPageAPI] newChat failed:', { error });
+            messageRef.current.error(
+              intlRef.current.formatMessage({
+                id: 'pages.chatbot.newChatFailed',
+                defaultMessage: 'Failed to create new conversation',
+              }),
+            );
             return { success: false, conversationKey: '' };
           }
         },

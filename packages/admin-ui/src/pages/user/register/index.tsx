@@ -1,108 +1,30 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { history, Link, useIntl } from '@umijs/max';
-import {
-  App,
-  Button,
-  Col,
-  Form,
-  Input,
-  Popover,
-  Progress,
-  Row,
-  Select,
-  Space,
-} from 'antd';
+import { App, Button, Col, Form, Input, Row, Select, Space } from 'antd';
 import type { Store } from 'antd/es/form/interface';
 import type { FC } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { queryKeys } from '@/utils/queryKeys';
-import { getPhoneRules } from '@/utils/validation';
+import {
+  getConfirmPasswordRules,
+  getPasswordRules,
+  getPhoneRules,
+} from '@/utils/validation';
 import { fakeRegister } from './service';
 import useStyles from './style';
 
 const FormItem = Form.Item;
 const { Option } = Select;
 
-const passwordProgressMap: {
-  ok: 'success';
-  pass: 'normal';
-  poor: 'exception';
-} = {
-  ok: 'success',
-  pass: 'normal',
-  poor: 'exception',
-};
-
-const getPasswordStatus = (value?: string) => {
-  if (value && value.length > 9) {
-    return 'ok';
-  }
-  if (value && value.length > 5) {
-    return 'pass';
-  }
-  return 'poor';
-};
-
-const PasswordProgress: React.FC<{
-  value?: string;
-  styles: Record<string, string>;
-}> = ({ value, styles }) => {
-  const passwordStatus = getPasswordStatus(value);
-  return value?.length ? (
-    <div className={styles[`progress-${passwordStatus}`]}>
-      <Progress
-        status={passwordProgressMap[passwordStatus]}
-        size={6}
-        percent={value.length * 10 > 100 ? 100 : value.length * 10}
-        showInfo={false}
-      />
-    </div>
-  ) : null;
-};
-
 const Register: FC = () => {
   const { styles } = useStyles();
   const intl = useIntl();
   const { message } = App.useApp();
   const [count, setCount]: [number, any] = useState(0);
-  const [open, setVisible]: [boolean, any] = useState(false);
   const [prefix, setPrefix]: [string, any] = useState('86');
-  const [popover, setPopover]: [boolean, any] = useState(false);
   const intervalRef = useRef<number | undefined>(undefined);
   const queryClient = useQueryClient();
-
-  const passwordStatusMap = {
-    ok: (
-      <div className={styles.success}>
-        <span>
-          {intl.formatMessage({
-            id: 'pages.user.register.strength.strong',
-            defaultMessage: 'Strength: Strong',
-          })}
-        </span>
-      </div>
-    ),
-    pass: (
-      <div className={styles.warning}>
-        <span>
-          {intl.formatMessage({
-            id: 'pages.user.register.strength.medium',
-            defaultMessage: 'Strength: Medium',
-          })}
-        </span>
-      </div>
-    ),
-    poor: (
-      <div className={styles.error}>
-        <span>
-          {intl.formatMessage({
-            id: 'pages.user.register.strength.short',
-            defaultMessage: 'Strength: Too Short',
-          })}
-        </span>
-      </div>
-    ),
-  };
 
   const [form] = Form.useForm();
   useEffect(() => {
@@ -114,6 +36,11 @@ const Register: FC = () => {
     };
   }, []);
   const onGetCaptcha = () => {
+    // 清理已存在的 interval，防止内存泄漏
+    if (intervalRef.current !== undefined) {
+      clearInterval(intervalRef.current);
+    }
+
     let counts = 59;
     setCount(counts);
     intervalRef.current = window.setInterval(() => {
@@ -154,59 +81,23 @@ const Register: FC = () => {
       }
     },
     onError: (error: any) => {
-      const errorMessage =
-        error?.response?.data?.errorMessage ||
-        error?.message ||
+      const errorMessage = getFriendlyErrorMessage(
+        error,
+        intl,
         intl.formatMessage({
           id: 'pages.user.register.failed',
           defaultMessage: 'Registration failed',
-        });
+        }),
+      );
       message.error(errorMessage);
     },
   });
   const onFinish = (values: Store) => {
     register(values);
   };
-  const checkConfirm = (_: any, value: string) => {
-    const promise = Promise;
-    if (value && value !== form.getFieldValue('password')) {
-      return promise.reject(
-        intl.formatMessage({
-          id: 'pages.user.register.passwordMismatch',
-          defaultMessage: 'The passwords you entered do not match!',
-        }),
-      );
-    }
-    return promise.resolve();
-  };
-  const checkPassword = (_: any, value: string) => {
-    const promise = Promise;
-    if (!value) {
-      setVisible(!!value);
-      return promise.reject(
-        intl.formatMessage({
-          id: 'pages.user.register.passwordRequired',
-          defaultMessage: 'Please enter a password!',
-        }),
-      );
-    }
-    if (!open) {
-      setVisible(!!value);
-    }
-    setPopover(!popover);
-    if (value.length < 6) {
-      return promise.reject('');
-    }
-    if (value && form.isFieldTouched('confirm')) {
-      form.validateFields(['confirm']);
-    }
-    return promise.resolve();
-  };
   const changePrefix = (value: string) => {
     setPrefix(value);
   };
-  const password = Form.useWatch('password', form);
-  const passwordStatus = getPasswordStatus(password);
   return (
     <div className={styles.main}>
       <h3>
@@ -227,6 +118,13 @@ const Register: FC = () => {
               }),
             },
             {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.user.register.emailWhitespace',
+                defaultMessage: 'Email cannot be only spaces',
+              }),
+            },
+            {
               type: 'email',
               message: intl.formatMessage({
                 id: 'pages.user.register.emailInvalid',
@@ -243,88 +141,63 @@ const Register: FC = () => {
             })}
           />
         </FormItem>
-        <Popover
-          getPopupContainer={(node) => {
-            if (node?.parentNode) {
-              return node.parentNode as HTMLElement;
-            }
-            return node;
-          }}
-          content={
-            open && (
-              <div
-                style={{
-                  padding: '4px 0',
-                }}
-              >
-                {passwordStatusMap[passwordStatus]}
-                <PasswordProgress value={password} styles={styles} />
-                <div
-                  style={{
-                    marginTop: 10,
-                  }}
-                >
-                  <span>
-                    {intl.formatMessage({
-                      id: 'pages.user.register.passwordTip',
-                      defaultMessage:
-                        'Please enter at least 6 characters. Please do not use a password that is easy to guess.',
-                    })}
-                  </span>
-                </div>
-              </div>
-            )
-          }
-          overlayStyle={{
-            width: 240,
-          }}
-          placement="right"
-          open={open}
-        >
-          <FormItem
-            name="password"
-            className={
-              form.getFieldValue('password') &&
-              form.getFieldValue('password').length > 0 &&
-              styles.password
-            }
-            rules={[
-              {
-                required: true,
+        <FormItem
+          name="password"
+          rules={getPasswordRules(intl.formatMessage.bind(intl), {
+            required: true,
+            min: 6,
+            max: 128,
+          }).map((rule) => {
+            // Override the required message to use page-specific i18n key
+            if ('required' in rule && rule.required) {
+              return {
+                ...rule,
                 message: intl.formatMessage({
                   id: 'pages.user.register.passwordRequired',
                   defaultMessage: 'Please enter a password!',
                 }),
-              },
-              {
-                validator: checkPassword,
-              },
-            ]}
-          >
-            <Input
-              size="large"
-              type="password"
-              placeholder={intl.formatMessage({
-                id: 'pages.user.register.passwordPlaceholder',
-                defaultMessage: 'At least 6 characters, case sensitive',
-              })}
-            />
-          </FormItem>
-        </Popover>
+              };
+            }
+            // Override the min message to use page-specific i18n key
+            if ('min' in rule) {
+              return {
+                ...rule,
+                message: intl.formatMessage({
+                  id: 'pages.user.register.passwordMinLength',
+                  defaultMessage: `Password must be at least ${rule.min} characters`,
+                }),
+              };
+            }
+            return rule;
+          })}
+        >
+          <Input
+            size="large"
+            type="password"
+            placeholder={intl.formatMessage({
+              id: 'pages.user.register.passwordPlaceholder',
+              defaultMessage: 'At least 6 characters, case sensitive',
+            })}
+          />
+        </FormItem>
         <FormItem
           name="confirm"
-          rules={[
-            {
-              required: true,
-              message: intl.formatMessage({
-                id: 'pages.user.register.confirmPassword',
-                defaultMessage: 'Confirm Password',
-              }),
-            },
-            {
-              validator: checkConfirm,
-            },
-          ]}
+          rules={getConfirmPasswordRules(
+            intl.formatMessage.bind(intl),
+            form,
+          ).map((rule) => {
+            // Override the required message to use page-specific i18n key
+            if ('required' in rule && rule.required) {
+              return {
+                ...rule,
+                message: intl.formatMessage({
+                  id: 'pages.user.register.confirmPassword',
+                  defaultMessage: 'Confirm Password',
+                }),
+              };
+            }
+            return rule;
+          })}
         >
           <Input
             size="large"
