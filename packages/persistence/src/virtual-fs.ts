@@ -850,6 +850,15 @@ export class VirtualFS {
         `${matchedFiles.length} matches, ${skippedFiles.length} skipped`,
     );
 
+    // P0-3 MONITORING: Warn if grep takes too long (potential main thread blocking)
+    // If grep takes >200ms, it may be blocking the main thread and should be offloaded to Worker
+    if (elapsedMs > 200) {
+      log.warn(
+        `grep: slow operation detected (${elapsedMs.toFixed(2)}ms for ${processedCount} files). ` +
+          `Consider offloading to Worker thread for better UI responsiveness.`,
+      );
+    }
+
     if (outputMode === 'files_with_matches') {
       // Return list of matching file paths
       // Apply offset and limit

@@ -608,29 +608,13 @@ export class RtcSessionTree extends LitElement {
     const flatNodes = this._flattenTree(rootNodes);
     const totalItems = flatNodes.length;
 
-    // Use default height if container height is not yet measured
+    // P2-2 FIX: Always use virtual scrolling, even for initial render
+    // Use DEFAULT_CONTAINER_HEIGHT when container height is not yet measured
+    // This prevents rendering all nodes (which can be 1000+) on first render
     const effectiveHeight =
       this._containerHeight === 0
         ? DEFAULT_CONTAINER_HEIGHT
         : this._containerHeight;
-
-    // If container height is at default, render all items (fallback for initial render)
-    if (this._containerHeight === 0) {
-      return flatNodes.map(
-        ({ node, depth }) => html`
-          <rtc-session-tree-item
-            .node=${node}
-            .depth=${depth}
-            theme=${this.theme}
-            selected-session-id=${this.selectedSessionId ?? ''}
-            @rtc-session-tree-item-select=${this._handleSelect}
-            @rtc-session-tree-item-toggle=${this._handleToggle}
-            @rtc-session-tree-item-rename=${this._handleItemRename}
-            @rtc-session-tree-item-delete=${this._handleItemDelete}
-          ></rtc-session-tree-item>
-        `,
-      );
-    }
 
     // Calculate visible range using effective height
     const { start, end, totalHeight } = this._getVisibleRange(
@@ -638,6 +622,14 @@ export class RtcSessionTree extends LitElement {
       this._scrollTop,
       effectiveHeight,
     );
+
+    // Log warning if rendering all items (no virtual scrolling)
+    if (totalItems > 100 && start === 0 && end === totalItems) {
+      log.warn(
+        `SessionTree: rendering all ${totalItems} items without virtual scrolling. ` +
+          `This may cause performance issues. Container height: ${this._containerHeight}px`,
+      );
+    }
 
     // Slice the visible items
     const visibleItems = flatNodes.slice(start, end);
