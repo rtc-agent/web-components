@@ -249,8 +249,9 @@ function logResponseError(
  * Attempts to refresh token and retry the request.
  *
  * @returns Response if token refresh succeeded and request retried, null otherwise
+ * @internal Exported for unit testing; not part of the public API.
  */
-async function handleAuthError(response: {
+export async function handleAuthError(response: {
   data: { success?: boolean; errorCode?: string; data?: unknown };
   config?: {
     url?: string;

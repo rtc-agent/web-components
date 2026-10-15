@@ -3,6 +3,7 @@ import {
   calculateRetryDelay,
   errorConfig,
   getTokenExpirationTime,
+  handleAuthError,
   isTokenExpired,
   sanitizeRequestBody,
 } from './requestErrorConfig';
@@ -42,6 +43,36 @@ vi.mock('@umijs/max', () => ({
     replace: vi.fn(),
   },
   request: vi.fn(),
+}));
+
+vi.mock('@/utils/auth-storage', () => ({
+  clearAuth: vi.fn(),
+  getAccessTokenDecrypted: vi.fn(),
+  getRefreshToken: vi.fn(),
+  refreshAccessToken: vi.fn(),
+}));
+
+vi.mock('@/utils/user-utils', () => ({
+  fetchAndBuildCurrentUser: vi.fn(),
+}));
+
+vi.mock('@/constants/routes', () => ({
+  PUBLIC_PATHS: {
+    login: '/user/login',
+  },
+}));
+
+vi.mock('@/services/types', () => ({
+  ApiErrorCodes: {
+    UNAUTHORIZED: 'unauthorized',
+  },
+  ErrorShowType: {
+    SILENT: 0,
+    WARN_MESSAGE: 1,
+    ERROR_MESSAGE: 2,
+    NOTIFICATION: 3,
+    REDIRECT: 9,
+  },
 }));
 
 describe('requestErrorConfig', () => {
@@ -549,6 +580,169 @@ describe('requestErrorConfig', () => {
       const delay1 = calculateRetryDelay(1);
       expect(delay1).toBeGreaterThanOrEqual(2000);
       expect(delay1).toBeLessThan(3000);
+    });
+  });
+
+  describe('handleAuthError', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    const makeAuthErrorResponse = (retryCount = 0) => ({
+      data: {
+        success: false as const,
+        errorCode: 'unauthorized',
+        errorMessage: 'Token expired',
+      },
+      config: {
+        url: '/api/users',
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        _responseRetryCount: retryCount,
+      },
+    });
+
+    it('returns null when error is not a 401 unauthorized', async () => {
+      const response = {
+        data: { success: false, errorCode: 'bad_request', errorMessage: 'Bad Request' },
+        config: { url: '/api/test', method: 'GET', headers: {} },
+      };
+
+      const result = await handleAuthError(response);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when response is successful', async () => {
+      const response = {
+        data: { success: true, data: { id: 1 } },
+        config: { url: '/api/test', method: 'GET', headers: {} },
+      };
+
+      const result = await handleAuthError(response);
+      expect(result).toBeNull();
+    });
+
+    it('redirects to login when retry count already reached', async () => {
+      const response = makeAuthErrorResponse(1); // retry count = 1
+
+      const { history } = await import('@umijs/max');
+      const { clearAuth } = await import('@/utils/auth-storage');
+
+      await expect(handleAuthError(response)).rejects.toBeDefined();
+      expect(clearAuth).toHaveBeenCalled();
+      expect(history.replace).toHaveBeenCalledWith(
+        expect.stringContaining('/user/login'),
+      );
+    });
+
+    it('redirects to login when refresh token is missing', async () => {
+      const response = makeAuthErrorResponse(0);
+
+      const { getRefreshToken } = await import('@/utils/auth-storage');
+      (getRefreshToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+
+      const { history } = await import('@umijs/max');
+      const { clearAuth } = await import('@/utils/auth-storage');
+
+      await expect(handleAuthError(response)).rejects.toBeDefined();
+      expect(clearAuth).toHaveBeenCalled();
+      expect(history.replace).toHaveBeenCalledWith(
+        expect.stringContaining('/user/login'),
+      );
+    });
+
+    it('redirects to login when token refresh returns null', async () => {
+      const response = makeAuthErrorResponse(0);
+
+      const { getRefreshToken, refreshAccessToken } = await import(
+        '@/utils/auth-storage'
+      );
+      (getRefreshToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        'valid-refresh-token',
+      );
+      (refreshAccessToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        null,
+      );
+
+      const { history } = await import('@umijs/max');
+      const { clearAuth } = await import('@/utils/auth-storage');
+
+      await expect(handleAuthError(response)).rejects.toBeDefined();
+      expect(clearAuth).toHaveBeenCalled();
+      expect(history.replace).toHaveBeenCalledWith(
+        expect.stringContaining('/user/login'),
+      );
+    });
+
+    it('retries request with new token when refresh succeeds', async () => {
+      const response = makeAuthErrorResponse(0);
+
+      const { getRefreshToken, refreshAccessToken } = await import(
+        '@/utils/auth-storage'
+      );
+      const { request } = await import('@umijs/max');
+      const { fetchAndBuildCurrentUser } = await import('@/utils/user-utils');
+
+      (getRefreshToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        'valid-refresh-token',
+      );
+      (refreshAccessToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        'new-access-token',
+      );
+      (fetchAndBuildCurrentUser as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        { id: '1', name: 'Admin' },
+      );
+      (request as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { success: true, data: { id: 1 } },
+      });
+
+      const result = await handleAuthError(response);
+
+      expect(result).toBeDefined();
+      expect(request).toHaveBeenCalledWith(
+        '/api/users',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer new-access-token',
+          }),
+          _responseRetryCount: 1,
+          getResponse: true,
+        }),
+      );
+    });
+
+    it('rejects when token refresh throws an error', async () => {
+      const response = makeAuthErrorResponse(0);
+
+      const { getRefreshToken, refreshAccessToken } = await import(
+        '@/utils/auth-storage'
+      );
+      (getRefreshToken as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        'valid-refresh-token',
+      );
+      const refreshError = new Error('Network failure during refresh');
+      (refreshAccessToken as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        refreshError,
+      );
+
+      await expect(handleAuthError(response)).rejects.toThrow(
+        'Network failure during refresh',
+      );
+    });
+
+    it('does not redirect when already on login page', async () => {
+      const response = makeAuthErrorResponse(1); // retry count exceeded
+
+      const { history } = await import('@umijs/max');
+      (history.location as { pathname: string }).pathname = '/user/login';
+
+      const { clearAuth } = await import('@/utils/auth-storage');
+
+      await expect(handleAuthError(response)).rejects.toBeDefined();
+      // clearAuth should NOT be called since redirectToLogin skips when on login page
+      expect(clearAuth).not.toHaveBeenCalled();
+      // history.replace should also not be called
+      expect(history.replace).not.toHaveBeenCalled();
     });
   });
 });
