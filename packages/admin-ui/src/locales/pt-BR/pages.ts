@@ -35,7 +35,8 @@ export default {
   'pages.getCaptchaSecondText': 'seg(s)',
   'pages.login.rememberMe': 'Lembre-me',
   'pages.login.forgotPassword': 'Perdeu a Senha?',
-  'pages.login.forgotPassword.notImplemented': 'Esta funcionalidade estará disponível em breve',
+  'pages.login.forgotPassword.notImplemented':
+    'Esta funcionalidade estará disponível em breve',
   'pages.login.configLoadFailed':
     'Falha ao carregar configuração de login, usando configurações padrão',
   'pages.login.logoAlt': 'Logo da Página de Login',
@@ -736,6 +737,7 @@ export default {
   'pages.result.fail.error.upgrade': 'Atualizar Agora',
   'pages.result.fail.extra.back': 'Voltar para Modificar',
   // Cadastro de Usuário
+  'pages.user.roleLoadError': 'Falha ao carregar funções do usuário',
   'pages.user.register.title': 'Cadastrar',
   'pages.user.register.strength.strong': 'Força: Forte',
   'pages.user.register.strength.medium': 'Força: Média',
@@ -780,8 +782,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     'Importação dinâmica bem-sucedida, agent de teste montado',
   'pages.diagnose.testAgentDestroyed': 'Agent de teste destruído',
-  'pages.diagnose.dynamicImportFailed':
-    'Falha na importação dinâmica: {error}',
+  'pages.diagnose.dynamicImportFailed': 'Falha na importação dinâmica: {error}',
   'pages.diagnose.integrationNormal': 'Integração Normal',
   'pages.diagnose.agentMounted': 'RTC Agent foi montado com sucesso na página',
   'pages.diagnose.agentNotMounted':
@@ -818,6 +819,8 @@ export default {
   'pages.system.noPermission':
     'Desculpe, você não tem permissões de gerenciamento do sistema.',
   'pages.permission.refreshFailed': 'Falha ao atualizar permissões',
+  'pages.permission.denied': 'Permissão negada',
+  'pages.permission.roleLoadError': 'Falha ao carregar funções',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Olá, como posso ajudá-lo?',
   'pages.chatbot.newConversation': '💬 Nova Conversa',

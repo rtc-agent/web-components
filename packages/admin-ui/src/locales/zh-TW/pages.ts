@@ -668,6 +668,7 @@ export default {
   'pages.result.fail.error.upgrade': '立即升級',
   'pages.result.fail.extra.back': '返回修改',
   // 用戶註冊
+  'pages.user.roleLoadError': '使用者角色載入失敗',
   'pages.user.register.title': '註冊',
   'pages.user.register.strength.strong': '強度：強',
   'pages.user.register.strength.medium': '強度：中',
@@ -734,6 +735,8 @@ export default {
   'pages.500.backHome': '返回首頁',
   'pages.system.noPermission': '抱歉，您沒有系統管理權限。',
   'pages.permission.refreshFailed': '權限刷新失敗',
+  'pages.permission.denied': '權限不足',
+  'pages.permission.roleLoadError': '角色載入失敗',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 你好，有什麼可以幫您？',
   'pages.chatbot.newConversation': '💬 新對話',

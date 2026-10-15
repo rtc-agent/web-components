@@ -17,8 +17,11 @@
     "README.md"
   ],
   "sideEffects": false,
+  "publishConfig": {
+    "access": "restricted"
+  },
   "scripts": {
-    "build": "tsup && tsc --emitDeclarationOnly --declaration --declarationMap && node ../../scripts/remove-sourcemap-refs.mjs",
+    "build": "rm -f tsconfig.tsbuildinfo && tsup && tsc --emitDeclarationOnly --declaration --declarationMap && node ../../scripts/remove-sourcemap-refs.mjs",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude '**/*.integration.test.ts'",

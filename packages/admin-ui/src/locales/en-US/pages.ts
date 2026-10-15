@@ -34,8 +34,7 @@ export default {
   'pages.getCaptchaSecondText': 'sec(s)',
   'pages.login.rememberMe': 'Remember me',
   'pages.login.forgotPassword': 'Forgot Password?',
-  'pages.login.forgotPassword.notImplemented':
-    'This feature is coming soon',
+  'pages.login.forgotPassword.notImplemented': 'This feature is coming soon',
   'pages.login.configLoadFailed':
     'Failed to load login config, using default settings',
   'pages.login.logoAlt': 'Login Page Logo',
@@ -64,6 +63,8 @@ export default {
   'pages.system.noPermission':
     'Sorry, you do not have system management permissions.',
   'pages.permission.refreshFailed': 'Failed to refresh permissions',
+  'pages.permission.denied': 'Permission denied',
+  'pages.permission.roleLoadError': 'Failed to load roles',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Hello, how can I help you?',
   'pages.chatbot.newConversation': '💬 New Chat',
@@ -940,6 +941,7 @@ export default {
   'pages.result.fail.error.upgrade': 'Upgrade Now',
   'pages.result.fail.extra.back': 'Back to Modify',
   // User Register
+  'pages.user.roleLoadError': 'Failed to load user roles',
   'pages.user.register.title': 'Register',
   'pages.user.register.strength.strong': 'Strength: Strong',
   'pages.user.register.strength.medium': 'Strength: Medium',

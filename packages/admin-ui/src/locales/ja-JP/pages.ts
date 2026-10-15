@@ -718,6 +718,7 @@ export default {
   'pages.result.fail.error.upgrade': '今すぐアップグレード',
   'pages.result.fail.extra.back': '戻って修正',
   // ユーザー登録
+  'pages.user.roleLoadError': 'ユーザーロールの読み込みに失敗しました',
   'pages.user.register.title': '登録',
   'pages.user.register.strength.strong': '強度：強',
   'pages.user.register.strength.medium': '強度：中',
@@ -793,6 +794,8 @@ export default {
   'pages.system.noPermission':
     '申し訳ありませんが、システム管理権限がありません。',
   'pages.permission.refreshFailed': '権限の更新に失敗しました',
+  'pages.permission.denied': '権限がありません',
+  'pages.permission.roleLoadError': 'ロールの読み込みに失敗しました',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 こんにちは、何かお手伝いできますか？',
   'pages.chatbot.newConversation': '💬 新しい会話',
@@ -1236,5 +1239,6 @@ export default {
   'pages.config.system.historyLoadFailed': '設定履歴の読み込みに失敗しました',
   'pages.config.system.rollbackFailed': '設定のロールバックに失敗しました',
   // Auth - Session Management
-  'pages.auth.sessionExpired': 'セッションが期限切れです。再度ログインしてください',
+  'pages.auth.sessionExpired':
+    'セッションが期限切れです。再度ログインしてください',
 };

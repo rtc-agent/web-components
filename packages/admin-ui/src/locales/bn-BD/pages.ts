@@ -706,6 +706,7 @@ export default {
   'pages.result.fail.error.upgrade': 'এখনই আপগ্রেড করুন',
   'pages.result.fail.extra.back': 'পরিবর্তন করতে ফিরে যান',
   // ব্যবহারকারী নিবন্ধন
+  'pages.user.roleLoadError': 'ব্যবহারকারীর ভূমিকা লোড করতে ব্যর্থ',
   'pages.user.register.title': 'নিবন্ধন',
   'pages.user.register.strength.strong': 'শক্তি: শক্তিশালী',
   'pages.user.register.strength.medium': 'শক্তি: মাঝারি',
@@ -780,6 +781,8 @@ export default {
   'pages.500.backHome': 'প্রধান পাতায় ফিরে যান',
   'pages.system.noPermission': 'দুঃখিত, আপনার সিস্টেম ব্যবস্থাপনা অনুমতি নেই।',
   'pages.permission.refreshFailed': 'অনুমতি রিফ্রেশ করতে ব্যর্থ',
+  'pages.permission.denied': 'অনুমতি প্রত্যাখ্যাত',
+  'pages.permission.roleLoadError': 'ভূমিকা লোড করতে ব্যর্থ',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 হ্যালো, আমি আপনাকে কীভাবে সাহায্য করতে পারি?',
   'pages.chatbot.newConversation': '💬 নতুন কথোপকথন',

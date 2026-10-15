@@ -714,6 +714,7 @@ export default {
   'pages.result.fail.error.upgrade': 'ارتقا اکنون',
   'pages.result.fail.extra.back': 'بازگشت برای اصلاح',
   // ثبت نام کاربر
+  'pages.user.roleLoadError': 'بارگذاری نقش‌های کاربر ناموفق بود',
   'pages.user.register.title': 'ثبت نام',
   'pages.user.register.strength.strong': 'قدرت: قوی',
   'pages.user.register.strength.medium': 'قدرت: متوسط',
@@ -786,6 +787,8 @@ export default {
   'pages.500.backHome': 'بازگشت به صفحه اصلی',
   'pages.system.noPermission': 'متأسفید، شما مجوز مدیریت سیستم را ندارید.',
   'pages.permission.refreshFailed': 'بازنشانی مجوزها ناموفق بود',
+  'pages.permission.denied': 'دسترسی مجاز نیست',
+  'pages.permission.roleLoadError': 'بارگذاری نقش‌ها ناموفق بود',
   // چت بات
   'pages.chatbot.welcomeText': '🤖 سلام، چطور می‌توانم به شما کمک کنم؟',
   'pages.chatbot.newConversation': '💬 گفتگوی جدید',

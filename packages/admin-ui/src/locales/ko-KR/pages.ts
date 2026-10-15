@@ -63,6 +63,8 @@ export default {
   'pages.500.backHome': '홈으로 돌아가기',
   'pages.system.noPermission': '죄송합니다, 시스템 관리 권한이 없습니다.',
   'pages.permission.refreshFailed': '권한 새로고침에 실패했습니다',
+  'pages.permission.denied': '권한이 없습니다',
+  'pages.permission.roleLoadError': '역할 로드에 실패했습니다',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 안녕하세요, 어떻게 도와드릴까요?',
   'pages.chatbot.newConversation': '💬 새 대화',
@@ -859,6 +861,7 @@ export default {
   'pages.result.fail.error.upgrade': '지금 업그레이드',
   'pages.result.fail.extra.back': '수정하러 가기',
   // User Register
+  'pages.user.roleLoadError': '사용자 역할 로드에 실패했습니다',
   'pages.user.register.title': '회원가입',
   'pages.user.register.strength.strong': '강도: 강함',
   'pages.user.register.strength.medium': '강도: 보통',

@@ -714,6 +714,7 @@ export default {
   'pages.result.fail.error.upgrade': 'Tingkatkan Sekarang',
   'pages.result.fail.extra.back': 'Kembali untuk Mengubah',
   // Pendaftaran Pengguna
+  'pages.user.roleLoadError': 'Gagal memuat peran pengguna',
   'pages.user.register.title': 'Daftar',
   'pages.user.register.strength.strong': 'Kekuatan: Kuat',
   'pages.user.register.strength.medium': 'Kekuatan: Sedang',
@@ -790,6 +791,8 @@ export default {
   'pages.system.noPermission':
     'Maaf, Anda tidak memiliki izin manajemen sistem.',
   'pages.permission.refreshFailed': 'Gagal menyegarkan izin',
+  'pages.permission.denied': 'Izin ditolak',
+  'pages.permission.roleLoadError': 'Gagal memuat peran',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 Halo, ada yang bisa saya bantu?',
   'pages.chatbot.newConversation': '💬 Percakapan Baru',

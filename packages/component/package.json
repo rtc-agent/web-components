@@ -24,6 +24,9 @@
   "sideEffects": [
     "./dist/index.js"
   ],
+  "publishConfig": {
+    "access": "restricted"
+  },
   "scripts": {
     "build": "lit-localize build && rm -rf dist && vite build && tsc --emitDeclarationOnly --declaration --declarationMap",
     "dev": "vite",

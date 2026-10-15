@@ -57,6 +57,8 @@ export default {
   'pages.500.backHome': '返回首页',
   'pages.system.noPermission': '抱歉，您没有系统管理权限。',
   'pages.permission.refreshFailed': '权限刷新失败',
+  'pages.permission.denied': '权限不足',
+  'pages.permission.roleLoadError': '角色加载失败',
   // Chatbot
   'pages.chatbot.welcomeText': '🤖 你好，有什么可以帮你？',
   'pages.chatbot.newConversation': '💬 新对话',
@@ -882,6 +884,7 @@ export default {
   'pages.result.fail.error.upgrade': '立即升级',
   'pages.result.fail.extra.back': '返回修改',
   // 用户注册
+  'pages.user.roleLoadError': '用户角色加载失败',
   'pages.user.register.title': '注册',
   'pages.user.register.strength.strong': '强度：强',
   'pages.user.register.strength.medium': '强度：中',
