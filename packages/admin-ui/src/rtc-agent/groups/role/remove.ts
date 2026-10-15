@@ -58,10 +58,12 @@ export const removeRole: PermissionAwareFunctionDef = {
 
   hooks: {
     onStart: (params) => {
+      // TODO: Replace `as any` with proper type once hook params type inference is improved
       const ids = (params as any)?.ids || [];
       console.log(`[role.remove] Deleting ${ids.length} admin role(s)...`);
     },
     onSuccess: (result) => {
+      // TODO: Replace `as any` with proper type once hook result type inference is improved
       console.log(
         `[role.remove] Deletion successful, deleted ${(result as any).deletedCount || 1} role(s)`,
       );

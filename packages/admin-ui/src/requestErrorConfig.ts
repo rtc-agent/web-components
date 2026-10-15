@@ -803,6 +803,8 @@ export const errorConfig: RequestConfig = {
         // 不可重试或已达最大重试次数，传递错误
         return Promise.reject(error);
       },
+      // TODO: Replace `as any` with proper type once retry middleware types are refined
+      // Current issue: Umi request middleware array has strict type inference issues
     ] as any,
   ],
 };

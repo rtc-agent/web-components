@@ -172,6 +172,7 @@ export const listAuditLogs: PermissionAwareFunctionDef = {
       console.log('[auditLog.list] Reading audit log list...');
     },
     onSuccess: (result) => {
+      // TODO: Replace `as any` with proper type once hook result type inference is improved
       console.log(
         `[auditLog.list] Read successful, total ${(result as any).total} records`,
       );

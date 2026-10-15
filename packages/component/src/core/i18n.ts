@@ -11,6 +11,20 @@ import {
 
 const log = createLogger('i18n');
 
+// ============================================================================
+// CURRENT LANGUAGE SUPPORT:
+// - zh-CN (Simplified Chinese) ✅ [source locale]
+// - en-US (English) ✅
+//
+// FUTURE EXPANSION:
+// The component package currently supports 2 languages, while admin-ui supports 9.
+// To add more languages:
+// 1. Create locale files in src/locales/{lang}/
+// 2. Update the language registry below (targetLocales array)
+// 3. Add translations for all component strings
+// 4. Update this comment
+// ============================================================================
+
 // 1. Locale codes
 export const sourceLocale = 'zh-CN' as const;
 export const targetLocales = ['en-US'] as const;

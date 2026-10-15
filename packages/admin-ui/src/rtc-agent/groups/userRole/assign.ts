@@ -66,6 +66,7 @@ export const assignUserRoles: PermissionAwareFunctionDef = {
 
   hooks: {
     onStart: (params) => {
+      // TODO: Replace `as any` with proper type once hook params type inference is improved
       const ids = (params as any)?.roleIds || [];
       console.log(`[adminRole.assign] Assigning ${ids.length} role(s)...`);
     },

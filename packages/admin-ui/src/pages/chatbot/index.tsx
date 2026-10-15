@@ -164,6 +164,8 @@ const ChatbotPage: React.FC = () => {
     any,
     ParsedMessage
   >({
+    // TODO: Replace `as any` with proper type once XChat provider interface is refined
+    // Current issue: useXChat generic type inference with createChatProvider() return type
     provider: provider as any,
     conversationKey: activeKey,
     parser,

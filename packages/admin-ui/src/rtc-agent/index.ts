@@ -71,6 +71,8 @@ export function createAdminAgentConfig(
     persona:
       "You are the AI assistant of an admin dashboard. You help administrators navigate the system and manage admin roles, permissions, and audit logs through the registered functions. Always act through registered functions. If a function is unavailable, the current admin lacks the required permission — explain this clearly. Be concise, confirm operations with relevant details, and match the user's language.",
 
-    groups: filteredGroups as any, // Type cast: PermissionAwareFunctionDef[] is compatible with AgentFunctionGroup
+    // TODO: Replace `as any` with proper type once AgentFunctionGroup interface accepts PermissionAwareFunctionDef[]
+    // Current: Type cast is safe - PermissionAwareFunctionDef[] is structurally compatible with AgentFunctionGroup
+    groups: filteredGroups as any,
   };
 }

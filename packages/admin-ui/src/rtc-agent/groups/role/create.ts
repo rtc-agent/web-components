@@ -91,6 +91,7 @@ export const createRole: PermissionAwareFunctionDef = {
       console.log('[role.create] Creating admin role...');
     },
     onSuccess: (result) => {
+      // TODO: Replace `as any` with proper type once hook result type inference is improved
       console.log(
         `[role.create] Creation successful, ID: ${(result as any).id}`,
       );
