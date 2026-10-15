@@ -73,9 +73,7 @@ const RoleListPage: React.FC = () => {
     [],
   );
   /** Permission toggle key (resource:action), prevents race condition on rapid clicks */
-  const [togglingPermission, setTogglingPermission] = useState<string | null>(
-    null,
-  );
+  const togglingPermissionRef = useRef<string | null>(null);
   const isMobile = useIsMobile();
   const modalWidth = isMobile ? '95vw' : 520;
   const permissionModalWidth = isMobile ? '95vw' : 800;
@@ -111,7 +109,10 @@ const RoleListPage: React.FC = () => {
               total: response.total,
             };
           } catch (error) {
-            console.error('[Role Page API] list failed:', error);
+            console.error('[Role Page API] list failed:', {
+              params,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -144,7 +145,10 @@ const RoleListPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true, id: result.id };
           } catch (error) {
-            console.error('[Role Page API] create failed:', error);
+            console.error('[Role Page API] create failed:', {
+              data,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -161,15 +165,18 @@ const RoleListPage: React.FC = () => {
 
         // Update admin role
         update: async (data) => {
+          const { id, ...updateData } = data;
           try {
-            const { id, ...updateData } = data;
             await updateRole(id, updateData);
             actionRef.current?.reload();
             // Invalidate role list cache so other pages see the updated role
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true };
           } catch (error) {
-            console.error('[Role Page API] update failed:', error);
+            console.error('[Role Page API] update failed:', {
+              id,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -197,7 +204,10 @@ const RoleListPage: React.FC = () => {
               deletedCount: ids.length - failures.length,
             };
           } catch (error) {
-            console.error('[Role Page API] remove failed:', error);
+            console.error('[Role Page API] remove failed:', {
+              ids,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -565,8 +575,8 @@ const RoleListPage: React.FC = () => {
 
     const permKey = `${resource}:${action}`;
     // Prevent race condition: if already toggling, return early
-    if (togglingPermission === permKey) return;
-    setTogglingPermission(permKey);
+    if (togglingPermissionRef.current === permKey) return;
+    togglingPermissionRef.current = permKey;
 
     try {
       if (checked) {
@@ -621,7 +631,7 @@ const RoleListPage: React.FC = () => {
         ),
       );
     } finally {
-      setTogglingPermission(null);
+      togglingPermissionRef.current = null;
     }
   };
 
@@ -764,6 +774,13 @@ const RoleListPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.roles.nameRequired',
                 defaultMessage: 'Please enter admin role name',
+              }),
+            },
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.roles.nameNoWhitespace',
+                defaultMessage: 'Admin role name cannot be only spaces',
               }),
             },
             {
@@ -1000,7 +1017,7 @@ const RoleListPage: React.FC = () => {
                       <Checkbox
                         checked={hasPermission(resource.value, action.value)}
                         disabled={
-                          togglingPermission ===
+                          togglingPermissionRef.current ===
                           `${resource.value}:${action.value}`
                         }
                         onChange={(e) =>

@@ -1,8 +1,8 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { history, useIntl, useSearchParams } from '@umijs/max';
+import { history, useIntl } from '@umijs/max';
 import { App, Button, Tag } from 'antd';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { TableEmptyState } from '@/components';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
@@ -23,7 +23,6 @@ const SessionsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams] = useSearchParams();
   const tableParams = useTableSearchParams<{
     user_id: string;
     status: string;
@@ -31,7 +30,7 @@ const SessionsPage: React.FC = () => {
     start_time: string;
     end_time: string;
   }>();
-  const userId = searchParams.get('user_id') || '';
+  const userId = tableParams.getParam('user_id') || '';
   const isMobile = useIsMobile(); // < 768px
 
   // === Register Page API ===
@@ -77,11 +76,6 @@ const SessionsPage: React.FC = () => {
       [tableParams, userId],
     ),
   );
-
-  // Listen for URL changes, auto-reload table
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [searchParams]);
 
   /** Table column definitions */
   const columns: ProColumns<SessionInfo>[] = useMemo(
@@ -323,11 +317,7 @@ const SessionsPage: React.FC = () => {
             labelWidth: 'auto',
           }}
           form={{
-            initialValues: {
-              user_id: searchParams.get('user_id') || '',
-              status: searchParams.get('status') || undefined,
-              search: searchParams.get('search') || undefined,
-            },
+            initialValues: tableParams.get(),
           }}
           options={{
             reload: true,

@@ -18,12 +18,10 @@ import {
   history,
   useAccess,
   useIntl,
-  useSearchParams,
 } from '@umijs/max';
 import { App, Button, Dropdown, Popconfirm, Space, Tag, Tooltip } from 'antd';
 import React, {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -234,7 +232,6 @@ const RtcUserManagementPage: React.FC = () => {
   const access = useAccess();
   const intl = useIntl();
   const { message } = App.useApp();
-  const [searchParams] = useSearchParams();
   const tableParams = useTableSearchParams<{
     search: string;
     status: string;
@@ -300,7 +297,10 @@ const RtcUserManagementPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[RtcUser Page API] ban failed:', error);
+            console.error('[RtcUser Page API] ban failed:', {
+              userId: data.userId,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -322,7 +322,10 @@ const RtcUserManagementPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[RtcUser Page API] unban failed:', error);
+            console.error('[RtcUser Page API] unban failed:', {
+              userId,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -346,7 +349,10 @@ const RtcUserManagementPage: React.FC = () => {
               data: response.items,
             };
           } catch (error) {
-            console.error('[RtcUser Page API] devices failed:', error);
+            console.error('[RtcUser Page API] devices failed:', {
+              userId,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -374,7 +380,11 @@ const RtcUserManagementPage: React.FC = () => {
               data: response,
             };
           } catch (error) {
-            console.error('[RtcUser Page API] tokenStats failed:', error);
+            console.error('[RtcUser Page API] tokenStats failed:', {
+              userId,
+              days,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -406,11 +416,6 @@ const RtcUserManagementPage: React.FC = () => {
     ),
   );
 
-  // Listen for URL changes, auto-reload table
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [searchParams]);
-
   /** Ban user */
   const handleBanUser = async (values: { reason: string }) => {
     if (!modalState.ban.user) return false;
@@ -429,7 +434,10 @@ const RtcUserManagementPage: React.FC = () => {
       actionRef.current?.reload();
       return true;
     } catch (error: unknown) {
-      console.error('[RtcUser Management] ban failed:', error);
+      console.error('[RtcUser Management] ban failed:', {
+        userId: modalState.ban.user.id,
+        error,
+      });
       message.error(
         getFriendlyErrorMessage(
           error,
@@ -457,7 +465,10 @@ const RtcUserManagementPage: React.FC = () => {
         );
         actionRef.current?.reload();
       } catch (error: unknown) {
-        console.error('[RtcUser Management] unban failed:', error);
+        console.error('[RtcUser Management] unban failed:', {
+          userId,
+          error,
+        });
         message.error(
           getFriendlyErrorMessage(
             error,
@@ -758,6 +769,13 @@ const RtcUserManagementPage: React.FC = () => {
               message: intl.formatMessage({
                 id: 'pages.rtcUsers.banReasonRequired',
                 defaultMessage: 'Please enter ban reason',
+              }),
+            },
+            {
+              whitespace: true,
+              message: intl.formatMessage({
+                id: 'pages.rtcUsers.banReasonWhitespace',
+                defaultMessage: 'Ban reason cannot be only whitespace',
               }),
             },
             {

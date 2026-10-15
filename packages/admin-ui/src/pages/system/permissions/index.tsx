@@ -6,10 +6,10 @@ import {
   ProFormSelect,
   ProTable,
 } from '@ant-design/pro-components';
-import { Access, useAccess, useIntl, useSearchParams } from '@umijs/max';
+import { Access, useAccess, useIntl } from '@umijs/max';
 import { useQueryClient } from '@tanstack/react-query';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -17,6 +17,7 @@ import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
+import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { queryKeys } from '@/utils/queryKeys';
 import { createTableRequest } from '@/utils/tableUtils';
@@ -35,7 +36,10 @@ const PermissionListPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
   const access = useAccess();
   const intl = useIntl();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const tableParams = useTableSearchParams<{
+    role_id?: string;
+    resource?: string;
+  }>();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const modal = useModalState();
@@ -57,14 +61,7 @@ const PermissionListPage: React.FC = () => {
           const { current = 1, pageSize = 20, role_id, resource } = params;
 
           // Sync URL (no page refresh)
-          const newSearchParams = new URLSearchParams();
-          if (role_id) {
-            newSearchParams.set('role_id', role_id);
-          }
-          if (resource) {
-            newSearchParams.set('resource', resource);
-          }
-          setSearchParams(newSearchParams, { replace: true });
+          tableParams.set({ role_id, resource });
 
           try {
             const response = await getPermissionList({
@@ -80,7 +77,10 @@ const PermissionListPage: React.FC = () => {
               total: response.total,
             };
           } catch (error) {
-            console.error('[Permission Page API] list failed:', error);
+            console.error('[Permission Page API] list failed:', {
+              params,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -113,7 +113,10 @@ const PermissionListPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
             return { success: true };
           } catch (error) {
-            console.error('[Permission Page API] create failed:', error);
+            console.error('[Permission Page API] create failed:', {
+              data,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -143,7 +146,10 @@ const PermissionListPage: React.FC = () => {
               deletedCount: items.length - failures.length,
             };
           } catch (error) {
-            console.error('[Permission Page API] remove failed:', error);
+            console.error('[Permission Page API] remove failed:', {
+              itemCount: items.length,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -158,14 +164,9 @@ const PermissionListPage: React.FC = () => {
           }
         },
       }),
-      [],
+      [tableParams],
     ),
   );
-
-  // Listen for URL changes, auto-reload table
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [searchParams]);
 
   /** Table column definitions */
   const columns: ProColumns<PermissionTableItem>[] = useMemo(
@@ -355,9 +356,7 @@ const PermissionListPage: React.FC = () => {
           labelWidth: 'auto',
         }}
         form={{
-          initialValues: {
-            resource: searchParams.get('resource') || undefined,
-          },
+          initialValues: tableParams.get(),
         }}
         toolBarRender={() => [
           <Access
@@ -381,9 +380,10 @@ const PermissionListPage: React.FC = () => {
         ]}
         request={createTableRequest(
           async (params) => {
-            // Read all query params from searchParams (URL is single source of truth)
-            const roleId = searchParams.get('role_id') || undefined;
-            const resource = searchParams.get('resource') || undefined;
+            // Read all query params from URL (single source of truth)
+            const urlParams = tableParams.get();
+            const roleId = urlParams.role_id || undefined;
+            const resource = urlParams.resource || undefined;
             const response = await getPermissionList({
               page: params.current,
               page_size: params.pageSize,

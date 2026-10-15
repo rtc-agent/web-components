@@ -1,8 +1,8 @@
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { PageContainer, ProTable } from '@ant-design/pro-components';
-import { useIntl, useSearchParams } from '@umijs/max';
+import { useIntl } from '@umijs/max';
 import { App, Tag, theme } from 'antd';
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
@@ -18,8 +18,8 @@ import { getAuditLogList } from './service';
  */
 const AuditLogsPage: React.FC = () => {
   const actionRef = useRef<ActionType>(null);
+  const formRef = useRef<any>(null);
   const intl = useIntl();
-  const [searchParams] = useSearchParams();
   const tableParams = useTableSearchParams<{
     actor_id?: string;
     resource_type?: string;
@@ -78,7 +78,10 @@ const AuditLogsPage: React.FC = () => {
               total: response.total,
             };
           } catch (error) {
-            console.error('[AuditLog Page API] list failed:', error);
+            console.error('[AuditLog Page API] list failed:', {
+              params,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -105,11 +108,6 @@ const AuditLogsPage: React.FC = () => {
       [],
     ),
   );
-
-  // Listen for URL changes, auto-reload table
-  useEffect(() => {
-    actionRef.current?.reload();
-  }, [searchParams]);
 
   /** Event type mapping (i18n) */
   const EVENT_TYPE_MAP: Record<string, { text: string; color: string }> =
@@ -353,6 +351,33 @@ const AuditLogsPage: React.FC = () => {
             defaultMessage: 'Select end time',
           }),
         },
+        formItemProps: {
+          rules: [
+            {
+              validator: (_rule, value) => {
+                if (!value) return Promise.resolve();
+                const startTime = formRef.current?.getFieldValue(
+                  'start_time',
+                ) as string | undefined;
+                if (!startTime) return Promise.resolve();
+                const start = new Date(startTime).getTime();
+                const end = new Date(value as string).getTime();
+                if (start >= end) {
+                  return Promise.reject(
+                    new Error(
+                      intl.formatMessage({
+                        id: 'pages.auditLogs.timeRangeInvalid',
+                        defaultMessage:
+                          'Start time must be earlier than end time',
+                      }),
+                    ),
+                  );
+                }
+                return Promise.resolve();
+              },
+            },
+          ],
+        },
       },
     ],
     [intl, token, isMobile, EVENT_TYPE_MAP, RESOURCE_TYPE_MAP],
@@ -381,23 +406,7 @@ const AuditLogsPage: React.FC = () => {
             end_time: tableParams.getParam('end_time') || undefined,
           },
         }}
-        beforeSearchSubmit={(params) => {
-          // Cross-validation: start_time must be before end_time
-          if (params.start_time && params.end_time) {
-            const startTime = new Date(params.start_time as string).getTime();
-            const endTime = new Date(params.end_time as string).getTime();
-            if (startTime >= endTime) {
-              message.warning(
-                intl.formatMessage({
-                  id: 'pages.auditLogs.timeRangeInvalid',
-                  defaultMessage: 'Start time must be earlier than end time',
-                }),
-              );
-              return false; // Cancel search
-            }
-          }
-          return params;
-        }}
+        formRef={formRef}
         request={createTableRequest(
           async (params, sort) => {
             // Read params from tableParams (URL is single source of truth)

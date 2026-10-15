@@ -234,7 +234,10 @@ const ChatbotPage: React.FC = () => {
             sendMessageRef.current(content);
             return { success: true };
           } catch (error) {
-            console.error('[ChatbotPageAPI] sendMessage failed:', error);
+            console.error('[ChatbotPageAPI] sendMessage failed:', {
+              contentLength: content?.length,
+              error,
+            });
             return { success: false };
           }
         },
@@ -247,10 +250,10 @@ const ChatbotPage: React.FC = () => {
           };
         },
         clearConversation: async () => {
+          const oldKey = activeKeyRef.current;
           try {
             // Replace active conversation with a fresh one (same semantics as "new chat"
             // followed by deleting the old one) so the chat history is reset.
-            const oldKey = activeKeyRef.current;
             const newKey = generateIdRef.current();
             setConversationsRef.current((prev) => {
               const filtered = prev.filter((c) => c.key !== oldKey);
@@ -273,7 +276,10 @@ const ChatbotPage: React.FC = () => {
             setActiveKeyRef.current(newKey);
             return { success: true };
           } catch (error) {
-            console.error('[ChatbotPageAPI] clearConversation failed:', error);
+            console.error('[ChatbotPageAPI] clearConversation failed:', {
+              oldKey,
+              error,
+            });
             return { success: false };
           }
         },
@@ -298,7 +304,7 @@ const ChatbotPage: React.FC = () => {
             setActiveKeyRef.current(key);
             return { success: true, conversationKey: key };
           } catch (error) {
-            console.error('[ChatbotPageAPI] newChat failed:', error);
+            console.error('[ChatbotPageAPI] newChat failed:', { error });
             return { success: false, conversationKey: '' };
           }
         },
@@ -347,14 +353,19 @@ const ChatbotPage: React.FC = () => {
           }}
         >
           <div style={{ textAlign: 'center' }}>
-            <h3>{intl.formatMessage({
-              id: 'pages.chatbot.notAvailable',
-              defaultMessage: 'Chatbot is not available',
-            })}</h3>
-            <p>{intl.formatMessage({
-              id: 'pages.chatbot.notConfigured',
-              defaultMessage: 'Please configure CHAT_API_URL environment variable',
-            })}</p>
+            <h3>
+              {intl.formatMessage({
+                id: 'pages.chatbot.notAvailable',
+                defaultMessage: 'Chatbot is not available',
+              })}
+            </h3>
+            <p>
+              {intl.formatMessage({
+                id: 'pages.chatbot.notConfigured',
+                defaultMessage:
+                  'Please configure CHAT_API_URL environment variable',
+              })}
+            </p>
           </div>
         </Card>
       </PageContainer>

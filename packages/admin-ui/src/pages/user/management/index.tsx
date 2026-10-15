@@ -105,7 +105,10 @@ const AdminUserManagementPage: React.FC = () => {
               total: response.total,
             };
           } catch (error) {
-            console.error('[Admin Page API] list failed:', error);
+            console.error('[Admin Page API] list failed:', {
+              params,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -136,7 +139,10 @@ const AdminUserManagementPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true, id: result.id };
           } catch (error) {
-            console.error('[Admin Page API] create failed:', error);
+            console.error('[Admin Page API] create failed:', {
+              data,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -153,13 +159,16 @@ const AdminUserManagementPage: React.FC = () => {
 
         // Update admin user
         update: async (data) => {
+          const { id, ...updateData } = data;
           try {
-            const { id, ...updateData } = data;
             await updateAdminUser(id, updateData);
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[Admin Page API] update failed:', error);
+            console.error('[Admin Page API] update failed:', {
+              id,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -187,7 +196,10 @@ const AdminUserManagementPage: React.FC = () => {
               deletedCount: ids.length,
             };
           } catch (error) {
-            console.error('[Admin Page API] remove failed:', error);
+            console.error('[Admin Page API] remove failed:', {
+              ids,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -212,7 +224,10 @@ const AdminUserManagementPage: React.FC = () => {
               total: response.total,
             };
           } catch (error) {
-            console.error('[Admin Page API] listUserRoles failed:', error);
+            console.error('[Admin Page API] listUserRoles failed:', {
+              userId,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -238,7 +253,11 @@ const AdminUserManagementPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[Admin Page API] assignRoles failed:', error);
+            console.error('[Admin Page API] assignRoles failed:', {
+              userId,
+              roleIds,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -260,7 +279,11 @@ const AdminUserManagementPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[Admin Page API] revokeRole failed:', error);
+            console.error('[Admin Page API] revokeRole failed:', {
+              userId,
+              roleId,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -391,9 +414,7 @@ const AdminUserManagementPage: React.FC = () => {
         }),
       );
       assignModal.close();
-      // Refresh admin user role list
-      const response = await getUserRoles(currentRow.id);
-      setUserRoles(response.items);
+      // Refresh table data (role modal will get roles from table data)
       actionRef.current?.reload();
       // Refresh current user permissions (may have assigned roles to self)
       await refreshPermissions();
@@ -423,11 +444,7 @@ const AdminUserManagementPage: React.FC = () => {
           defaultMessage: 'Admin role removed successfully',
         }),
       );
-      // Refresh admin user role list
-      if (currentRow) {
-        const response = await getUserRoles(currentRow.id);
-        setUserRoles(response.items);
-      }
+      // Refresh table data (role modal will get roles from table data)
       actionRef.current?.reload();
       // Refresh current user permissions (may have revoked roles from self)
       await refreshPermissions();

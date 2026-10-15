@@ -189,7 +189,14 @@ const SystemConfigsPage: React.FC = () => {
       reload();
       return true;
     } catch (error: unknown) {
-      // Use hook to handle optimistic lock conflict
+      // Use hook to handle optimistic lock conflict.
+      // When a version conflict is detected, handleEditError shows a dedicated
+      // conflict modal (with force-overwrite option) and returns true.
+      // We close the edit modal here because the user must re-confirm their
+      // intent through the conflict resolution flow.
+      // Return true to signal to ProForm that the error has been fully handled
+      // — no further error processing or modal state management is needed
+      // at the caller level.
       const handled = handleEditError(error, {
         key: editingConfig.key,
         value: values.value,
@@ -413,7 +420,10 @@ const SystemConfigsPage: React.FC = () => {
               success: true,
             };
           } catch (error) {
-            console.error('[ServerConfigPageAPI] list failed:', error);
+            console.error('[ServerConfigPageAPI] list failed:', {
+              params,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -437,7 +447,11 @@ const SystemConfigsPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[ServerConfigPageAPI] update failed:', error);
+            console.error('[ServerConfigPageAPI] update failed:', {
+              key: data.key,
+              version: data.version,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
@@ -454,7 +468,11 @@ const SystemConfigsPage: React.FC = () => {
             actionRef.current?.reload();
             return { success: true };
           } catch (error) {
-            console.error('[ServerConfigPageAPI] remove failed:', error);
+            console.error('[ServerConfigPageAPI] remove failed:', {
+              key: data.key,
+              version: data.version,
+              error,
+            });
             message.error(
               getFriendlyErrorMessage(
                 error,
