@@ -230,11 +230,17 @@ export class UIUpdateBus {
    * Pending events buffer: when processing chains reach the hard limit,
    * events are queued here instead of being dropped.
    * When a chain completes, it automatically drains events from this queue.
+   *
+   * P2 FIX: Each event carries a timestamp for TTL-based expiration.
+   * Events older than PENDING_EVENT_TTL_MS are silently discarded during drain,
+   * preventing accumulation of stale events that are no longer relevant.
    */
   private _pendingEvents: Array<{
     listener: UIUpdateListener;
     event: UIUpdateEvent;
     seq: number;
+    /** Timestamp (Date.now()) when the event was buffered. Used for TTL expiration. */
+    bufferedAt: number;
   }> = [];
 
   /**
@@ -242,6 +248,13 @@ export class UIUpdateBus {
    * When exceeded, new events are dropped with a warning.
    */
   private static readonly MAX_PENDING_EVENTS = 5000;
+
+  /**
+   * Maximum age (ms) for a pending event before it is considered expired.
+   * Expired events are silently discarded during drain to prevent accumulation
+   * of stale data. 30 seconds balances freshness with reasonable replay window.
+   */
+  private static readonly PENDING_EVENT_TTL_MS = 30_000;
 
   // ========== P1-2: Suspend Event Deduplication ==========
   /**
@@ -448,7 +461,7 @@ export class UIUpdateBus {
             `Buffering event for ${event.entity}:${event.entityId} (pending queue size: ${this._pendingEvents.length + 1}). ` +
             `Event will be processed when a chain completes.`,
         );
-        this._pendingEvents.push({ listener, event, seq });
+        this._pendingEvents.push({ listener, event, seq, bufferedAt: Date.now() });
         this._metrics.totalBuffered++;
         return;
       }
@@ -572,8 +585,13 @@ export class UIUpdateBus {
   /**
    * P1-1 FIX: Drain pending events from the buffer when a chain completes.
    * Processes events in FIFO order, up to the available chain capacity.
+   *
+   * P2 FIX: Expired events (older than PENDING_EVENT_TTL_MS) are silently discarded
+   * to prevent accumulation of stale data. This ensures the buffer doesn't grow
+   * unboundedly with events that are no longer relevant.
    */
   private _drainPendingEvents(): void {
+    const now = Date.now();
     // Only drain if we have capacity (below the hard limit)
     while (
       this._pendingEvents.length > 0 &&
@@ -581,6 +599,14 @@ export class UIUpdateBus {
     ) {
       const pending = this._pendingEvents.shift();
       if (pending) {
+        // P2 FIX: Skip expired events (older than TTL)
+        if (now - pending.bufferedAt > UIUpdateBus.PENDING_EVENT_TTL_MS) {
+          log.debug(
+            `Discarding expired pending event for ${pending.event.entity}:${pending.event.entityId} ` +
+              `(age: ${now - pending.bufferedAt}ms, TTL: ${UIUpdateBus.PENDING_EVENT_TTL_MS}ms).`,
+          );
+          continue;
+        }
         // Re-dispatch the pending event through normal flow
         this._dispatchToListener(pending.listener, pending.event, pending.seq);
       }
