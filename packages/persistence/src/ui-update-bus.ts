@@ -82,6 +82,32 @@ export interface BulkUpdateEvent {
 }
 
 /**
+ * Performance metrics for UIUpdateBus monitoring and debugging.
+ */
+export interface UIUpdateBusMetrics {
+  /** Total number of events published */
+  totalPublished: number;
+  /** Total number of events dropped due to chain limit (before P1-1 fix) */
+  totalDropped: number;
+  /** Total number of events buffered to pending queue due to chain limit */
+  totalBuffered: number;
+  /** Total number of events deduplicated during suspend */
+  totalDeduplicated: number;
+  /** Peak number of concurrent processing chains */
+  peakChainCount: number;
+  /** Current number of processing chains */
+  currentChainCount: number;
+  /** Current number of pending (buffered) events */
+  currentPendingCount: number;
+  /** Average listener processing time in milliseconds */
+  averageProcessingTimeMs: number;
+  /** Total number of listener invocations */
+  totalListenerInvocations: number;
+  /** Total listener processing time in milliseconds */
+  totalProcessingTimeMs: number;
+}
+
+/**
  * Bulk update subscriber callback.
  */
 export type BulkUpdateListener = (event: BulkUpdateEvent) => void;
@@ -199,6 +225,58 @@ export class UIUpdateBus {
    */
   private _initialized = false;
 
+  // ========== P1-1: Event Buffering Queue ==========
+  /**
+   * Pending events buffer: when processing chains reach the hard limit,
+   * events are queued here instead of being dropped.
+   * When a chain completes, it automatically drains events from this queue.
+   */
+  private _pendingEvents: Array<{
+    listener: UIUpdateListener;
+    event: UIUpdateEvent;
+    seq: number;
+  }> = [];
+
+  /**
+   * Maximum size of the pending events buffer.
+   * When exceeded, new events are dropped with a warning.
+   */
+  private static readonly MAX_PENDING_EVENTS = 5000;
+
+  // ========== P1-2: Suspend Event Deduplication ==========
+  /**
+   * Tracks unique (entity, entityId) combinations during suspend for deduplication.
+   * When an event arrives during suspend, we check if this key already exists.
+   * If yes, we replace the old event (keeping the latest state).
+   * If no, we add it to both the map and the events array.
+   */
+  private _suspendedEventKeys = new Map<string, number>(); // key -> index in _suspendedEvents
+
+  // ========== P2-1: Performance Metrics ==========
+  private _metrics = {
+    totalPublished: 0,
+    totalDropped: 0,
+    totalBuffered: 0,
+    totalDeduplicated: 0,
+    peakChainCount: 0,
+    totalListenerInvocations: 0,
+    totalProcessingTimeMs: 0,
+  };
+
+  // ========== P2-2: Stale Entry Cleanup ==========
+  /**
+   * Timer for periodic stale entry cleanup.
+   * Runs every STALE_CLEANUP_INTERVAL_MS to remove chains that have been
+   * in the Map for an unusually long time (possible zombie chains).
+   */
+  private _staleCleanupTimer?: ReturnType<typeof setInterval>;
+  /** Interval for stale entry cleanup (30 seconds) */
+  private static readonly STALE_CLEANUP_INTERVAL_MS = 30_000;
+  /** Maximum age for a processing chain before considered stale (60 seconds) */
+  private static readonly STALE_CHAIN_AGE_MS = 60_000;
+  /** Map of chain key -> creation timestamp for stale detection */
+  private _chainTimestamps = new Map<string, number>();
+
   /**
    * Initialize the bus.
    *
@@ -312,8 +390,9 @@ export class UIUpdateBus {
    * Timeout protection: If a listener Promise never resolves, the chain will
    * timeout after CHAIN_TIMEOUT_MS to prevent permanent blocking.
    *
-   * Memory safety: Enforces MAX_PROCESSING_CHAINS hard limit to prevent unbounded
-   * memory growth. If the limit is exceeded, the event is dropped with an error log.
+   * Memory safety: Enforces MAX_PROCESSING_CHAINS hard limit. When exceeded,
+   * events are buffered to _pendingEvents queue instead of dropped.
+   * When a chain completes, it drains events from the queue.
    */
   private _dispatchToListener(
     listener: UIUpdateListener,
@@ -352,17 +431,38 @@ export class UIUpdateBus {
         );
         // Fall through to process the event despite the limit
       } else {
-        log.error(
+        // P1-1 FIX: Buffer events instead of dropping when chain limit is exceeded.
+        // Events are queued and will be processed when a chain completes.
+        if (this._pendingEvents.length >= UIUpdateBus.MAX_PENDING_EVENTS) {
+          log.error(
+            `Pending events buffer full (${UIUpdateBus.MAX_PENDING_EVENTS}). ` +
+              `Dropping event for ${event.entity}:${event.entityId}. ` +
+              `This indicates extreme memory pressure — investigate listener performance.`,
+          );
+          this._metrics.totalDropped++;
+          return;
+        }
+
+        log.warn(
           `_processingChains hard limit exceeded (${this._processingChains.size} >= ${UIUpdateBus.MAX_PROCESSING_CHAINS}). ` +
-            `Dropping event for ${event.entity}:${event.entityId} to prevent memory exhaustion. ` +
-            `This indicates a serious issue: either listeners are too slow, or there's an event storm.`,
+            `Buffering event for ${event.entity}:${event.entityId} (pending queue size: ${this._pendingEvents.length + 1}). ` +
+            `Event will be processed when a chain completes.`,
         );
-        return; // Reject the new chain to prevent unbounded growth
+        this._pendingEvents.push({ listener, event, seq });
+        this._metrics.totalBuffered++;
+        return;
       }
+    }
+
+    // P2-1: Track peak chain count
+    const currentChainCount = this._processingChains.size;
+    if (currentChainCount > this._metrics.peakChainCount) {
+      this._metrics.peakChainCount = currentChainCount;
     }
 
     // Use .catch() at the end to handle both sync and async errors.
     // try-catch alone cannot catch rejected Promises returned by the listener.
+    const startTime = Date.now();
     const next = prev
       .then(() =>
         this._withTimeout(
@@ -377,6 +477,8 @@ export class UIUpdateBus {
 
     // Store the chain for subsequent events
     this._processingChains.set(key, next);
+    // P2-2: Track chain creation time for stale detection
+    this._chainTimestamps.set(key, startTime);
 
     // Multi-level monitoring for _processingChains Map size to detect potential memory leaks.
     // The .finally() cleanup should keep this bounded, but high event throughput
@@ -418,9 +520,19 @@ export class UIUpdateBus {
     // because chains accumulate faster than they're cleaned up. The timeout mechanism
     // guarantees eventual cleanup, but doesn't prevent transient spikes.
     next.finally(() => {
+      // P2-1: Track processing time metrics
+      const processingTime = Date.now() - startTime;
+      this._metrics.totalListenerInvocations++;
+      this._metrics.totalProcessingTimeMs += processingTime;
+
       if (this._processingChains.get(key) === next) {
         this._processingChains.delete(key);
+        this._chainTimestamps.delete(key);
       }
+
+      // P1-1 FIX: Drain pending events queue when a chain completes.
+      // This ensures buffered events are processed in FIFO order.
+      this._drainPendingEvents();
     });
   }
 
@@ -455,6 +567,46 @@ export class UIUpdateBus {
         clearTimeout(timeoutHandle);
       }
     }
+  }
+
+  /**
+   * P1-1 FIX: Drain pending events from the buffer when a chain completes.
+   * Processes events in FIFO order, up to the available chain capacity.
+   */
+  private _drainPendingEvents(): void {
+    // Only drain if we have capacity (below the hard limit)
+    while (
+      this._pendingEvents.length > 0 &&
+      this._processingChains.size < UIUpdateBus.MAX_PROCESSING_CHAINS
+    ) {
+      const pending = this._pendingEvents.shift();
+      if (pending) {
+        // Re-dispatch the pending event through normal flow
+        this._dispatchToListener(pending.listener, pending.event, pending.seq);
+      }
+    }
+  }
+
+  /**
+   * P2-1: Get performance metrics for monitoring and debugging.
+   */
+  getMetrics(): UIUpdateBusMetrics {
+    return {
+      totalPublished: this._metrics.totalPublished,
+      totalDropped: this._metrics.totalDropped,
+      totalBuffered: this._metrics.totalBuffered,
+      totalDeduplicated: this._metrics.totalDeduplicated,
+      peakChainCount: this._metrics.peakChainCount,
+      currentChainCount: this._processingChains.size,
+      currentPendingCount: this._pendingEvents.length,
+      averageProcessingTimeMs:
+        this._metrics.totalListenerInvocations > 0
+          ? this._metrics.totalProcessingTimeMs /
+            this._metrics.totalListenerInvocations
+          : 0,
+      totalListenerInvocations: this._metrics.totalListenerInvocations,
+      totalProcessingTimeMs: this._metrics.totalProcessingTimeMs,
+    };
   }
 
   /**
@@ -527,6 +679,9 @@ export class UIUpdateBus {
     event: UIUpdateEvent,
     options?: { skipPersist?: boolean; seqOverride?: number },
   ): Promise<void> {
+    // P2-1: Track total published events
+    this._metrics.totalPublished++;
+
     // Batch mode: collect events without persisting or dispatching
     if (this._batchMode) {
       // Memory safety: reject if batch events exceed threshold
@@ -543,10 +698,27 @@ export class UIUpdateBus {
     }
 
     if (this._suspendDepth > 0) {
-      // Collect event for later bulk dispatch.
-      // NOTE: suspended events are NOT persisted — they are local-only batching
-      // and will be dispatched by resume(). Persisting them would cause duplicate
-      // delivery on the next page refresh (resume delivers + catch-up replays).
+      // P1-2 FIX: Deduplicate events during suspend by (entity, entityId).
+      // When multiple updates occur for the same entity during suspend,
+      // we keep only the latest state to reduce redundant processing on resume.
+      const dedupKey = `${event.entity}:${event.entityId}`;
+      const existingIndex = this._suspendedEventKeys.get(dedupKey);
+
+      if (existingIndex !== undefined) {
+        // Replace the old event with the new one (latest state wins)
+        this._suspendedEvents[existingIndex] = event;
+        this._metrics.totalDeduplicated++;
+        log.debug(
+          `Deduplicated suspended event for ${dedupKey} (keeping latest state)`,
+        );
+      } else {
+        // New (entity, entityId) combination - add to tracking
+        const newIndex = this._suspendedEvents.length;
+        this._suspendedEventKeys.set(dedupKey, newIndex);
+        this._suspendedEvents.push(event);
+      }
+
+      this._suspendedEntities.add(event.entity);
 
       // P1-FIX: Warn when approaching the limit to provide early warning of memory pressure
       const SUSPENDED_EVENTS_WARN_THRESHOLD = Math.floor(
@@ -569,8 +741,6 @@ export class UIUpdateBus {
         );
       }
 
-      this._suspendedEvents.push(event);
-      this._suspendedEntities.add(event.entity);
       return;
     }
 
@@ -679,6 +849,9 @@ export class UIUpdateBus {
         );
         this._forceResume();
       }, UIUpdateBus.MAX_SUSPEND_MS);
+
+      // P2-2 FIX: Start periodic stale entry cleanup when first suspended
+      this._startStaleCleanup();
     }
     log.debug(
       `suspend: depth=${this._suspendDepth}${callerId ? `, caller=${callerId}` : ''}`,
@@ -708,6 +881,8 @@ export class UIUpdateBus {
       }
       // Clear caller tracking on normal resume completion
       this._suspendCallers = [];
+      // P2-2 FIX: Stop periodic stale entry cleanup when fully resumed
+      this._stopStaleCleanup();
       this._flushSuspendedEvents();
     }
     log.debug(`resume: depth=${this._suspendDepth}`);
@@ -752,6 +927,8 @@ export class UIUpdateBus {
       clearTimeout(this._suspendSafetyTimer);
       this._suspendSafetyTimer = undefined;
     }
+    // P2-2 FIX: Stop periodic stale entry cleanup on force resume
+    this._stopStaleCleanup();
     this._flushSuspendedEvents();
   }
 
@@ -775,6 +952,8 @@ export class UIUpdateBus {
       }
       this._suspendedEvents = [];
       this._suspendedEntities.clear();
+      // P1-2 FIX: Clear the dedup key map when flushing
+      this._suspendedEventKeys.clear();
     }
   }
 
@@ -830,6 +1009,7 @@ export class UIUpdateBus {
 
   /**
    * Clear all subscriptions and processing chains (used for testing / shutdown).
+   * P2-2: Also cleans up all pending events, metrics, and timestamps.
    */
   clear(): void {
     this.entityListeners.clear();
@@ -846,8 +1026,103 @@ export class UIUpdateBus {
     }
     this._suspendedEvents = [];
     this._suspendedEntities.clear();
+    // P1-2: Clear dedup key map
+    this._suspendedEventKeys.clear();
+    // P1-1: Clear pending events buffer
+    this._pendingEvents = [];
+    // P2-1: Reset metrics
+    this._metrics = {
+      totalPublished: 0,
+      totalDropped: 0,
+      totalBuffered: 0,
+      totalDeduplicated: 0,
+      peakChainCount: 0,
+      totalListenerInvocations: 0,
+      totalProcessingTimeMs: 0,
+    };
+    // P2-2: Clean up stale entry cleanup and timestamps
+    this._stopStaleCleanup();
+    this._chainTimestamps.clear();
     this._initialized = false;
     // Note: _listenerIds is a WeakMap, entries auto-clean when listeners are GC'd
+  }
+
+  // ========== P2-2: Stale Entry Cleanup Methods ==========
+
+  /**
+   * Start periodic stale entry cleanup.
+   * Removes processing chains that have been running for an unusually long time,
+   * which may indicate zombie chains (listener bugs, forgotten promises).
+   */
+  private _startStaleCleanup(): void {
+    if (this._staleCleanupTimer) {
+      return; // Already running
+    }
+
+    this._staleCleanupTimer = setInterval(() => {
+      this._cleanupStaleChains();
+    }, UIUpdateBus.STALE_CLEANUP_INTERVAL_MS);
+
+    // Prevent timer from keeping the process alive
+    if (typeof this._staleCleanupTimer === 'object' && this._staleCleanupTimer !== null && 'unref' in this._staleCleanupTimer) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this._staleCleanupTimer as any).unref();
+    }
+  }
+
+  /**
+   * Stop periodic stale entry cleanup.
+   */
+  private _stopStaleCleanup(): void {
+    if (this._staleCleanupTimer) {
+      clearInterval(this._staleCleanupTimer);
+      this._staleCleanupTimer = undefined;
+    }
+  }
+
+  /**
+   * Clean up stale processing chains.
+   * A chain is considered stale if it has been running for longer than STALE_CHAIN_AGE_MS.
+   * This is a defensive measure against zombie chains that never resolve.
+   */
+  private _cleanupStaleChains(): void {
+    const now = Date.now();
+    const staleThreshold = now - UIUpdateBus.STALE_CHAIN_AGE_MS;
+    let staleCount = 0;
+
+    for (const [key, timestamp] of this._chainTimestamps.entries()) {
+      if (timestamp < staleThreshold) {
+        // Chain is stale - log and clean up
+        log.warn(
+          `Cleaning up stale processing chain: ${key} (age: ${now - timestamp}ms). ` +
+            `This may indicate a zombie chain (listener bug or forgotten promise).`,
+        );
+        // Note: We cannot forcefully cancel the promise chain, but we can remove
+        // it from our tracking to prevent memory leaks. The promise will still
+        // run in the background, but won't block new events.
+        this._processingChains.delete(key);
+        this._chainTimestamps.delete(key);
+        staleCount++;
+      }
+    }
+
+    if (staleCount > 0) {
+      log.info(`Cleaned up ${staleCount} stale processing chains`);
+    }
+  }
+
+  /**
+   * P2-2: Destroy the bus completely, releasing all resources.
+   * This should be called when the bus is no longer needed (e.g., application shutdown).
+   * After destroy(), the bus should not be used.
+   */
+  destroy(): void {
+    this.clear();
+    // Clear singleton reference
+    if (instance === this) {
+      instance = null;
+    }
+    log.debug('UIUpdateBus destroyed');
   }
 }
 
