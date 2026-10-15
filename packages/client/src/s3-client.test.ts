@@ -1,11 +1,28 @@
 // S3 Client 单元测试（Mock）
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { S3Client } from './s3-client.js';
+import { S3Client, validatePresignedUrl } from './s3-client.js';
 
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+/**
+ * Helper: Create a valid mock presigned URL with all required AWS Signature V4 parameters.
+ * This ensures the URL passes the security validation in getPresignedUrl.
+ */
+function createMockPresignedUrl(overrides?: { expires?: number }): string {
+  const baseUrl = 'https://s3.example.com/bucket/key.txt';
+  const params = new URLSearchParams({
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': 'AKIAIOSFODNN7EXAMPLE%2F20261014%2Fus-east-1%2Fs3%2Faws4_request',
+    'X-Amz-Date': '20261014T120000Z',
+    'X-Amz-Expires': String(overrides?.expires ?? 3600),
+    'X-Amz-SignedHeaders': 'host',
+    'X-Amz-Signature': 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+  });
+  return `${baseUrl}?${params.toString()}`;
+}
 
 describe('S3Client', () => {
   let client: S3Client;
@@ -31,9 +48,10 @@ describe('S3Client', () => {
 
   describe('凭证管理', () => {
     it('should fetch credentials when needed', async () => {
+      const mockPresignedUrl = createMockPresignedUrl();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockCredentials),
+        json: () => Promise.resolve({ url: mockPresignedUrl }),
       });
 
       // 使用 getPresignedUrl 来测试凭证获取（不涉及 AWS SDK）
@@ -79,9 +97,10 @@ describe('S3Client', () => {
 
   describe('预签名 URL', () => {
     it('should call presigned URL API with correct parameters', async () => {
+      const mockPresignedUrl = createMockPresignedUrl();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ url: 'https://example.com/presigned' }),
+        json: () => Promise.resolve({ url: mockPresignedUrl }),
       });
 
       const url = await client.getPresignedUrl('get', 'user-123/abc.txt');
@@ -100,13 +119,14 @@ describe('S3Client', () => {
           }),
         }),
       );
-      expect(url).toBe('https://example.com/presigned');
+      expect(url).toBe(mockPresignedUrl);
     });
 
     it('should include expires_in when provided', async () => {
+      const mockPresignedUrl = createMockPresignedUrl({ expires: 7200 });
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ url: 'https://example.com/presigned' }),
+        json: () => Promise.resolve({ url: mockPresignedUrl }),
       });
 
       await client.getPresignedUrl('put', 'user-123/abc.txt', 7200);
@@ -132,7 +152,7 @@ describe('S3Client', () => {
 
       await expect(
         client.getPresignedUrl('get', 'user-123/abc.txt'),
-      ).rejects.toThrow('Presigned URL API error 403');
+      ).rejects.toThrow(/Failed to get presigned URL.*HTTP 403.*Forbidden/);
     });
   });
 
@@ -162,9 +182,10 @@ describe('S3Client', () => {
     });
 
     it('should strip trailing slash from serverURL', async () => {
+      const mockPresignedUrl = createMockPresignedUrl();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ url: 'https://example.com' }),
+        json: () => Promise.resolve({ url: mockPresignedUrl }),
       });
 
       const client = new S3Client({
@@ -190,5 +211,61 @@ describe('S3Client', () => {
         client.dispose();
       }).not.toThrow();
     });
+  });
+});
+
+// Test validatePresignedUrl function
+describe('validatePresignedUrl', () => {
+  it('should accept valid presigned URL with all required parameters', () => {
+    const validUrl = createMockPresignedUrl();
+    expect(() => validatePresignedUrl(validUrl)).not.toThrow();
+  });
+
+  it('should reject URL with invalid protocol', () => {
+    const httpUrl = createMockPresignedUrl().replace('https://', 'http://');
+    expect(() => validatePresignedUrl(httpUrl)).toThrow(
+      /Invalid presigned URL protocol.*http/,
+    );
+  });
+
+  it('should reject URL missing signature parameters', () => {
+    const incompleteUrl = 'https://s3.example.com/bucket/key.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256';
+    expect(() => validatePresignedUrl(incompleteUrl)).toThrow(
+      /missing required signature parameters/,
+    );
+  });
+
+  it('should reject URL with expiration too short', () => {
+    const shortExpiryUrl = createMockPresignedUrl({ expires: 30 });
+    expect(() => validatePresignedUrl(shortExpiryUrl, 60)).toThrow(
+      /expiration time 30s is too short/,
+    );
+  });
+
+  it('should reject URL with expiration too long', () => {
+    const longExpiryUrl = createMockPresignedUrl({ expires: 100000 });
+    expect(() => validatePresignedUrl(longExpiryUrl, 60, 86400)).toThrow(
+      /expiration time 100000s exceeds maximum/,
+    );
+  });
+
+  it('should reject URL with invalid X-Amz-Date format', () => {
+    const invalidDateUrl = createMockPresignedUrl().replace(
+      'X-Amz-Date=20261014T120000Z',
+      'X-Amz-Date=2026-10-14',
+    );
+    expect(() => validatePresignedUrl(invalidDateUrl)).toThrow(
+      /X-Amz-Date format is invalid/,
+    );
+  });
+
+  it('should reject non-numeric X-Amz-Expires', () => {
+    const invalidExpiresUrl = createMockPresignedUrl().replace(
+      'X-Amz-Expires=3600',
+      'X-Amz-Expires=invalid',
+    );
+    expect(() => validatePresignedUrl(invalidExpiresUrl)).toThrow(
+      /X-Amz-Expires is not a valid number/,
+    );
   });
 });

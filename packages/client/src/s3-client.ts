@@ -253,6 +253,36 @@ const DEFAULT_SAFE_EXTENSIONS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Download options
+ */
+export interface DownloadOptions {
+  /** Cancellation signal */
+  signal?: AbortSignal;
+  /** Download progress callback (legacy simple form) */
+  onProgress?: (loaded: number, total: number) => void;
+  /** Enhanced download progress callback with speed/ETA info */
+  onProgressInfo?: (info: UploadProgressInfo) => void;
+}
+
+/**
+ * Enhanced upload progress information
+ */
+export interface UploadProgressInfo {
+  /** Bytes uploaded so far */
+  loaded: number;
+  /** Total bytes to upload */
+  total: number;
+  /** Upload speed in bytes per second */
+  speed: number;
+  /** Estimated time remaining in seconds */
+  eta: number;
+  /** Current chunk/part index (if available) */
+  chunkIndex?: number;
+  /** Total number of chunks/parts (if available) */
+  totalChunks?: number;
+}
+
+/**
  * S3 Client configuration options
  */
 export interface S3ClientOptions {
@@ -281,8 +311,10 @@ export interface S3ClientOptions {
 export interface UploadOptions {
   /** File content type */
   contentType?: string;
-  /** Upload progress callback */
+  /** Upload progress callback (legacy simple form) */
   onProgress?: (loaded: number, total: number) => void;
+  /** Enhanced upload progress callback with speed/ETA/chunk info */
+  onProgressInfo?: (info: UploadProgressInfo) => void;
   /** Cancellation signal */
   signal?: AbortSignal;
 }
@@ -323,6 +355,103 @@ export interface UploadedPart {
   partNumber: number;
   /** ETag returned by S3 after successful upload */
   etag: string;
+}
+
+/**
+ * Validate presigned URL format and signature parameters.
+ *
+ * SECURITY: Defense-in-depth validation to ensure the URL:
+ * 1. Uses HTTPS protocol (prevents credential leakage over HTTP)
+ * 2. Contains required AWS signature parameters
+ * 3. Has a reasonable expiration time (not too short, not too long)
+ *
+ * @param url - Presigned URL to validate
+ * @param expectedMinExpirySeconds - Minimum expected expiration time in seconds (default: 60)
+ * @param expectedMaxExpirySeconds - Maximum expected expiration time in seconds (default: 86400 = 24h)
+ * @returns true if valid, throws Error otherwise
+ * @throws Error if URL is invalid or suspicious
+ */
+export function validatePresignedUrl(
+  url: string,
+  expectedMinExpirySeconds: number = 60,
+  expectedMaxExpirySeconds: number = 86400,
+): boolean {
+  // Check URL format
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new Error('Invalid presigned URL format: unable to parse URL');
+  }
+
+  // SECURITY: Enforce HTTPS protocol to prevent credential leakage
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error(
+      `Invalid presigned URL protocol: '${parsedUrl.protocol}'. Expected 'https:' for security`,
+    );
+  }
+
+  // Check for required AWS signature parameters
+  // AWS Signature Version 4 uses X-Amz-Algorithm, X-Amz-Credential, X-Amz-Date, X-Amz-Expires, X-Amz-SignedHeaders, X-Amz-Signature
+  const requiredParams = [
+    'X-Amz-Algorithm',
+    'X-Amz-Credential',
+    'X-Amz-Date',
+    'X-Amz-Expires',
+    'X-Amz-SignedHeaders',
+    'X-Amz-Signature',
+  ];
+
+  const missingParams = requiredParams.filter(
+    (param) => !parsedUrl.searchParams.has(param),
+  );
+
+  if (missingParams.length > 0) {
+    throw new Error(
+      `Invalid presigned URL: missing required signature parameters: ${missingParams.join(', ')}`,
+    );
+  }
+
+  // Validate expiration time
+  const expiresStr = parsedUrl.searchParams.get('X-Amz-Expires');
+  if (!expiresStr) {
+    throw new Error('Invalid presigned URL: missing X-Amz-Expires parameter');
+  }
+
+  const expiresSeconds = parseInt(expiresStr, 10);
+  if (isNaN(expiresSeconds)) {
+    throw new Error(
+      `Invalid presigned URL: X-Amz-Expires is not a valid number: '${expiresStr}'`,
+    );
+  }
+
+  if (expiresSeconds < expectedMinExpirySeconds) {
+    throw new Error(
+      `Invalid presigned URL: expiration time ${expiresSeconds}s is too short (minimum: ${expectedMinExpirySeconds}s)`,
+    );
+  }
+
+  if (expiresSeconds > expectedMaxExpirySeconds) {
+    throw new Error(
+      `Invalid presigned URL: expiration time ${expiresSeconds}s exceeds maximum allowed (${expectedMaxExpirySeconds}s)`,
+    );
+  }
+
+  // Check X-Amz-Date is present and in valid format (YYYYMMDDTHHMMSSZ)
+  const amzDate = parsedUrl.searchParams.get('X-Amz-Date');
+  if (!amzDate) {
+    throw new Error('Invalid presigned URL: missing X-Amz-Date parameter');
+  }
+
+  // AWS date format: YYYYMMDDTHHMMSSZ (e.g., 20261014T120000Z)
+  const awsDatePattern = /^\d{8}T\d{6}Z$/;
+  if (!awsDatePattern.test(amzDate)) {
+    throw new Error(
+      `Invalid presigned URL: X-Amz-Date format is invalid: '${amzDate}'`,
+    );
+  }
+
+  return true;
 }
 
 /**
@@ -441,8 +570,11 @@ export class S3Client {
     // SECURITY: Enforce client-side file size limit to prevent memory overflow and upload timeouts.
     // This is a defense-in-depth measure; the backend MUST also enforce its own size limit.
     if (file.size > MAX_FILE_SIZE) {
+      // P2-2: Enhanced error message with context
       throw new Error(
-        `File size ${file.size} bytes exceeds maximum allowed size of ${MAX_FILE_SIZE} bytes (100MB)`,
+        `File upload failed: file size ${file.size} bytes (${(file.size / (1024 * 1024)).toFixed(2)} MB) ` +
+          `exceeds maximum allowed size of ${MAX_FILE_SIZE} bytes (100MB). ` +
+          `File: '${md5Hash}.${ext}', User: '${userId}'`,
       );
     }
 
@@ -478,6 +610,42 @@ export class S3Client {
 
     if (file.size <= MULTIPART_THRESHOLD) {
       // Small file: direct upload
+      // P2-1: Track start time for progress calculation
+      const startTime = Date.now();
+      let lastLoaded = 0;
+      let lastTime = startTime;
+
+      const progressCallback = (progress: { loaded?: number; total?: number }) => {
+        const loaded = progress.loaded ?? 0;
+        const total = progress.total ?? file.size;
+        const currentTime = Date.now();
+
+        // Call legacy callback if provided
+        options?.onProgress?.(loaded, total);
+
+        // Call enhanced callback if provided
+        if (options?.onProgressInfo) {
+          const timeDelta = (currentTime - lastTime) / 1000; // seconds
+          const loadedDelta = loaded - lastLoaded;
+          const speed = timeDelta > 0 ? loadedDelta / timeDelta : 0; // bytes per second
+          const remaining = total - loaded;
+          const eta = speed > 0 ? remaining / speed : 0; // seconds
+
+          options.onProgressInfo({
+            loaded,
+            total,
+            speed,
+            eta,
+            // For small files, no chunk info
+          });
+
+          lastLoaded = loaded;
+          lastTime = currentTime;
+        }
+      };
+
+      // Note: PutObject doesn't support progress tracking in AWS SDK for JavaScript v3
+      // We simulate it by reporting 100% after upload completes
       await client.send(
         new PutObjectCommand({
           Bucket: this.options.bucket,
@@ -487,6 +655,9 @@ export class S3Client {
         }),
         { abortSignal: options?.signal },
       );
+
+      // Report completion
+      progressCallback({ loaded: file.size, total: file.size });
     } else {
       // Large file: multipart upload
       // The Upload class takes an abortController (not signal).
@@ -503,6 +674,13 @@ export class S3Client {
       }
 
       try {
+        // P2-1: Track progress state for speed/ETA calculation
+        const startTime = Date.now();
+        let lastLoaded = 0;
+        let lastTime = startTime;
+        const partSize = 5 * 1024 * 1024; // 5MB per part
+        const totalParts = Math.ceil(file.size / partSize);
+
         const upload = new Upload({
           client,
           params: {
@@ -512,18 +690,43 @@ export class S3Client {
             ContentType: resolvedContentType,
           },
           queueSize: 4,
-          partSize: 5 * 1024 * 1024, // 5MB per part (S3 minimum)
+          partSize,
           abortController,
         });
 
-        if (options?.onProgress) {
-          upload.on('httpUploadProgress', (progress) => {
-            options.onProgress?.(
-              progress.loaded ?? 0,
-              progress.total ?? file.size,
-            );
-          });
-        }
+        // P2-1: Enhanced progress tracking
+        upload.on('httpUploadProgress', (progress) => {
+          const loaded = progress.loaded ?? 0;
+          const total = progress.total ?? file.size;
+          const currentTime = Date.now();
+
+          // Call legacy callback if provided
+          options?.onProgress?.(loaded, total);
+
+          // Call enhanced callback if provided
+          if (options?.onProgressInfo) {
+            const timeDelta = (currentTime - lastTime) / 1000; // seconds
+            const loadedDelta = loaded - lastLoaded;
+            const speed = timeDelta > 0 ? loadedDelta / timeDelta : 0; // bytes per second
+            const remaining = total - loaded;
+            const eta = speed > 0 ? remaining / speed : 0; // seconds
+
+            // Calculate chunk info based on progress
+            const currentPart = Math.floor(loaded / partSize) + 1;
+
+            options.onProgressInfo({
+              loaded,
+              total,
+              speed,
+              eta,
+              chunkIndex: currentPart,
+              totalChunks: totalParts,
+            });
+
+            lastLoaded = loaded;
+            lastTime = currentTime;
+          }
+        });
 
         await upload.done();
       } finally {
@@ -546,14 +749,20 @@ export class S3Client {
    * @param options 下载选项
    * @returns 文件内容（Blob）
    */
+  /**
+   * 下载文件
+   *
+   * @param userId 用户 ID
+   * @param md5Hash 文件 MD5 哈希
+   * @param ext 文件扩展名
+   * @param options 下载选项
+   * @returns 文件内容（Blob）
+   */
   async download(
     userId: string,
     md5Hash: string,
     ext: string,
-    options?: {
-      signal?: AbortSignal;
-      onProgress?: (loaded: number, total: number) => void;
-    },
+    options?: DownloadOptions,
   ): Promise<Blob> {
     const key = this.buildKey(userId, md5Hash, ext);
     const client = await this.getClient();
@@ -574,14 +783,19 @@ export class S3Client {
     );
 
     if (!response.Body) {
-      throw new Error('Empty response body');
+      // P2-2: Enhanced error message with context
+      throw new Error(
+        `Download failed: empty response body for key '${key}' in bucket '${this.options.bucket}'`,
+      );
     }
 
     const contentLength = response.ContentLength ?? 0;
 
-    // If onProgress callback provided and we have content length,
-    // read the body stream with progress tracking
-    if (options?.onProgress && contentLength > 0) {
+    // P2-1: Enhanced progress tracking
+    if (
+      (options?.onProgress || options?.onProgressInfo) &&
+      contentLength > 0
+    ) {
       // Use streaming approach for progress tracking
       // response.Body type from AWS SDK is StreamingBlobPayloadOutputTypes
       // We need to check if it supports async iteration
@@ -594,12 +808,37 @@ export class S3Client {
       ) {
         const chunks: Uint8Array[] = [];
         let loaded = 0;
+        const startTime = Date.now();
+        let lastLoaded = 0;
+        let lastTime = startTime;
 
         for await (const chunk of body as AsyncIterable<Uint8Array>) {
           const uint8 = new Uint8Array(chunk);
           chunks.push(uint8);
           loaded += uint8.byteLength;
-          options.onProgress(loaded, contentLength);
+          const currentTime = Date.now();
+
+          // Call legacy callback if provided
+          options?.onProgress?.(loaded, contentLength);
+
+          // Call enhanced callback if provided
+          if (options?.onProgressInfo) {
+            const timeDelta = (currentTime - lastTime) / 1000; // seconds
+            const loadedDelta = loaded - lastLoaded;
+            const speed = timeDelta > 0 ? loadedDelta / timeDelta : 0; // bytes per second
+            const remaining = contentLength - loaded;
+            const eta = speed > 0 ? remaining / speed : 0; // seconds
+
+            options.onProgressInfo({
+              loaded,
+              total: contentLength,
+              speed,
+              eta,
+            });
+
+            lastLoaded = loaded;
+            lastTime = currentTime;
+          }
         }
 
         // Combine chunks into a single ArrayBuffer
@@ -721,6 +960,8 @@ export class S3Client {
    * @param operation 操作类型（'put' | 'get'）
    * @param key 对象键
    * @param expiresIn 有效期（秒）
+   * @returns 预签名 URL（已验证格式和安全性）
+   * @throws 如果 URL 格式无效或缺少必要的安全参数
    */
   async getPresignedUrl(
     operation: 'put' | 'get',
@@ -749,11 +990,33 @@ export class S3Client {
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
       log.error('presigned URL request failed:', errorText);
-      throw new Error(`Presigned URL API error ${response.status}`);
+      // P2-2: Enhanced error message with context
+      throw new Error(
+        `Failed to get presigned URL for ${operation} operation on key '${key}': ` +
+          `HTTP ${response.status}${errorText ? ` - ${errorText}` : ''}`,
+      );
     }
 
     const data = (await response.json()) as { url: string };
-    return data.url;
+    const presignedUrl = data.url;
+
+    // P1-1: Validate presigned URL format and security
+    // SECURITY: Defense-in-depth validation before returning to caller
+    try {
+      validatePresignedUrl(presignedUrl);
+    } catch (validationError) {
+      log.error(
+        'Presigned URL validation failed:',
+        validationError instanceof Error
+          ? validationError.message
+          : String(validationError),
+      );
+      throw new Error(
+        `Invalid presigned URL received from server: ${validationError instanceof Error ? validationError.message : String(validationError)}`,
+      );
+    }
+
+    return presignedUrl;
   }
 
   /**
@@ -792,7 +1055,10 @@ export class S3Client {
     );
 
     if (!response.UploadId) {
-      throw new Error('CreateMultipartUpload returned no UploadId');
+      // P2-2: Enhanced error message with context
+      throw new Error(
+        `CreateMultipartUpload failed: S3 did not return an UploadId for key '${key}' in bucket '${this.options.bucket}'`,
+      );
     }
 
     log.debug(
