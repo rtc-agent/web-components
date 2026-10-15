@@ -1,3 +1,15 @@
+/**
+ * AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+ *
+ * This file was automatically generated from OpenAPI specification.
+ * Source: docs/protocol/api.yaml
+ * Generator: openapi-typescript
+ *
+ * To regenerate, run: pnpm run generate:openapi
+ *
+ * Any manual changes will be lost when the file is regenerated.
+ */
+
 export interface paths {
   '/oauth2/authorize': {
     parameters: {

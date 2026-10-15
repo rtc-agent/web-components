@@ -9,6 +9,7 @@ import {
   isValidUpdate,
   extractClientId,
   extractStringField,
+  ClientIdExtractionError,
 } from './type-guards.js';
 
 describe('type-guards', () => {
@@ -496,25 +497,41 @@ describe('type-guards', () => {
       expect(extractClientId(record)).toBe('client-123');
     });
 
-    it('should throw error when both client_id and id are missing', () => {
+    it('should throw ClientIdExtractionError when both client_id and id are missing', () => {
       const record = { other: 'value' };
+      expect(() => extractClientId(record)).toThrow(ClientIdExtractionError);
       expect(() => extractClientId(record)).toThrow(
         'Record missing required client_id or id field',
       );
     });
 
-    it('should throw error when client_id is not a string', () => {
+    it('should throw ClientIdExtractionError when client_id is not a string', () => {
       const record = { client_id: 123 };
+      expect(() => extractClientId(record)).toThrow(ClientIdExtractionError);
       expect(() => extractClientId(record)).toThrow(
         'Record missing required client_id or id field',
       );
     });
 
-    it('should throw error when id is not a string', () => {
+    it('should throw ClientIdExtractionError when id is not a string', () => {
       const record = { id: 123 };
+      expect(() => extractClientId(record)).toThrow(ClientIdExtractionError);
       expect(() => extractClientId(record)).toThrow(
         'Record missing required client_id or id field',
       );
+    });
+
+    it('should have correct error name', () => {
+      const record = { other: 'value' };
+      try {
+        extractClientId(record);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ClientIdExtractionError);
+        expect((error as ClientIdExtractionError).name).toBe(
+          'ClientIdExtractionError',
+        );
+      }
     });
   });
 

@@ -237,19 +237,68 @@ export function isValidUpdateDataList(
 }
 
 /**
+ * Error thrown when client_id extraction fails.
+ *
+ * This error indicates that a record is missing the required `client_id` or `id` field,
+ * or that the field is not a string type.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const clientId = extractClientId(record);
+ * } catch (error) {
+ *   if (error instanceof ClientIdExtractionError) {
+ *     // Handle missing client_id specifically
+ *     log.error('Invalid record structure:', error.message);
+ *   }
+ * }
+ * ```
+ */
+export class ClientIdExtractionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClientIdExtractionError';
+    // Maintains proper stack trace for where error was thrown (only available on V8)
+    if (
+      typeof Error !== 'undefined' &&
+      typeof (Error as ErrorConstructor & { captureStackTrace?: Function })
+        .captureStackTrace === 'function'
+    ) {
+      (
+        Error as ErrorConstructor & {
+          captureStackTrace: (target: object, constructor?: Function) => void;
+        }
+      ).captureStackTrace(this, ClientIdExtractionError);
+    }
+  }
+}
+
+/**
  * Safely extract client_id from a record.
  *
  * Tries `client_id` first, falls back to `id`.
- * Throws if neither is present or not a string.
+ * Throws {@link ClientIdExtractionError} if neither is present or not a string.
  *
  * @param record - Record to extract client_id from
  * @returns The client_id string
- * @throws Error if client_id cannot be extracted
+ * @throws {ClientIdExtractionError} if client_id cannot be extracted
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   const clientId = extractClientId({ client_id: 'abc-123' });
+ *   console.log(clientId); // 'abc-123'
+ * } catch (error) {
+ *   // error is ClientIdExtractionError
+ * }
+ * ```
  */
 export function extractClientId(record: Record<string, unknown>): string {
   const id = record.client_id ?? record.id;
   if (typeof id !== 'string') {
-    throw new Error('Record missing required client_id or id field');
+    throw new ClientIdExtractionError(
+      'Record missing required client_id or id field',
+    );
   }
   return id;
 }
@@ -590,9 +639,12 @@ function isValidUpdateItemData(item: UpdateItem, data: unknown): boolean {
     case 'rtc':
       return isValidRtc(data);
     case 'file':
-      // File entities don't have a specific type guard yet
-      // Accept any non-null object
-      return isNonNullObject(data);
+      // File entities must have required fields: mimetype (string), fileid (string)
+      return (
+        isNonNullObject(data) &&
+        typeof data.mimetype === 'string' &&
+        typeof data.fileid === 'string'
+      );
     default:
       // Unknown entity type - reject to maintain strict validation
       log.warn(`Unknown update entity type: ${item.entity}`);

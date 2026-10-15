@@ -261,14 +261,25 @@ export type TodoStatus = (typeof TodoStatus)[keyof typeof TodoStatus];
  * Entity sync status for local persistence
  *
  * Tracks synchronization state for entities stored in IndexedDB (Session/Turn/Message/Rtc).
+ *
+ * Status lifecycle:
+ * - Pending: Entity created/updated locally, awaiting sync
+ * - Syncing: Sync in progress (optional intermediate state)
+ * - Synced: Successfully synchronized with remote
+ * - Failed: Sync failed due to error (retryable)
+ * - Timeout: Sync timed out (distinct from failed, may indicate network issues)
  */
 export const SyncStatus = {
   /** Entity is pending synchronization to remote */
   Pending: 'pending',
+  /** Entity synchronization in progress */
+  Syncing: 'syncing',
   /** Entity has been successfully synchronized */
   Synced: 'synced',
-  /** Entity synchronization failed */
+  /** Entity synchronization failed (retryable error) */
   Failed: 'failed',
+  /** Entity synchronization timed out (network or server timeout) */
+  Timeout: 'timeout',
 } as const;
 export type SyncStatus = (typeof SyncStatus)[keyof typeof SyncStatus];
 

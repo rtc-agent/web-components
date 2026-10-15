@@ -291,12 +291,14 @@ describe('enums', () => {
   describe('SyncStatus', () => {
     it('should have correct values', () => {
       expect(SyncStatus.Pending).toBe('pending');
+      expect(SyncStatus.Syncing).toBe('syncing');
       expect(SyncStatus.Synced).toBe('synced');
       expect(SyncStatus.Failed).toBe('failed');
+      expect(SyncStatus.Timeout).toBe('timeout');
     });
 
     it('should have correct number of values', () => {
-      expect(Object.keys(SyncStatus)).toHaveLength(3);
+      expect(Object.keys(SyncStatus)).toHaveLength(5);
     });
 
     it('should have unique values', () => {

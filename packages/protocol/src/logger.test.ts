@@ -211,7 +211,7 @@ describe('logger', () => {
 
     it('should handle objects with circular references', () => {
       const log = createLogger('Test');
-      const obj: any = { key: 'value' };
+      const obj: Record<string, unknown> = { key: 'value' };
       obj.self = obj;
       // Should not throw
       expect(() => log.info('circular', obj)).not.toThrow();
