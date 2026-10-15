@@ -29,7 +29,12 @@ export interface UserInfo {
   roles?: RoleInfo[];
   /**
    * Aggregated permissions from all assigned roles.
-   * Returned by: GET /api/auth/me (after role resolution)
+   *
+   * NOTE: This field is NOT returned by the backend API directly.
+   * It is computed client-side by fetchAndBuildCurrentUser() in utils/user-utils.ts
+   * after fetching roles. Do not expect this field in raw API responses.
+   *
+   * Returned by: GET /api/auth/me (after client-side role resolution)
    * Note: This is a computed field based on roles, not stored directly.
    * If roles change, permissions will be recalculated on next auth request.
    */
@@ -75,7 +80,12 @@ export interface LoginResult {
   refresh_token: string;
   /** Access token expiration time in seconds */
   expires_in: number;
-  /** Refresh token expiration time in seconds (optional, backend dependent) */
+  /**
+   * Refresh token expiration time in seconds.
+   * @deprecated Not returned by backend API per OpenAPI spec.
+   * Client code uses DEFAULT_REFRESH_TOKEN_EXPIRY fallback in auth-storage.ts.
+   * Will be removed in future cleanup.
+   */
   refresh_token_expires_in?: number;
   token_type: string;
   user: UserInfo;
@@ -86,7 +96,13 @@ export interface RefreshTokenResult {
   access_token: string;
   refresh_token: string;
   expires_in: number;
-  refresh_token_expires_in?: number; // Refresh token 过期时间（秒），可选字段
+  /**
+   * Refresh token expiration time in seconds.
+   * @deprecated Not returned by backend API per OpenAPI spec.
+   * Client code uses DEFAULT_REFRESH_TOKEN_EXPIRY fallback in auth-storage.ts.
+   * Will be removed in future cleanup.
+   */
+  refresh_token_expires_in?: number;
   token_type: string;
 }
 
