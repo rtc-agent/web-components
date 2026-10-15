@@ -3,20 +3,21 @@
  * 用于在多个服务文件之间共享的类型
  */
 
+import type {
+  ApiResponse as BaseApiResponse,
+  ApiErrorResponse as BaseApiErrorResponse,
+  PageBasedPaginatedResponse,
+} from '@rtc-agent/protocol';
+
 /**
- * Standard paginated API response.
+ * Standard paginated API response (page-based pagination).
  * Used by list endpoints to wrap result arrays with pagination metadata.
+ *
+ * Note: This is a re-export of PageBasedPaginatedResponse from protocol package
+ * to maintain backward compatibility. For cursor-based pagination, use
+ * PaginatedResponse from @rtc-agent/protocol directly.
  */
-export interface PaginatedResponse<T> {
-  /** Array of data items for the current page */
-  items: T[];
-  /** Total number of items across all pages */
-  total: number;
-  /** Current page number (1-based) */
-  page?: number;
-  /** Number of items per page */
-  page_size?: number;
-}
+export type PaginatedResponse<T> = PageBasedPaginatedResponse<T>;
 
 /** Common pagination query parameters for list requests */
 export interface PaginatedRequest {
@@ -33,16 +34,11 @@ export interface PaginatedRequest {
  * Convention: `success` indicates whether the request was processed;
  * `data` carries the payload on success; `errorCode`/`errorMessage`
  * carry diagnostics on failure.
+ *
+ * Note: Extends base ApiResponse from protocol with UI-specific fields
+ * (showType for error display mode control).
  */
-export interface ApiResponse<T = unknown> {
-  /** Whether the request succeeded */
-  success: boolean;
-  /** Response payload (present when success is true) */
-  data?: T;
-  /** Machine-readable error code (present when success is false) */
-  errorCode?: string;
-  /** Human-readable error message (present when success is false) */
-  errorMessage?: string;
+export interface ApiResponse<T = unknown> extends BaseApiResponse<T> {
   /** Error display mode (controls how errors are surfaced to user) */
   showType?: ErrorShowType;
   /** Optional additional error details (validation errors, conflict info, etc.) */
@@ -52,17 +48,10 @@ export interface ApiResponse<T = unknown> {
 /**
  * Standard error response structure from backend.
  * Used for type-safe error handling in service layer.
+ *
+ * Note: This is a re-export of ApiErrorResponse from protocol package.
  */
-export interface ApiErrorResponse {
-  /** Always false for error responses */
-  success: false;
-  /** Machine-readable error code for programmatic handling */
-  errorCode: string;
-  /** Human-readable error message for display */
-  errorMessage: string;
-  /** Optional additional error details (validation errors, etc.) */
-  details?: Record<string, unknown>;
-}
+export type ApiErrorResponse = BaseApiErrorResponse;
 
 /**
  * Common error codes returned by backend.

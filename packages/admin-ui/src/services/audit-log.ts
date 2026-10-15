@@ -29,6 +29,9 @@ export interface AuditLogListParams {
 /**
  * 查询审计日志列表
  * GET /api/audit-logs
+ *
+ * @param params - 查询参数（分页、筛选条件）
+ * @returns Promise<PaginatedResponse<AuditLogItem>> 分页的审计日志列表
  */
 export async function getAuditLogList(params?: AuditLogListParams) {
   return request<PaginatedResponse<AuditLogItem>>('/api/audit-logs', {
