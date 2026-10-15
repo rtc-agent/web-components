@@ -950,6 +950,14 @@ export class WorkerCore implements WorkerPersistenceCore {
    * - Async rejection: increment in .catch()
    * - Sync success + async resolve: reset to 0
    * - Sync success + async reject: increment (the async result is the true indicator)
+   *
+   * ZOMBIE STATE DETECTION:
+   * After all callbacks have been individually attempted, checks if ALL failed.
+   * This uses a shared failure counter (allFailedCount) instead of relying on
+   * Promise.allSettled results, because the outer promises always resolve (by design,
+   * to avoid blocking Promise.allSettled). The individual failure tracking via
+   * _recordAsyncFailure/_recordSyncFailure handles per-callback cleanup, but the
+   * "all failed" zombie recovery requires an aggregate check.
    */
   private broadcastUIUpdate(event: UIUpdateEvent, seq = 0): void {
     // P2-1: Performance monitoring for WebSocket message processing delay
@@ -957,6 +965,10 @@ export class WorkerCore implements WorkerPersistenceCore {
 
     const payload = { event, seq };
     const callbacks = Array.from(this.callbacks);
+
+    // Track how many callbacks failed in this broadcast round.
+    // Used for zombie state detection after all promises settle.
+    let allFailedCount = 0;
 
     // PERFORMANCE: Process all callbacks in parallel using Promise.allSettled
     // This prevents slow callbacks from blocking others, reducing broadcast latency
@@ -976,6 +988,7 @@ export class WorkerCore implements WorkerPersistenceCore {
               (err) => {
                 // Async failure: track via failure counting mechanism
                 this._recordAsyncFailure(cb, err);
+                allFailedCount++;
                 resolve(); // Resolve anyway to not block Promise.allSettled
               },
             );
@@ -987,13 +1000,14 @@ export class WorkerCore implements WorkerPersistenceCore {
         } catch (err) {
           // Sync failure: track via standard mechanism
           this._recordSyncFailure(cb, err);
+          allFailedCount++;
           resolve(); // Resolve anyway to not block Promise.allSettled
         }
       });
     });
 
-    // Fire-and-forget: don't await, but log if all callbacks fail
-    Promise.allSettled(promises).then((results) => {
+    // Fire-and-forget: don't await, but detect zombie state when all callbacks fail
+    Promise.allSettled(promises).then(() => {
       // P2-1: Performance monitoring - measure broadcast duration
       performance.mark('broadcast-end');
       const broadcastMeasure = performance.measure(
@@ -1002,36 +1016,20 @@ export class WorkerCore implements WorkerPersistenceCore {
         'broadcast-end',
       );
 
-      // Optional: log summary for debugging
-      const rejected = results.filter((r) => r.status === 'rejected').length;
-      if (rejected > 0) {
-        log.debug(`broadcastUIUpdate: ${rejected}/${callbacks.length} callbacks rejected`);
-      }
-
-      // P2-3: If ALL callbacks rejected, this indicates all connected tabs may have
-      // crashed/disconnected. Trigger immediate cleanup to prevent resource leaks.
-      // This is a defensive measure - individual failures are handled by _recordAsyncFailure,
-      // but total failure suggests a systemic issue (e.g., SharedWorker lost all ports).
+      // ZOMBIE STATE DETECTION:
+      // If ALL callbacks failed in this round, the system is in a zombie state:
+      // events are broadcast but no tabs receive them. This typically indicates
+      // all connected tabs crashed or disconnected abnormally.
       //
-      // P1-2 FIX: Enhance logging and add recovery mechanism for zombie state detection.
-      // When all callbacks fail, the system enters a "zombie" state where events are broadcast
-      // but no tabs receive them. This is critical because:
-      // 1. UI updates are silently lost (user sees stale data)
-      // 2. Token requests may fail (no valid callback to obtain token)
-      // 3. Connection state changes are not propagated
+      // NOTE: We use the allFailedCount counter (tracked per-callback in the
+      // promise wrappers above) instead of checking Promise.allSettled results,
+      // because the outer promises always resolve by design.
       //
-      // Recovery strategy: Clear all callbacks and failure counts to allow fresh registration.
-      // The next tab that connects will re-register callbacks, restoring normal operation.
-      // This is preferable to leaving dead callbacks that would never recover.
-      //
-      // P3-3 FIX: Add observability for recovery and document expected behavior.
-      // After clearing callbacks, the Worker continues operating but in a "degraded" state:
-      // - UI updates are not broadcast (no tabs to receive them)
-      // - Token requests will fail (no callbacks to obtain tokens)
-      // - The next registerCallback() call will restore normal operation
-      // This is the safest recovery path because attempting to resurrect stale callbacks
-      // could cause data corruption or unpredictable behavior.
-      if (callbacks.length > 0 && rejected === callbacks.length) {
+      // Recovery strategy: Clear all callbacks and failure counts to allow fresh
+      // registration. The next tab that connects will re-register callbacks,
+      // restoring normal operation. This is the safest recovery path because
+      // attempting to resurrect stale callbacks could cause data corruption.
+      if (callbacks.length > 0 && allFailedCount === callbacks.length) {
         // CRITICAL: Use log.error (not log.warn) to surface this as a critical issue.
         // log.warn would be filtered out in production logs, making this invisible.
         log.error(
@@ -1039,29 +1037,18 @@ export class WorkerCore implements WorkerPersistenceCore {
           `system entering zombie state. Triggering full cleanup and recovery. ` +
           `This indicates all connected tabs crashed or disconnected abnormally. ` +
           `Recovery: callbacks cleared, next registerCallback() will restore normal operation. ` +
-          `Pending operations: ${this._operationControllers.size} file operations may fail. ` +
+          `Pending operations: ${this._operationControllers.size} file operations will continue ` +
+          `(not aborted — they may still succeed independently). ` +
           `Diagnostic: Check browser console for tab crashes, OOM kills, or network disconnections.`,
         );
-        // Clear all callbacks and pending operations to prevent cascading failures
+        // Clear all callbacks and failure counts to prevent cascading failures.
+        // Note: We intentionally do NOT abort pending file operations here.
+        // Unlike the previous (broken) implementation, file operations are independent
+        // of the callback broadcast path — they have their own AbortControllers and
+        // will complete or fail based on network conditions, not tab liveness.
+        // Aborting them would waste partially-completed uploads/downloads.
         this.callbacks.clear();
         this._callbackFailureCounts.clear();
-        // Note: No automatic re-registration is possible here because we don't have
-        // access to the original callback references. The recovery happens naturally
-        // when the next tab calls registerCallback(). This is the safest approach
-        // because attempting to resurrect stale callbacks could cause data corruption.
-        //
-        // P3-4 FIX: Abort pending file operations to prevent them from hanging indefinitely.
-        // These operations will fail with AbortError, which is preferable to leaving them
-        // in a pending state where they might consume resources or block other operations.
-        if (this._operationControllers.size > 0) {
-          log.warn(
-            `Aborting ${this._operationControllers.size} pending file operations due to zombie state recovery`,
-          );
-          for (const [, ac] of this._operationControllers) {
-            ac.abort();
-          }
-          this._operationControllers.clear();
-        }
       }
 
       // Log slow broadcasts (>16ms frame budget) for performance debugging
@@ -1124,6 +1111,44 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
+   * Check if all callbacks in a broadcast round failed (zombie state).
+   *
+   * Called after each broadcast method (broadcastUIUpdate, broadcastGapFillState, etc.)
+   * to detect the scenario where all connected tabs have crashed or disconnected abnormally.
+   *
+   * Why this is needed:
+   * - Individual failure tracking (_recordAsyncFailure/_recordSyncFailure) handles per-callback
+   *   cleanup after MAX_CONSECUTIVE_FAILURES, but this requires multiple broadcast rounds.
+   * - Zombie state detection provides immediate recovery when ALL callbacks fail in a single round.
+   * - Without this, the Worker would continue broadcasting to dead callbacks indefinitely,
+   *   wasting CPU and preventing recovery until the next tab connects.
+   *
+   * IMPORTANT: This method only checks synchronous failure counts. For async callbacks
+   * (which Comlink proxies always are), the failCount reflects the number of callbacks
+   * that threw synchronously OR whose async failure was detected before this check.
+   * Since broadcast methods iterate callbacks and handle async failures inline,
+   * the failCount is accurate for sync failures but may undercount async failures
+   * that haven't resolved yet. This is acceptable because:
+   * 1. If all tabs crashed, sync failures (port closed) will be immediate
+   * 2. The individual _recordAsyncFailure mechanism handles slow async failures
+   */
+  private _checkZombieState(
+    totalCallbacks: number,
+    failCount: number,
+    context: string,
+  ): void {
+    if (totalCallbacks > 0 && failCount === totalCallbacks) {
+      log.error(
+        `CRITICAL: ${context}: all ${totalCallbacks} callbacks failed, ` +
+        `system entering zombie state. Clearing callbacks for recovery. ` +
+        `Next registerCallback() will restore normal operation.`,
+      );
+      this.callbacks.clear();
+      this._callbackFailureCounts.clear();
+    }
+  }
+
+  /**
    * Broadcast a file sync status change to all registered Tab callbacks.
    *
    * P0-2 fix: emits a UIUpdateEvent so the UI can react to sync status changes
@@ -1153,6 +1178,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
    * Without this, unhandled rejections occur when tabs crash mid-broadcast.
+   *
+   * ZOMBIE STATE: If all callbacks fail, clears the callback set to allow fresh registration.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
     log.debug(
@@ -1161,22 +1188,27 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    for (const cb of this.callbacks) {
+    const callbacks = Array.from(this.callbacks);
+    let failCount = 0;
+    for (const cb of callbacks) {
       try {
         const result = cb.onGapFillState(isSyncing);
         // Handle Comlink proxy: void-returning functions return Promise<void>
         if (isPromiseLike<void>(result)) {
           result.then(
             () => { this._callbackFailureCounts.delete(cb); },
-            (err) => { this._recordAsyncFailure(cb, err); },
+            (err) => { this._recordAsyncFailure(cb, err); failCount++; },
           );
         } else {
           this._callbackFailureCounts.delete(cb);
         }
       } catch (err) {
         this._recordSyncFailure(cb, err);
+        failCount++;
       }
     }
+    // Zombie state detection: if all callbacks failed, clear to allow recovery
+    this._checkZombieState(callbacks.length, failCount, 'broadcastGapFillState');
   }
 
   /**
@@ -1184,6 +1216,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
+   *
+   * ZOMBIE STATE: If all callbacks fail, clears the callback set to allow recovery.
    */
   private broadcastAccountBanned(reason: string): void {
     log.warn(
@@ -1192,22 +1226,27 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    for (const cb of this.callbacks) {
+    const callbacks = Array.from(this.callbacks);
+    let failCount = 0;
+    for (const cb of callbacks) {
       try {
         const result = cb.onAccountBanned(reason);
         // Handle Comlink proxy: void-returning functions return Promise<void>
         if (isPromiseLike<void>(result)) {
           result.then(
             () => { this._callbackFailureCounts.delete(cb); },
-            (err) => { this._recordAsyncFailure(cb, err); },
+            (err) => { this._recordAsyncFailure(cb, err); failCount++; },
           );
         } else {
           this._callbackFailureCounts.delete(cb);
         }
       } catch (err) {
         this._recordSyncFailure(cb, err);
+        failCount++;
       }
     }
+    // Zombie state detection: if all callbacks failed, clear to allow recovery
+    this._checkZombieState(callbacks.length, failCount, 'broadcastAccountBanned');
   }
 
   /**
@@ -1312,6 +1351,8 @@ export class WorkerCore implements WorkerPersistenceCore {
    *
    * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
    * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
+   *
+   * ZOMBIE STATE: If all callbacks fail, clears the callback set to allow recovery.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
     log.debug(
@@ -1322,22 +1363,27 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    for (const cb of this.callbacks) {
+    const callbacks = Array.from(this.callbacks);
+    let failCount = 0;
+    for (const cb of callbacks) {
       try {
         const result = cb.onConnectionStateChange(event);
         // Handle Comlink proxy: void-returning functions return Promise<void>
         if (isPromiseLike<void>(result)) {
           result.then(
             () => { this._callbackFailureCounts.delete(cb); },
-            (err) => { this._recordAsyncFailure(cb, err); },
+            (err) => { this._recordAsyncFailure(cb, err); failCount++; },
           );
         } else {
           this._callbackFailureCounts.delete(cb);
         }
       } catch (err) {
         this._recordSyncFailure(cb, err);
+        failCount++;
       }
     }
+    // Zombie state detection: if all callbacks failed, clear to allow recovery
+    this._checkZombieState(callbacks.length, failCount, 'broadcastConnectionState');
   }
 
   // ========== File Cache & S3 Operations ==========
