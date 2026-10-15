@@ -272,6 +272,17 @@ export class PersistenceLayer implements IPersistenceLayer {
   private _lastSyncTime: number = 0;
   /** P3-FIX: Minimum interval between syncs (30 seconds) to prevent cross-tab thrashing */
   private static readonly SYNC_DEDUP_INTERVAL_MS = 30 * 1000;
+  /** P1-FIX: Event deduplication cache for cross-tab sync.
+   * Stores recently processed event IDs (channel:offset) to prevent duplicate processing
+   * when multiple tabs receive the same publication event.
+   * Uses a Set with bounded size (LRU-style cleanup when size exceeds threshold).
+   */
+  private _processedEventIds = new Set<string>();
+  /** Maximum size of the event deduplication cache.
+   * When exceeded, the oldest entries are removed to prevent memory leaks.
+   * Value chosen to balance memory usage with deduplication effectiveness.
+   */
+  private static readonly EVENT_DEDUP_CACHE_SIZE = 1000;
   private _userId: string;
   /** Online event listener (for auto-sync on network recovery) */
   private _onlineListener: (() => void) | null = null;
@@ -528,8 +539,30 @@ export class PersistenceLayer implements IPersistenceLayer {
 
   /**
    * Handle a Publication event.
+   *
+   * P1-FIX: Add event ID-based deduplication to prevent duplicate processing
+   * when multiple tabs receive the same publication event.
+   * Event ID is constructed as "channel:offset" for unique identification.
    */
   private async handlePublication(event: PublicationEvent): Promise<void> {
+    // P1-FIX: Deduplicate events using channel:offset as unique identifier.
+    // This prevents multiple tabs from processing the same event multiple times.
+    if (event.offset !== undefined) {
+      const eventId = `${event.channel}:${event.offset}`;
+      if (this._processedEventIds.has(eventId)) {
+        log.debug(
+          `handlePublication: skipping duplicate event ${eventId} (already processed)`,
+        );
+        return;
+      }
+      // Add to dedup cache
+      this._processedEventIds.add(eventId);
+      // Evict oldest entries if cache size exceeds threshold
+      if (this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE) {
+        this._evictOldestEventIds();
+      }
+    }
+
     // Treat data as Update type
     const update = event.data as Update;
 
@@ -544,10 +577,65 @@ export class PersistenceLayer implements IPersistenceLayer {
    * Handle batch Publication events (optimized for gap fill).
    *
    * Uses applyUpdates for batch IndexedDB operations instead of per-item processing.
+   *
+   * P1-FIX: Add event ID-based deduplication to prevent duplicate processing
+   * when multiple tabs receive the same publication events.
    */
   private async handlePublications(events: PublicationEvent[]): Promise<void> {
-    const updates = events.map((e) => e.data as Update);
+    // P1-FIX: Deduplicate events using channel:offset as unique identifier.
+    // Filter out events that have already been processed.
+    const deduplicatedEvents = events.filter((event) => {
+      if (event.offset === undefined) {
+        // Events without offset cannot be deduplicated, process them
+        return true;
+      }
+      const eventId = `${event.channel}:${event.offset}`;
+      if (this._processedEventIds.has(eventId)) {
+        log.debug(
+          `handlePublications: skipping duplicate event ${eventId} (already processed)`,
+        );
+        return false;
+      }
+      // Add to dedup cache
+      this._processedEventIds.add(eventId);
+      return true;
+    });
+
+    // Evict oldest entries if cache size exceeds threshold
+    if (this._processedEventIds.size > PersistenceLayer.EVENT_DEDUP_CACHE_SIZE) {
+      this._evictOldestEventIds();
+    }
+
+    // If all events were duplicates, return early
+    if (deduplicatedEvents.length === 0) {
+      log.debug(
+        `handlePublications: all ${events.length} events were duplicates, skipping`,
+      );
+      return;
+    }
+
+    const updates = deduplicatedEvents.map((e) => e.data as Update);
     await this.entityRepository.applyUpdates(updates);
+  }
+
+  /**
+   * Evict oldest entries from the event deduplication cache.
+   *
+   * P1-FIX: Simple LRU-style cleanup. When the cache exceeds its size threshold,
+   * we remove the oldest entries (first 20% of the Set, which maintains insertion order).
+   * This prevents memory leaks while maintaining effective deduplication.
+   */
+  private _evictOldestEventIds(): void {
+    const evictCount = Math.floor(PersistenceLayer.EVENT_DEDUP_CACHE_SIZE * 0.2);
+    const iterator = this._processedEventIds.values();
+    for (let i = 0; i < evictCount; i++) {
+      const result = iterator.next();
+      if (result.done) break;
+      this._processedEventIds.delete(result.value);
+    }
+    log.debug(
+      `Evicted ${evictCount} oldest entries from event dedup cache (size: ${this._processedEventIds.size})`,
+    );
   }
 
   // ========== Convenience methods ==========

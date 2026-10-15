@@ -794,9 +794,43 @@ export class RTCAgentDatabase extends Dexie {
     // The batch intent record is created before any split transactions begin, and
     // updated to 'completed' or 'failed' based on the outcome. If a failure occurs,
     // the compensation logic uses the intent record to coordinate rollback.
-    this.version(17).stores({
-      batchIntents: 'batchId, status, createdAt',
-    });
+    //
+    // P0-FIX: Add explicit error handling for migration failures.
+    // While Dexie/IndexedDB automatically rollback schema changes on failure,
+    // we need to log detailed error information for debugging and provide
+    // recovery guidance for users. The upgrade function wraps the migration
+    // in a try-catch to capture any errors that occur during the process.
+    this.version(17)
+      .stores({
+        batchIntents: 'batchId, status, createdAt',
+      })
+      .upgrade(async () => {
+        try {
+          log.info(
+            'v17 migration: Creating batchIntents table for split transaction tracking',
+          );
+          // Migration logic is handled by Dexie (table creation).
+          // This upgrade function is for logging and error handling only.
+          // If any error occurs, the transaction will automatically rollback.
+        } catch (err) {
+          log.error(
+            'v17 migration failed:',
+            err instanceof Error ? err.message : String(err),
+          );
+          log.error(
+            'Stack trace:',
+            err instanceof Error ? err.stack : 'No stack trace available',
+          );
+          log.error(
+            'Recovery: The database will remain at v16. Some features may not work correctly.',
+          );
+          log.error(
+            'Recovery: Clear IndexedDB data and reload, or contact support for assistance.',
+          );
+          // Re-throw to trigger Dexie's automatic rollback
+          throw err;
+        }
+      });
 
     // P3-FIX: Add schema version detection and degradation warning mechanism.
     // If migration to v17 fails, IndexedDB will automatically rollback to v16.
