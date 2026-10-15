@@ -21,9 +21,14 @@
  *    - 通过后端安全的 token exchange 流程获取新 token
  */
 
+import { clearPermissionCache } from '@/access';
 import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import type { RoleInfo, UserInfo } from '@/services/types';
-import { encryptToken, decryptToken, clearEncryptionKey } from './token-encryption';
+import {
+  clearEncryptionKey,
+  decryptToken,
+  encryptToken,
+} from './token-encryption';
 
 export type { RoleInfo, UserInfo };
 
@@ -65,6 +70,8 @@ export const setTokens = async (
 ) => {
   try {
     // 加密 access token 和 refresh token
+    // P1 修复 (2026-10-14): encryptToken 现在会在加密失败时抛出错误
+    // 而非降级到明文存储。这确保了 token 始终以加密形式存储。
     const [encryptedAccess, encryptedRefresh] = await Promise.all([
       encryptToken(accessToken),
       encryptToken(refreshToken),
@@ -98,9 +105,23 @@ export const setTokens = async (
     // 通知 auth 状态变化
     notifyAuthStateChanged();
   } catch (error) {
-    console.error('Failed to save tokens to localStorage:', error);
-    // localStorage might be full or disabled
-    // Continue anyway - the tokens are still in memory for this session
+    // P1 修复：加密失败时不再静默继续，而是清除 token 并抛出错误
+    // 这确保了不会出现"加密失败但 token 已存储为明文"的不一致状态
+    console.error('Failed to encrypt and save tokens:', error);
+
+    // 清除可能已部分写入的 token（防止明文泄漏）
+    try {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    } catch {
+      // 清除失败时忽略错误
+    }
+
+    // 重新抛出错误，让调用方知道 token 存储失败
+    throw new Error(
+      'Token encryption failed. Please ensure you are using a modern browser. ' +
+        'If the problem persists, contact support.',
+    );
   }
 };
 
@@ -128,7 +149,10 @@ export const getAccessToken = (): string | null => {
 /**
  * 获取 Access Token（异步解密版本）
  *
- * @returns 解密后的 access token，如果无效则返回 null
+ * P1 修复 (2026-10-14): decryptToken 现在会在解密失败时抛出错误。
+ * 此函数捕获解密错误并清除损坏的 token，然后返回 null。
+ *
+ * @returns 解密后的 access token，如果无效或解密失败则返回 null
  */
 export const getAccessTokenDecrypted = async (): Promise<string | null> => {
   const encrypted = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -136,8 +160,16 @@ export const getAccessTokenDecrypted = async (): Promise<string | null> => {
 
   try {
     return await decryptToken(encrypted);
-  } catch {
-    return encrypted; // 降级：返回原值（可能是未加密的旧 token）
+  } catch (error) {
+    // P1 修复：解密失败时清除损坏的 token 并返回 null
+    // 这避免了"解密失败但返回明文旧 token"的不一致状态
+    console.error('Failed to decrypt access token, clearing:', error);
+    try {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+    } catch {
+      // 清除失败时忽略错误
+    }
+    return null;
   }
 };
 
@@ -149,7 +181,10 @@ export const getAccessTokenDecrypted = async (): Promise<string | null> => {
  * 2. Token 未被标记为已使用（rotation 检查）
  * 3. Token 已解密（如果加密）
  *
- * @returns 原始 refresh token 字符串，如果无效则返回 null
+ * P1 修复 (2026-10-14): decryptToken 现在会在解密失败时抛出错误。
+ * 此函数捕获解密错误并清除损坏的 token，然后返回 null。
+ *
+ * @returns 原始 refresh token 字符串，如果无效或解密失败则返回 null
  */
 export const getRefreshToken = async (): Promise<string | null> => {
   const tokenStr = localStorage.getItem(REFRESH_TOKEN_KEY);
@@ -160,6 +195,12 @@ export const getRefreshToken = async (): Promise<string | null> => {
 
     // 检查是否为旧格式（纯字符串），兼容历史数据
     if (typeof tokenData === 'string') {
+      // P1 修复：检测到旧格式 token 时发出警告
+      // 这些 token 未加密，应在下次登录时重新加密
+      console.warn(
+        '[getRefreshToken] Detected legacy unencrypted token. ' +
+          'This token should be re-encrypted on next login.',
+      );
       return tokenData; // 旧 token 未加密，直接返回
     }
 
@@ -177,7 +218,21 @@ export const getRefreshToken = async (): Promise<string | null> => {
 
     // 解密 token（如果已加密）
     if (tokenData.encrypted) {
-      return await decryptToken(tokenData.token);
+      try {
+        return await decryptToken(tokenData.token);
+      } catch (decryptError) {
+        // P1 修复：解密失败时清除损坏的 token 并返回 null
+        console.error(
+          '[getRefreshToken] Failed to decrypt token, clearing:',
+          decryptError,
+        );
+        try {
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+        } catch {
+          // 清除失败时忽略错误
+        }
+        return null;
+      }
     }
 
     // 未加密的旧 token，直接返回
@@ -284,6 +339,9 @@ export const clearAuth = () => {
 
     // 清除加密密钥（防止 sessionStorage 中的密钥被用于解密其他标签页的 token）
     clearEncryptionKey();
+
+    // P0-3 修复：清除权限缓存，防止登出后残留的权限被误用
+    clearPermissionCache();
 
     // 通知 auth 状态变化
     notifyAuthStateChanged();

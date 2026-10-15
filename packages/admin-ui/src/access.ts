@@ -78,17 +78,58 @@ type AccessResult = {
 };
 
 let _cachedPermissions: Readonly<AccessResult> | null = null;
-let _cachedPermissionsKey: API.CurrentUser | undefined;
+let _cachedPermissionsKey: string | undefined;
 let _cachedPermissionsTimestamp = 0;
 
 /**
- * Maximum cache duration for permissions (5 minutes).
+ * Maximum cache duration for permissions (1 minute).
  *
- * Even if currentUser reference hasn't changed, permissions may be modified
+ * Even if currentUser hasn't changed, permissions may be modified
  * on the server side (e.g., role changes by another admin). This TTL ensures
  * the client eventually picks up server-side changes.
+ *
+ * Security: Reduced from 5 minutes to 1 minute to minimize the window
+ * where stale permissions could be used after server-side changes.
  */
-const PERMISSION_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const PERMISSION_CACHE_MAX_AGE_MS = 60 * 1000;
+
+/**
+ * Clear the permission cache.
+ *
+ * This should be called when the user logs out or when permissions
+ * are known to have changed (e.g., after a role update).
+ */
+export function clearPermissionCache(): void {
+  _cachedPermissions = null;
+  _cachedPermissionsKey = undefined;
+  _cachedPermissionsTimestamp = 0;
+}
+
+/**
+ * Generate a cache key from currentUser based on identity fields.
+ *
+ * Uses deep comparison of key fields (id, access, roles, permissions) rather than
+ * reference equality to detect meaningful changes. This ensures cache
+ * invalidation when user properties are modified in-place.
+ */
+function getPermissionCacheKey(
+  user: API.CurrentUser | undefined,
+): string | undefined {
+  if (!user) return undefined;
+
+  // Extract key identity fields for cache key generation
+  const roleId =
+    user.roles
+      ?.map((r) => r.id)
+      .sort()
+      .join(',') ?? '';
+  // Include permissions in cache key to differentiate users with different permission sets
+  const perms =
+    user.permissions instanceof Set
+      ? Array.from(user.permissions).sort().join(',')
+      : '';
+  return `${user.id ?? ''}:${user.access ?? ''}:${roleId}:${perms}`;
+}
 
 export default function access(
   initialState: { currentUser?: API.CurrentUser } | undefined,
@@ -103,10 +144,13 @@ export default function access(
     Object.freeze(currentUser);
   }
 
+  // Generate cache key from identity fields (id, access, roles)
+  const cacheKey = getPermissionCacheKey(currentUser);
+
   // Return cached result if currentUser hasn't changed AND cache hasn't expired
   if (
     _cachedPermissions &&
-    _cachedPermissionsKey === currentUser &&
+    _cachedPermissionsKey === cacheKey &&
     now - _cachedPermissionsTimestamp < PERMISSION_CACHE_MAX_AGE_MS
   ) {
     return _cachedPermissions;
@@ -115,7 +159,7 @@ export default function access(
   // 如果没有管理员信息，返回所有权限为 false
   if (!currentUser) {
     _cachedPermissions = DEFAULT_PERMISSIONS;
-    _cachedPermissionsKey = currentUser;
+    _cachedPermissionsKey = cacheKey;
     _cachedPermissionsTimestamp = now;
     return DEFAULT_PERMISSIONS;
   }
@@ -132,7 +176,7 @@ export default function access(
       ? Object.freeze({ ...DEFAULT_PERMISSIONS, canAdmin: true })
       : DEFAULT_PERMISSIONS; // DEFAULT_PERMISSIONS is already frozen
     _cachedPermissions = result;
-    _cachedPermissionsKey = currentUser;
+    _cachedPermissionsKey = cacheKey;
     _cachedPermissionsTimestamp = now;
     return result;
   }
@@ -146,7 +190,7 @@ export default function access(
       { actualType: typeof perms, value: perms },
     );
     _cachedPermissions = DEFAULT_PERMISSIONS;
-    _cachedPermissionsKey = currentUser;
+    _cachedPermissionsKey = cacheKey;
     _cachedPermissionsTimestamp = now;
     return DEFAULT_PERMISSIONS;
   }
@@ -180,10 +224,27 @@ export default function access(
   // 即使用户拥有 PERM_ADMIN_USER_WRITE 权限，如果其角色不是 admin，
   // canAdmin 也必须为 false。这是为了防止权限提升攻击——拥有某个写权限
   // 不应自动获得完整的管理员身份。
+  //
+  // P0-2 修复：仅基于 id === 'admin' 判断，避免 name 字段被伪造导致误判
   const hasRolesData = currentUser.roles !== undefined;
-  const isAdminRole = currentUser.roles?.some(
-    (r) => r.name === 'admin' || r.id === 'admin',
-  );
+  const isAdminRole = currentUser.roles?.some((r) => r.id === 'admin');
+
+  // 防御性日志：当 name === 'admin' 但 id !== 'admin' 时输出警告
+  // 这可能表示后端数据异常或角色配置错误
+  if (hasRolesData && !isAdminRole) {
+    const suspiciousAdminName = currentUser.roles?.some(
+      (r) => r.name === 'admin',
+    );
+    if (suspiciousAdminName) {
+      console.warn(
+        '[access] Detected role with name="admin" but id!=="admin". ' +
+          'This may indicate a backend data inconsistency. ' +
+          'Only role id==="admin" is treated as admin.',
+        { roles: currentUser.roles },
+      );
+    }
+  }
+
   const canAdmin = hasRolesData
     ? !!isAdminRole
     : perms.has(PERM_ADMIN_USER_WRITE);
@@ -273,7 +334,7 @@ export default function access(
   Object.freeze(result);
 
   _cachedPermissions = result;
-  _cachedPermissionsKey = currentUser;
+  _cachedPermissionsKey = cacheKey;
   _cachedPermissionsTimestamp = now;
   return result;
 }

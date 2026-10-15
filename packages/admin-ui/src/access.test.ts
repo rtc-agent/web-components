@@ -1,6 +1,11 @@
-import access from './access';
+import access, { clearPermissionCache } from './access';
 
 describe('access', () => {
+  // Clear permission cache before each test to avoid cross-test contamination
+  beforeEach(() => {
+    clearPermissionCache();
+  });
+
   describe('when initialState is undefined', () => {
     it('should return all permissions as false', () => {
       const result = access(undefined);
@@ -86,7 +91,7 @@ describe('access', () => {
       // canAdmin 基于 admin 角色判断（新后端有 roles 字段时，严格基于角色，不回退到权限检查）
       // 这是为了防止权限提升攻击：拥有 admin_user:write 权限不应自动获得完整管理员身份
       expect(result.canAdmin).toBe(false); // operator 角色不是 admin，即使有 admin_user:write 权限
-      expect(result.canSystemView).toBe(true); // 因为有 role:read
+      expect(result.canSystemView).toBe(true); // 有 admin_user:read 或 role:read 即可访问系统菜单
       expect(result.canAdminUserView).toBe(true);
       expect(result.canAdminUserEdit).toBe(true);
       expect(result.canAdminUserDelete).toBe(false);
@@ -116,7 +121,7 @@ describe('access', () => {
         currentUser: {
           access: 'admin',
           permissions: permissionSet,
-          roles: [{ id: '1', name: 'admin', display_name: '管理员' }],
+          roles: [{ id: 'admin', name: 'admin', display_name: '管理员' }],
         },
       });
 
@@ -152,7 +157,7 @@ describe('access', () => {
 
       // canAdmin 基于 admin 角色判断（新后端有 roles 字段时，严格基于角色）
       expect(result.canAdmin).toBe(false); // operator 角色不是 admin，即使有 admin_user:write 权限
-      expect(result.canSystemView).toBe(true); // 因为有 role:read
+      expect(result.canSystemView).toBe(true); // 有 admin_user:read 或 role:read 即可访问系统菜单
       expect(result.canAdminUserView).toBe(true);
       expect(result.canAdminUserEdit).toBe(true);
       expect(result.canAdminUserDelete).toBe(false);
