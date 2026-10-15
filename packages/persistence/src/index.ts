@@ -355,6 +355,9 @@ export class PersistenceLayer implements IPersistenceLayer {
    * Note: This is FIFO, not true LRU, as Set iteration order is insertion order.
    * For deduplication purposes, FIFO is sufficient since we only need to prevent
    * duplicate processing of recent events, not optimize for access patterns.
+   *
+   * P1-FIX: Added FIFO eviction to prevent unbounded memory growth.
+   * When the cache exceeds EVENT_DEDUP_CACHE_SIZE, the oldest 20% of entries are removed.
    */
   private _processedEventIds = new Set<string>();
   /** Maximum size of the event deduplication cache.
@@ -1695,6 +1698,22 @@ export class PersistenceLayer implements IPersistenceLayer {
    *
    * @returns Statistics: number of files synced and number of files that failed,
    *          plus detailed lists of synced and failed files (for UI broadcast)
+   *
+   * LIMITATION: Cross-Tab Coordination
+   * ----------------------------------
+   * The deduplication mechanisms (_lastSyncTime and _syncPromise) are instance-level only.
+   * They prevent duplicate syncs within the SAME Tab, but cannot coordinate across
+   * multiple Tabs. If two Tabs call syncPendingFiles() simultaneously, both will proceed.
+   *
+   * This is acceptable because:
+   * 1. The sync operation is idempotent (uploading the same file twice is safe)
+   * 2. FileSyncTransaction prevents state conflicts
+   * 3. The performance impact is minimal (network bandwidth is the bottleneck, not CPU)
+   *
+   * If cross-Tab coordination becomes necessary, consider:
+   * - BroadcastChannel API for inter-Tab communication
+   * - IndexedDB-based distributed lock
+   * - localStorage event listener (simple but unreliable)
    */
   async syncPendingFiles(): Promise<{
     synced: number;

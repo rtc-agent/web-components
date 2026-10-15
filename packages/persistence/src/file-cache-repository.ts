@@ -146,6 +146,9 @@ export class FileCacheRepository {
    * PERFORMANCE: Creating a new Worker for each MD5 calculation is expensive (~10-50ms).
    * This pool maintains up to 4 workers to handle concurrent MD5 calculations.
    * Workers are created lazily and reused across calculations.
+   *
+   * P1-FIX: Added idle timeout to prevent resource leaks in long-running applications.
+   * Workers that are idle for more than WORKER_IDLE_TIMEOUT_MS are automatically terminated.
    */
   private static _md5WorkerPool: Worker[] = [];
   private static _md5WorkerBusy = new Set<Worker>();
@@ -154,6 +157,13 @@ export class FileCacheRepository {
   private static _pendingMd5Tasks = 0;
   /** Threshold for warning about excessive pending MD5 tasks */
   private static readonly PENDING_MD5_WARNING_THRESHOLD = 10;
+  /** P1-FIX: Idle timeout for workers (1 minute) to prevent resource leaks */
+  private static readonly WORKER_IDLE_TIMEOUT_MS = 60_000;
+  /** P1-FIX: Track idle timeouts for each worker to enable cleanup */
+  private static _workerIdleTimeouts = new Map<
+    Worker,
+    ReturnType<typeof setTimeout>
+  >();
 
   /**
    * Cache a downloaded file.
@@ -518,8 +528,13 @@ export class FileCacheRepository {
       );
     }
 
-    // Mark worker as busy
+    // Mark worker as busy and clear its idle timeout
     FileCacheRepository._md5WorkerBusy.add(worker);
+    const idleTimeout = FileCacheRepository._workerIdleTimeouts.get(worker);
+    if (idleTimeout) {
+      clearTimeout(idleTimeout);
+      FileCacheRepository._workerIdleTimeouts.delete(worker);
+    }
 
     try {
       // Send blob to worker and wait for result with timeout
@@ -560,12 +575,26 @@ export class FileCacheRepository {
       FileCacheRepository._md5WorkerBusy.delete(worker);
       // P0-FIX: Decrement pending task counter
       FileCacheRepository._pendingMd5Tasks--;
+      // P1-FIX: Restart idle timeout for the now-available worker
+      const newIdleTimeout = setTimeout(() => {
+        worker.terminate();
+        FileCacheRepository._md5WorkerPool =
+          FileCacheRepository._md5WorkerPool.filter((w) => w !== worker);
+        FileCacheRepository._workerIdleTimeouts.delete(worker);
+        log.debug(
+          `MD5 worker terminated after ${FileCacheRepository.WORKER_IDLE_TIMEOUT_MS}ms idle`,
+        );
+      }, FileCacheRepository.WORKER_IDLE_TIMEOUT_MS);
+      FileCacheRepository._workerIdleTimeouts.set(worker, newIdleTimeout);
     }
   }
 
   /**
    * Create a new MD5 worker that loads SparkMD5 from CDN.
    * Using CDN keeps bundle size small while maintaining reliability.
+   *
+   * P1-FIX: Added idle timeout mechanism. Workers that remain idle for
+   * WORKER_IDLE_TIMEOUT_MS are automatically terminated to prevent resource leaks.
    */
   private static _createMD5Worker(): Worker {
     const workerScript = `
@@ -587,7 +616,21 @@ export class FileCacheRepository {
       type: 'application/javascript',
     });
     const workerUrl = URL.createObjectURL(workerBlob);
-    return new Worker(workerUrl);
+    const worker = new Worker(workerUrl);
+
+    // P1-FIX: Set up idle timeout to terminate workers that are not being used
+    const idleTimeout = setTimeout(() => {
+      worker.terminate();
+      FileCacheRepository._md5WorkerPool =
+        FileCacheRepository._md5WorkerPool.filter((w) => w !== worker);
+      FileCacheRepository._workerIdleTimeouts.delete(worker);
+      log.debug(
+        `MD5 worker terminated after ${FileCacheRepository.WORKER_IDLE_TIMEOUT_MS}ms idle`,
+      );
+    }, FileCacheRepository.WORKER_IDLE_TIMEOUT_MS);
+
+    FileCacheRepository._workerIdleTimeouts.set(worker, idleTimeout);
+    return worker;
   }
 
   // ========== Offline-first sync methods ==========
@@ -710,6 +753,7 @@ export class FileCacheRepository {
    * @param to Target state
    * @param metadata Optional metadata (errorMessage for 'failed', syncedAt for 'synced')
    * @returns true if transition succeeded, false if precondition not met or entry not found
+   * @throws Error if the entry does not exist
    */
   async transitionSyncStatus(
     md5: string,
@@ -723,11 +767,13 @@ export class FileCacheRepository {
     const fromSet = new Set(Array.isArray(from) ? from : [from]);
     const key = [md5, ext];
 
+    let found = false;
     let transitioned = false;
     await db.fileCache
       .where('[md5+ext]')
       .equals(key)
       .modify((entry) => {
+        found = true;
         if (!fromSet.has(entry.syncStatus as FileSyncStatus)) {
           log.debug(
             `transitionSyncStatus: skipped ${md5}.${ext}, ` +
@@ -752,6 +798,10 @@ export class FileCacheRepository {
         }
         transitioned = true;
       });
+
+    if (!found) {
+      throw new Error(`File cache entry not found: ${md5}.${ext}`);
+    }
 
     if (transitioned) {
       log.debug(
@@ -1150,6 +1200,24 @@ export class FileCacheRepository {
   /**
    * Internal implementation of evictLRU.
    * Separated to enable concurrency control in the public method.
+   *
+   * KNOWN LIMITATION: Cursor-Based Pagination with Duplicate Timestamps
+   * ------------------------------------------------------------------
+   * This method uses `lastAccessedAt` as the cursor for pagination. When multiple entries
+   * share the same timestamp, the current implementation loads all entries at that timestamp
+   * to avoid splitting them across batches (see lines 1189-1210). However, if the number of
+   * entries at a single timestamp exceeds the batch size or the target byte limit, some
+   * entries may be skipped.
+   *
+   * This is acceptable for LRU eviction because:
+   * 1. Timestamps are typically unique (millisecond precision)
+   * 2. Eviction is a best-effort operation (missing a few entries is not critical)
+   * 3. The next eviction cycle will process remaining entries
+   *
+   * If this becomes a problem, consider:
+   * - Adding a compound index `[syncStatus+lastAccessedAt+md5]` for deterministic pagination
+   * - Using a compound cursor key (timestamp + md5) to ensure all entries are processed
+   * - Implementing a "continue from last unprocessed entry" mechanism
    */
   private async _evictLRUInternal(
     targetBytes: number,
@@ -1367,6 +1435,8 @@ export class FileCacheRepository {
   /**
    * Terminate all MD5 Worker instances and reset pool state.
    * Call this during application teardown to prevent memory leaks.
+   *
+   * P1-FIX: Also clears all idle timeouts to prevent dangling timers.
    */
   static destroyWorkerPool(): void {
     for (const worker of FileCacheRepository._md5WorkerPool) {
@@ -1375,6 +1445,11 @@ export class FileCacheRepository {
     FileCacheRepository._md5WorkerPool = [];
     FileCacheRepository._md5WorkerBusy.clear();
     FileCacheRepository._pendingMd5Tasks = 0;
+    // P1-FIX: Clear all idle timeouts
+    for (const timeout of FileCacheRepository._workerIdleTimeouts.values()) {
+      clearTimeout(timeout);
+    }
+    FileCacheRepository._workerIdleTimeouts.clear();
   }
 }
 

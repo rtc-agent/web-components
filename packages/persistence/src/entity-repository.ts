@@ -1912,25 +1912,26 @@ export class EntityRepository {
             const write = completedWrites[i];
 
             // P2-FIX: Retry mechanism for compensation operations.
-            // If rollback fails, retry up to 2 times with 100ms intervals.
+            // If rollback fails, retry up to 3 times with exponential backoff.
             // This handles transient failures (e.g., temporary IndexedDB locks).
-            const MAX_COMPENSATION_RETRIES = 2;
-            const COMPENSATION_RETRY_DELAY_MS = 100;
+            const MAX_COMPENSATION_RETRIES = 3;
+            const COMPENSATION_RETRY_BASE_DELAY_MS = 100;
 
             let lastError: unknown;
+            let retryAttempt: number;
             for (
-              let retryAttempt = 0;
+              retryAttempt = 0;
               retryAttempt <= MAX_COMPENSATION_RETRIES;
               retryAttempt++
             ) {
               try {
                 if (retryAttempt > 0) {
+                  const delay =
+                    COMPENSATION_RETRY_BASE_DELAY_MS * 2 ** (retryAttempt - 1);
                   log.info(
-                    `[applyUpdates] Compensation retry attempt ${retryAttempt}/${MAX_COMPENSATION_RETRIES} for ${write.entityType}`,
+                    `[applyUpdates] Compensation retry attempt ${retryAttempt}/${MAX_COMPENSATION_RETRIES} for ${write.entityType} after ${delay}ms`,
                   );
-                  await new Promise((resolve) =>
-                    setTimeout(resolve, COMPENSATION_RETRY_DELAY_MS),
-                  );
+                  await new Promise((resolve) => setTimeout(resolve, delay));
                 }
 
                 if (write.operation === 'upsert') {
@@ -2057,6 +2058,15 @@ export class EntityRepository {
           `${merged.messages.length} messages, ${merged.rtcs.length} rtcs, ` +
           `${deletes.sessions.length + deletes.turns.length + deletes.messages.length + deletes.rtcs.length} deletes`,
       );
+
+      // P2-FIX: Log performance warning for slow transactions
+      if (elapsed > 5000) {
+        log.warn(
+          `[applyUpdates] Slow transaction detected: ${elapsed.toFixed(1)}ms. ` +
+            `Consider optimizing batch size or IndexedDB queries. ` +
+            `Items processed: ${totalWriteItems}`,
+        );
+      }
 
       // 8. Emit batch UI updates (outside transaction)
       await this.emitBatchUIUpdates(beforeSnapshots, merged, deletes);
