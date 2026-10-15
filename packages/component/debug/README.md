@@ -6,24 +6,44 @@ RTC Agent Web Components 调试工具和测试页面。
 
 ```
 debug/
-├── index.html                    # 技能系统演示页面（主调试页面）
-├── debug-controller.ts           # 可复用的调试面板控制器
-├── message-list.debug.ts         # 消息列表调试辅助
+├── README.md                       # 本文档
 │
-├── components/                   # 组件调试页面
-│   ├── chat-layout.html          # 聊天布局
-│   ├── message-list.html         # 消息列表
-│   ├── message-list-virtual.html # 虚拟滚动消息列表
-│   ├── editor-toolbar.html       # 编辑器工具栏
-│   ├── markdown-editor.html      # Markdown 编辑器
-│   ├── file-explorer.html        # 文件浏览器
-│   ├── session-tree.html         # 会话树
-│   ├── settings-layout.html      # 设置布局
-│   └── activity-bar.html         # 活动栏
+├── shell/                          # UI 外壳与布局组件
+│   ├── index.html                  # 技能系统演示页面（主调试页面）
+│   ├── activity-bar.html           # 活动栏
+│   ├── chat-layout.html            # 聊天布局
+│   ├── settings-layout.html        # 设置布局
+│   ├── status-bar.html             # 状态栏
+│   ├── debug-controller.ts         # 可复用的调试面板控制器
+│   └── check-*.mjs                 # 布局检测脚本
 │
-└── scenarios/                    # 场景演示页面
-    ├── task01.html ~ task17.html # 各种任务场景
-    └── ...
+├── editor/                         # 编辑器相关组件
+│   ├── editor-area.html            # 编辑器区域
+│   ├── editor-tab.html             # 编辑器标签页
+│   ├── editor-toolbar.html         # 编辑器工具栏
+│   ├── file-explorer.html          # 文件浏览器
+│   ├── file-tree-item.html         # 文件树节点
+│   └── markdown-editor.html        # Markdown 编辑器
+│
+├── session/                        # 会话管理组件
+│   ├── session-tab-bar.html        # 会话标签栏
+│   ├── session-tab.html            # 会话标签
+│   ├── session-tree.html           # 会话树
+│   ├── session-tree-item.html      # 会话树节点
+│   └── tab-session.html            # 标签页会话
+│
+├── message/                        # 消息展示组件
+│   ├── message-list.html           # 消息列表
+│   ├── message-list-virtual.html   # 虚拟滚动消息列表
+│   ├── toolcall-pairing-virtual.html # 工具调用配对 + 虚拟滚动
+│   ├── message-list.debug.ts       # 消息列表调试辅助
+│   ├── message-list-virtual.debug.ts
+│   ├── toolcall-pairing-virtual.debug.ts
+│   └── message-list.spec.ts        # 消息列表测试规范
+│
+└── tasks/                          # 任务场景验证页面
+    ├── task01.html ~ task19.html   # 各阶段任务验证（Phase 1-3）
+    └── task14-*.html               # Task 14 变体（最简/最小化/辅助函数）
 ```
 
 ## 使用方式
@@ -59,7 +79,7 @@ http://localhost:5173/debug/
 #### 示例
 
 ```typescript
-import { DebugController } from './debug/debug-controller';
+import { DebugController } from './debug/shell/debug-controller';
 
 const dc = new DebugController({
   previewSelector: '#previewContainer',
@@ -112,11 +132,14 @@ dc.bindEventLog(myComponent, ['editor-tab-select', 'editor-tab-close']);
 
 ## 添加新的调试页面
 
-1. 在 `debug/` 目录下创建新的 HTML 文件
+1. 按功能分类到对应子目录：
+   - UI 外壳/布局 → `shell/`
+   - 编辑器相关 → `editor/`
+   - 会话管理 → `session/`
+   - 消息展示 → `message/`
+   - 任务验证 → `tasks/`
 2. 参考现有页面的结构
 3. 使用 `DebugController` 提供统一的调试体验
-4. 如果是组件调试页面，放在 `components/` 子目录
-5. 如果是场景演示页面，放在 `scenarios/` 子目录
 
 ## Sourcemap 策略
 
