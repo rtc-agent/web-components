@@ -266,7 +266,11 @@ export class RTCAgentClient implements IRTCAgentClient {
    */
   private _lastMessageTime: number = 0;
   private _heartbeatCheckTimer?: ReturnType<typeof setInterval>;
-  private static readonly HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds
+  // HEARTBEAT_TIMEOUT_MS: 45 seconds
+  // Rationale: Centrifuge's default ping interval is 25s. A 45s timeout allows
+  // for one missed ping plus processing delay, while still detecting stale
+  // connections within a reasonable timeframe for real-time communication.
+  private static readonly HEARTBEAT_TIMEOUT_MS = 45000; // 45 seconds
   private static readonly HEARTBEAT_CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
 
   /**
@@ -463,6 +467,10 @@ export class RTCAgentClient implements IRTCAgentClient {
         // Default: Normal disconnect (network error, server restart, timeout, etc.)
         // Falls through to setConnectionState below
 
+        // Reset heartbeat timestamp to prevent stale values from previous
+        // connection triggering false timeout detection after reconnection.
+        this._lastMessageTime = 0;
+
         this.setConnectionState('disconnected', ctx?.reason);
       });
       this.centrifuge.on('error', (ctx) => {
@@ -523,6 +531,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     // previous connection's offset state and must be rebuilt on reconnect.
     this.pendingUpdates.length = 0;
     this.lastOffsetCache.clear();
+    // Reset heartbeat timestamp to prevent stale values affecting reconnection
+    this._lastMessageTime = 0;
+    // Reset token refresh failure count for clean reconnection
+    this._refreshFailureCount = 0;
     this.setConnectionState('disconnected');
   }
 
@@ -533,7 +545,16 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
     this._reconnecting = true;
     try {
+      // CRITICAL: disconnect() synchronously destroys the Centrifuge instance.
+      // If this.disconnect() were to become async in the future, it could create
+      // a race where connect() runs before disconnect() completes. Current code
+      // is safe because disconnect() is synchronous.
       this.disconnect();
+      // Defensive check: ensure disconnect() actually cleared the instance
+      if (this.centrifuge !== null) {
+        log.warn('reconnect(): centrifuge instance not cleared after disconnect()');
+        this.centrifuge = null;
+      }
       await this.connect();
     } finally {
       this._reconnecting = false;

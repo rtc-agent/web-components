@@ -902,8 +902,12 @@ export class AuthController implements ReactiveController {
    * rather than relying on the external auth provider's userId (which belongs to a
    * different identity system — e.g. admin-ui's admin ID vs RTC's user ID).
    *
-   * RTC JWT uses a non-standard `user_id` claim (not the standard `sub`). See
-   * server/internal/usecase/token_exchange.go and signer.SignAccessToken().
+   * CLAIM PRIORITY:
+   * 1. `user_id` (non-standard, RTC-specific claim) — preferred for backward compatibility
+   * 2. `sub` (standard JWT claim per RFC 7519) — fallback for forward compatibility
+   *
+   * See server/internal/usecase/token_exchange.go and signer.SignAccessToken() for
+   * the server-side implementation that embeds these claims.
    *
    * Returns empty string if the JWT is malformed or neither claim is present.
    * Callers MUST check for empty return and handle appropriately (e.g., logout).
@@ -925,10 +929,19 @@ export class AuthController implements ReactiveController {
       return '';
     }
     // RTC JWT uses `user_id`; fall back to standard `sub` for forward compatibility.
+    // Defensive type checking: some OAuth providers may use numeric IDs.
+    // Convert to string to ensure compatibility, but log a warning for debugging.
     const userId = payload.user_id ?? payload.sub;
+    if (typeof userId === 'number') {
+      log.warn(
+        '_parseUserIdFromJwtPayload: user_id/sub claim is a number, converting to string:',
+        userId,
+      );
+      return String(userId);
+    }
     if (typeof userId !== 'string') {
       log.warn(
-        '_parseUserIdFromJwtPayload: user_id/sub claim is not a string, got:',
+        '_parseUserIdFromJwtPayload: user_id/sub claim is not a string or number, got:',
         typeof userId,
         'Available claims:',
         Object.keys(payload).join(', '),

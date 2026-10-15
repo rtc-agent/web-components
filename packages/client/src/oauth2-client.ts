@@ -49,8 +49,10 @@ function generateCodeVerifier(): string {
   crypto.getRandomValues(array);
   const verifier = base64UrlEncode(array);
 
-  // Validate length per RFC 7636 Section 4.1: minimum 43 characters, maximum 128 characters
-  // 32 bytes base64url-encoded = 43 characters (no padding)
+  // Per RFC 7636 Section 4.1: code verifier must be 43-128 characters.
+  // 32 bytes Base64URL-encoded (no padding) = ceil(32 * 4/3) = 43 characters exactly.
+  // This validation is defensive — it should never fail with 32-byte input.
+  // Kept for safety in case the random byte count changes in the future.
   if (verifier.length < 43 || verifier.length > 128) {
     throw new Error(
       `PKCE code verifier length out of bounds: ${verifier.length} characters (expected 43-128)`,
