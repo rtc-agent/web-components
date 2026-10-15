@@ -94,6 +94,31 @@ export function formatPercentage(
 /**
  * Format bytes to human-readable size.
  *
+ * Design Decision: File Size Unit Localization
+ *
+ * File size units (KB, MB, GB, etc.) are kept in English across all locales.
+ * This is intentional and follows industry best practices:
+ *
+ * 1. **Universal Standard**: KB/MB/GB/TB are internationally recognized standards
+ *    (IEC 60027-2, ISO/IEC 80000-13). Even in non-English locales, these units
+ *    are more commonly used than localized equivalents.
+ *
+ * 2. **Technical Precision**: Translated units can cause confusion:
+ *    - Chinese: "千字节" (qiān zì jié) vs "KB" - the latter is more precise
+ *    - German: "Kilobyte" is used, but "kB" vs "KB" varies by region
+ *    - Japanese: "キロバイト" (kiro baito) vs "KB" - English is clearer in tech contexts
+ *
+ * 3. **Consistency with Industry Leaders**: Major platforms (GitHub, AWS, Google Cloud)
+ *    use English file size units even in localized interfaces.
+ *
+ * 4. **Number Formatting Still Localized**: The numeric portion uses locale-aware
+ *    formatting (e.g., "1.5 MB" in English, "1,5 MB" in German, "1.5 MB" in Chinese).
+ *    Only the unit abbreviations remain in English.
+ *
+ * If localization is required in the future, consider:
+ * - Using Intl.NumberFormat with `style: 'unit'` and `unit: 'megabyte'` (limited support)
+ * - Creating a locale-specific unit mapping (not recommended for technical audiences)
+ *
  * @param bytes - Number of bytes
  * @param decimals - Number of decimal places (default: 2)
  * @param locale - Optional locale override (defaults to current locale)
