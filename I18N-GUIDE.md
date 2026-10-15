@@ -148,11 +148,101 @@ formatFileSize(1536);  // "1.5 KB"
 
 **注意**：文件大小单位（B、KB、MB、GB、TB、PB）是技术术语，在大多数语言中保持英文形式，这是行业惯例。
 
+## 相对时间格式化
+
+两个包使用不同的相对时间实现，这是有意为之的设计决策：
+
+### Component Package（Web Components）
+
+**实现**：使用原生 `Intl.RelativeTimeFormat`
+
+**文件**：`packages/component/src/utils/relative-time.ts`
+
+**特点**：
+
+- 零依赖，无需第三方库
+- 自动使用当前 locale（通过 `getLocale()` 从 `@lit/localize` 获取）
+- 支持所有标准单位（秒、分钟、小时、天、周、月、年）
+- 性能优化：缓存 `RelativeTimeFormat` 实例，避免重复分配
+
+**示例**：
+
+```typescript
+import { formatRelativeTime } from '@rtc-agent/component';
+
+formatRelativeTime(Date.now() - 300000);  // "5 minutes ago"
+formatRelativeTime(Date.now() - 3600000); // "1 hour ago"
+```
+
+**设计原因**：
+
+1. **Web Component 不依赖 dayjs**：Component 包是独立的 Web Component 库，不应该强制消费者使用特定的日期库
+2. **浏览器原生 API**：`Intl.RelativeTimeFormat` 是现代浏览器标准 API，无需 polyfill
+3. **最小化依赖**：保持组件库轻量，避免引入不必要的依赖
+
+### Admin UI Package（React 应用）
+
+**实现**：使用 `dayjs` + `relativeTime` 插件
+
+**文件**：`packages/admin-ui/src/utils/format.ts`
+
+**特点**：
+
+- 基于 dayjs 生态，与项目其他日期处理保持一致
+- 支持 9 种语言（与 Admin UI 的 i18n 策略一致）
+- 自动映射 Ant Design Pro 的 locale 到 dayjs locale
+
+**示例**：
+
+```typescript
+import { formatRelativeTime } from 'admin-ui/utils/format';
+
+formatRelativeTime(Date.now() - 300000);  // "5 minutes ago"
+formatRelativeTime('2024-01-01T10:00:00Z'); // "2 hours ago"
+```
+
+**设计原因**：
+
+1. **React 应用使用 dayjs**：Admin UI 是 React 应用，已经依赖 dayjs 进行日期处理
+2. **生态一致性**：使用 dayjs 保持与项目其他日期操作的一致性
+3. **功能丰富**：dayjs 提供更多的日期处理功能，适合复杂的企业应用场景
+
+### 为什么不统一？
+
+**技术原因**：
+
+- Component 包是独立的 Web Component 库，不应强制消费者使用特定日期库
+- Admin UI 是 React 应用，已经深度集成 dayjs 生态
+- 两个包的 runtime 环境不同（浏览器原生 vs React 应用）
+
+**架构原因**：
+
+- 保持包的独立性，避免不必要的依赖
+- 允许各包选择最适合其使用场景的工具
+- 符合 monorepo 的最佳实践：包之间松耦合，各自独立
+
+**性能考虑**：
+
+- Component 包使用原生 API，性能更优
+- Admin UI 使用 dayjs，功能更丰富，适合复杂场景
+
 ## 常见问题
 
 ### Q: 为什么 Component Package 只支持 2 种语言？
 
 A: Component Package 是 Web Components 库，主要面向中文和英文用户。如果未来需要支持更多语言，可以通过添加新的 XLIFF 文件来实现。
+
+### Q: 为什么两个包的相对时间实现不同？
+
+A: 这是有意为之的设计决策：
+
+- Component 包使用原生 `Intl.RelativeTimeFormat`，零依赖，适合 Web Component 场景
+- Admin UI 使用 `dayjs`，与 React 应用的其他日期处理保持一致
+- 两个包的 runtime 环境和依赖策略不同，允许各自选择最适合的工具
+
+### Q: 如何迁移 Component 包的相对时间实现？
+
+A: 不建议迁移。原生 API 性能更好，且无需额外依赖。如果必须使用 dayjs，可以在应用层封装，但不要修改 Component 包的核心实现。
 
 ### Q: 为什么 Admin UI 以 en-US 为基准而不是 zh-CN？
 
