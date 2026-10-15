@@ -90,7 +90,7 @@ export type ToolCall = components['schemas']['ToolCall'];
 export type Rtc = components['schemas']['Rtc'];
 export type TodoItem = components['schemas']['TodoItem'];
 export type UserMessageContent = components['schemas']['UserMessageContent'];
-export type FileAttachment = components['schemas']['FileAttachment'];
+// FileAttachment is exported from extensions.ts with typed FileAttachmentExtra
 export type ScenarioRef = components['schemas']['ScenarioRef'];
 export type PromptContent = components['schemas']['PromptContent'];
 
@@ -184,7 +184,8 @@ export type TurnGetResponse = components['schemas']['TurnGetResponse'];
 export type AdminLoginRequest = components['schemas']['AdminLoginRequest'];
 export type AdminLoginResponse = components['schemas']['AdminLoginResponse'];
 export type AdminRefreshRequest = components['schemas']['AdminRefreshRequest'];
-export type AdminRefreshResponse = components['schemas']['AdminRefreshResponse'];
+export type AdminRefreshResponse =
+  components['schemas']['AdminRefreshResponse'];
 export type AdminUserResponse = components['schemas']['AdminUserResponse'];
 export type AdminLogoutRequest = components['schemas']['AdminLogoutRequest'];
 export type AdminErrorResponse = components['schemas']['AdminErrorResponse'];

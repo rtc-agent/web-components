@@ -11,30 +11,30 @@
  */
 
 import {
-  SessionStatus,
-  TurnStatus,
+  ErrorCategory,
   MessageRole,
   MessageStreamingStatus,
   RtcStatus,
-  ErrorCategory,
-  UpdateEntity,
+  SessionStatus,
+  TurnStatus,
   UpdateAction,
+  UpdateEntity,
 } from './enums.js';
 import type {
   ContentData,
-  Session,
-  Turn,
+  ContentType,
+  ErrorContent,
+  FileAttachment,
   Message,
+  PromptContent,
   Rtc,
+  Session,
+  SummaryContentData,
+  ToolCall,
+  Turn,
   Update,
   UpdateItem,
-  ContentType,
-  ToolCall,
   UserMessageContent,
-  ErrorContent,
-  PromptContent,
-  FileAttachment,
-  SummaryContentData,
 } from './index.js';
 
 /**
@@ -76,12 +76,13 @@ const MESSAGE_ROLES: ReadonlySet<string> = new Set<MessageRole>([
   MessageRole.Tool,
   MessageRole.System,
 ] as const satisfies readonly MessageRole[]);
-const MESSAGE_STREAMING_STATUSES: ReadonlySet<string> = new Set<MessageStreamingStatus>([
-  MessageStreamingStatus.Pending,
-  MessageStreamingStatus.Streaming,
-  MessageStreamingStatus.Completed,
-  MessageStreamingStatus.Failed,
-] as const satisfies readonly MessageStreamingStatus[]);
+const MESSAGE_STREAMING_STATUSES: ReadonlySet<string> =
+  new Set<MessageStreamingStatus>([
+    MessageStreamingStatus.Pending,
+    MessageStreamingStatus.Streaming,
+    MessageStreamingStatus.Completed,
+    MessageStreamingStatus.Failed,
+  ] as const satisfies readonly MessageStreamingStatus[]);
 const RTC_STATUSES: ReadonlySet<string> = new Set<RtcStatus>([
   RtcStatus.Pending,
   RtcStatus.Sent,
@@ -317,7 +318,10 @@ export type TypedContentData<T extends ContentType> = {
  */
 export function isStringContentData(
   c: ContentData,
-): c is TypedContentData<'markdown'> | TypedContentData<'text'> | TypedContentData<'thinking'> {
+): c is
+  | TypedContentData<'markdown'>
+  | TypedContentData<'text'>
+  | TypedContentData<'thinking'> {
   return (
     (c.type === 'markdown' || c.type === 'text' || c.type === 'thinking') &&
     typeof c.data === 'string'
@@ -351,33 +355,75 @@ export function isThinkingContent(
 
 /**
  * Type guard for toolcall_input ContentData.
+ *
+ * Validates that the data is a ToolCall object with required fields:
+ * `id` (string UUID), `tool_name` (string), `input` (string).
  */
 export function isToolCallInputContent(
   c: ContentData,
 ): c is TypedContentData<'toolcall_input'> {
-  return c.type === 'toolcall_input' && isNonNullObject(c.data);
+  if (c.type !== 'toolcall_input' || !isNonNullObject(c.data)) return false;
+  const d = c.data as Record<string, unknown>;
+  return (
+    typeof d.id === 'string' &&
+    typeof d.tool_name === 'string' &&
+    typeof d.input === 'string'
+  );
 }
 
 /**
  * Type guard for toolcall_output ContentData.
+ *
+ * Validates that the data is a ToolCall object with required fields:
+ * `id` (string UUID), `tool_name` (string), `input` (string).
  */
 export function isToolCallOutputContent(
   c: ContentData,
 ): c is TypedContentData<'toolcall_output'> {
-  return c.type === 'toolcall_output' && isNonNullObject(c.data);
+  if (c.type !== 'toolcall_output' || !isNonNullObject(c.data)) return false;
+  const d = c.data as Record<string, unknown>;
+  return (
+    typeof d.id === 'string' &&
+    typeof d.tool_name === 'string' &&
+    typeof d.input === 'string'
+  );
+}
+
+/**
+ * Type guard for UserMessageContent.
+ *
+ * Validates required field `text` (string), and optional fields
+ * `files` (array) and `scenarios` (array) if present.
+ */
+export function isValidUserMessageContent(
+  data: unknown,
+): data is UserMessageContent {
+  if (!isNonNullObject(data)) return false;
+  if (typeof (data as Record<string, unknown>).text !== 'string') return false;
+
+  // Optional files: if present, must be an array
+  if ('files' in data && data.files !== undefined) {
+    if (!Array.isArray(data.files)) return false;
+  }
+
+  // Optional scenarios: if present, must be an array
+  if ('scenarios' in data && data.scenarios !== undefined) {
+    if (!Array.isArray(data.scenarios)) return false;
+  }
+
+  return true;
 }
 
 /**
  * Type guard for user_message ContentData.
+ *
+ * Validates that the data is a UserMessageContent object with required field
+ * `text` (string), and optional fields `files` (array) and `scenarios` (array).
  */
 export function isUserMessageContentData(
   c: ContentData,
 ): c is TypedContentData<'user_message'> {
-  return (
-    c.type === 'user_message' &&
-    isNonNullObject(c.data) &&
-    typeof (c.data as Record<string, unknown>).text === 'string'
-  );
+  return c.type === 'user_message' && isValidUserMessageContent(c.data);
 }
 
 /**

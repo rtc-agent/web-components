@@ -71,7 +71,9 @@ type BaseToolCall = components['schemas']['ToolCall'];
  * 每个项是一个带有字符串键和未知值的记录，
  * 在保持灵活性的同时提供了比 `unknown` 更好的类型安全。
  */
-export type SummaryContentData = ReadonlyArray<Readonly<Record<string, unknown>>>;
+export type SummaryContentData = ReadonlyArray<
+  Readonly<Record<string, unknown>>
+>;
 
 /**
  * FileAttachmentExtra - Extended metadata for file attachments
@@ -107,3 +109,17 @@ export interface ToolCallExtended extends BaseToolCall {
   /** Error message if tool execution failed */
   error?: string;
 }
+
+/**
+ * FileAttachment - Refined FileAttachment with typed extra field
+ *
+ * Overrides the auto-generated FileAttachment (which uses Record<string, unknown>)
+ * to provide the strongly-typed FileAttachmentExtra interface for the `extra` field.
+ *
+ * 覆盖自动生成的 FileAttachment（使用 Record<string, unknown>），
+ * 为 `extra` 字段提供强类型的 FileAttachmentExtra 接口。
+ */
+export type FileAttachment = Omit<
+  components['schemas']['FileAttachment'],
+  'extra'
+> & { extra?: FileAttachmentExtra };

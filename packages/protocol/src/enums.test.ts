@@ -1,19 +1,72 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  SessionStatus,
-  TurnStatus,
-  MessageRole,
-  MessageStreamingStatus,
   ContentType,
   ErrorCategory,
-  RtcStatus,
-  UpdateEntity,
-  UpdateAction,
-  UpdateType,
-  TodoStatus,
-  SyncStatus,
   FileSyncStatus,
+  MessageRole,
+  MessageStreamingStatus,
+  RtcStatus,
+  SessionStatus,
+  SyncStatus,
+  TodoStatus,
+  TurnStatus,
+  UpdateAction,
+  UpdateEntity,
+  UpdateType,
 } from './index.js';
+import type { components } from './models.gen.js';
+
+/**
+ * Compile-time type validation: ensures manual enum types are assignable
+ * to the auto-generated OpenAPI string literal union types.
+ *
+ * If any enum value diverges from the OpenAPI spec, TypeScript will emit
+ * a compile error at the `satisfies` assertion below.
+ */
+type GeneratedEnumTypes = {
+  SessionStatus: components['schemas']['SessionStatus'];
+  TurnStatus: components['schemas']['TurnStatus'];
+  MessageRole: components['schemas']['MessageRole'];
+  MessageStreamingStatus: components['schemas']['MessageStreamingStatus'];
+  ContentType: components['schemas']['ContentType'];
+  ErrorCategory: components['schemas']['ErrorCategory'];
+  RtcStatus: components['schemas']['RtcStatus'];
+  UpdateEntity: components['schemas']['UpdateEntity'];
+  UpdateAction: components['schemas']['UpdateAction'];
+  UpdateType: components['schemas']['UpdateType'];
+};
+
+// This object literal is checked at compile time via `satisfies`.
+// Each value array must be assignable to the corresponding generated union type.
+const _enumSyncCheck = {
+  SessionStatus: Object.values(
+    SessionStatus,
+  ) as GeneratedEnumTypes['SessionStatus'][],
+  TurnStatus: Object.values(TurnStatus) as GeneratedEnumTypes['TurnStatus'][],
+  MessageRole: Object.values(
+    MessageRole,
+  ) as GeneratedEnumTypes['MessageRole'][],
+  MessageStreamingStatus: Object.values(
+    MessageStreamingStatus,
+  ) as GeneratedEnumTypes['MessageStreamingStatus'][],
+  ContentType: Object.values(
+    ContentType,
+  ) as GeneratedEnumTypes['ContentType'][],
+  ErrorCategory: Object.values(
+    ErrorCategory,
+  ) as GeneratedEnumTypes['ErrorCategory'][],
+  RtcStatus: Object.values(RtcStatus) as GeneratedEnumTypes['RtcStatus'][],
+  UpdateEntity: Object.values(
+    UpdateEntity,
+  ) as GeneratedEnumTypes['UpdateEntity'][],
+  UpdateAction: Object.values(
+    UpdateAction,
+  ) as GeneratedEnumTypes['UpdateAction'][],
+  UpdateType: Object.values(UpdateType) as GeneratedEnumTypes['UpdateType'][],
+} as const satisfies Record<keyof GeneratedEnumTypes, readonly string[]>;
+
+// Prevent tree-shaking from removing the compile-time check
+void _enumSyncCheck;
 
 describe('enums', () => {
   describe('SessionStatus', () => {
