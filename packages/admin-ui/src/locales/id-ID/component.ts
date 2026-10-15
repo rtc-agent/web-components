@@ -28,4 +28,5 @@ export default {
   'component.avatarDropdown.settings': 'Pengaturan Pribadi',
   'component.avatarDropdown.theme': 'Konfigurasi Tema',
   'component.avatarDropdown.logout': 'Keluar',
+  'component.tableEmptyState.noData': 'Tidak ada data',
 };

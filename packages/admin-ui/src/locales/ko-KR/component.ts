@@ -20,8 +20,10 @@ export default {
   'component.profileSettings.confirmPassword.placeholder':
     '새 비밀번호를 다시 입력하세요',
   'component.profileSettings.passwordMismatch': '비밀번호가 일치하지 않습니다',
-  'component.profileSettings.updateSuccess': '프로필이 성공적으로 업데이트되었습니다',
+  'component.profileSettings.updateSuccess':
+    '프로필이 성공적으로 업데이트되었습니다',
   'component.profileSettings.updateFailed': '업데이트 실패, 다시 시도해주세요',
   'component.globalForm.ok': '확인',
   'component.globalForm.cancel': '취소',
+  'component.tableEmptyState.noData': '데이터가 없습니다',
 };

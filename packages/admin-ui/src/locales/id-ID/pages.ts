@@ -182,10 +182,8 @@ export default {
   'pages.messages.detail.rawError': 'Raw Error',
   'pages.messages.detail.compressedContext': 'Compressed Context',
   'pages.messages.detail.error': 'Kesalahan',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': 'Released ${count} tokens',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': 'Increased ${count} tokens',
+  'pages.messages.detail.releasedTokens': 'Released {count} tokens',
+  'pages.messages.detail.increasedTokens': 'Increased {count} tokens',
   // System Config Management
   'pages.config.system.title': 'System Configs',
   'pages.config.system.all': 'All',
@@ -754,8 +752,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     'Dynamic import berhasil, test agent terpasang',
   'pages.diagnose.testAgentDestroyed': 'Test agent dihancurkan',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': 'Dynamic import gagal: ${error}',
+  'pages.diagnose.dynamicImportFailed': 'Dynamic import gagal: {error}',
   'pages.diagnose.integrationNormal': 'Integrasi Normal',
   'pages.diagnose.agentMounted': 'RTC Agent telah berhasil dipasang ke halaman',
   'pages.diagnose.agentNotMounted':
@@ -1242,4 +1239,6 @@ export default {
   'pages.config.system.changeNoteRequired': 'Change note is required',
   'pages.config.system.historyLoadFailed': 'Failed to load config history',
   'pages.config.system.rollbackFailed': 'Failed to rollback config',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': 'Sesi telah berakhir, silakan login kembali',
 };

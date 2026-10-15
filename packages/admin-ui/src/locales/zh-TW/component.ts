@@ -23,4 +23,5 @@ export default {
   'component.avatarDropdown.settings': '個人設置',
   'component.avatarDropdown.theme': '主題配置',
   'component.avatarDropdown.logout': '退出登錄',
+  'component.tableEmptyState.noData': '暫無資料',
 };

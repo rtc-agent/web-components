@@ -28,4 +28,5 @@ export default {
   'component.avatarDropdown.settings': 'تنظیمات شخصی',
   'component.avatarDropdown.theme': 'پیکربندی تم',
   'component.avatarDropdown.logout': 'خروج',
+  'component.tableEmptyState.noData': 'داده‌ای یافت نشد',
 };

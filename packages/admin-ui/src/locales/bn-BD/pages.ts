@@ -179,10 +179,8 @@ export default {
   'pages.messages.detail.rawError': 'কাঁচা ত্রুটি',
   'pages.messages.detail.compressedContext': 'সংকুচিত প্রসঙ্গ',
   'pages.messages.detail.error': 'ত্রুটি',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '${count} টোকেন মুক্ত করা হয়েছে',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '${count} টোকেন বৃদ্ধি পেয়েছে',
+  'pages.messages.detail.releasedTokens': '{count} টোকেন মুক্ত করা হয়েছে',
+  'pages.messages.detail.increasedTokens': '{count} টোকেন বৃদ্ধি পেয়েছে',
   // System Config Management
   'pages.config.system.title': 'সিস্টেম কনফিগারেশন',
   'pages.config.system.all': 'সমস্ত',
@@ -745,8 +743,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     'Dynamic import successful, test agent mounted',
   'pages.diagnose.testAgentDestroyed': 'Test agent destroyed',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': 'Dynamic import failed: ${error}',
+  'pages.diagnose.dynamicImportFailed': 'Dynamic import failed: {error}',
   'pages.diagnose.integrationNormal': 'Integration Normal',
   'pages.diagnose.agentMounted':
     'RTC Agent has been successfully mounted to the page',
@@ -1234,4 +1231,6 @@ export default {
   'pages.config.system.changeNoteRequired': 'Change note is required',
   'pages.config.system.historyLoadFailed': 'Failed to load config history',
   'pages.config.system.rollbackFailed': 'Failed to rollback config',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': 'সেশন মেয়াদ শেষ হয়েছে, অনুগ্রহ করে আবার লগইন করুন',
 };

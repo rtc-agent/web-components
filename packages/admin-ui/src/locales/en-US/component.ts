@@ -24,4 +24,5 @@ export default {
   'component.profileSettings.updateFailed': 'Update failed, please retry',
   'component.globalForm.ok': 'OK',
   'component.globalForm.cancel': 'Cancel',
+  'component.tableEmptyState.noData': 'No data found',
 };

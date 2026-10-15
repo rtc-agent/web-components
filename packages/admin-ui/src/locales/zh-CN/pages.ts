@@ -209,10 +209,8 @@ export default {
   'pages.messages.detail.rawError': '原始错误',
   'pages.messages.detail.compressedContext': '已压缩上下文',
   'pages.messages.detail.error': '错误',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '释放 ${count} tokens',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '增加 ${count} tokens',
+  'pages.messages.detail.releasedTokens': '释放 {count} tokens',
+  'pages.messages.detail.increasedTokens': '增加 {count} tokens',
   // 系统配置管理
   'pages.config.system.title': '系统配置',
   'pages.config.system.all': '全部',
@@ -1083,8 +1081,7 @@ export default {
   'pages.diagnose.testingDynamicImport': '正在测试动态导入...',
   'pages.diagnose.dynamicImportSuccess': '动态导入成功，测试 agent 已挂载',
   'pages.diagnose.testAgentDestroyed': '测试 agent 已销毁',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': '动态导入失败: ${error}',
+  'pages.diagnose.dynamicImportFailed': '动态导入失败: {error}',
   'pages.diagnose.integrationNormal': '集成正常',
   'pages.diagnose.agentMounted': 'RTC Agent 已成功挂载到页面',
   'pages.diagnose.agentNotMounted': 'RTC Agent 未挂载（这可能是因为您未登录）',
@@ -1161,4 +1158,6 @@ export default {
   'pages.config.system.changeNoteRequired': '请输入变更说明',
   'pages.config.system.historyLoadFailed': '加载配置历史失败',
   'pages.config.system.rollbackFailed': '配置回滚失败',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': '登录已过期，请重新登录',
 };

@@ -28,4 +28,5 @@ export default {
   'component.avatarDropdown.settings': 'Configurações Pessoais',
   'component.avatarDropdown.theme': 'Configuração de Tema',
   'component.avatarDropdown.logout': 'Sair',
+  'component.tableEmptyState.noData': 'Sem dados',
 };

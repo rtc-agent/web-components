@@ -27,4 +27,5 @@ export default {
   'component.avatarDropdown.settings': 'ব্যক্তিগত সেটিংস',
   'component.avatarDropdown.theme': 'থিম কনফিগারেশন',
   'component.avatarDropdown.logout': 'লগআউট',
+  'component.tableEmptyState.noData': 'কোন ডেটা নেই',
 };

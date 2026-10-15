@@ -187,10 +187,8 @@ export default {
   'pages.messages.detail.rawError': 'Erro Bruto',
   'pages.messages.detail.compressedContext': 'Contexto Comprimido',
   'pages.messages.detail.error': 'Erro',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': 'Liberados ${count} tokens',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': 'Aumentados ${count} tokens',
+  'pages.messages.detail.releasedTokens': 'Liberados {count} tokens',
+  'pages.messages.detail.increasedTokens': 'Aumentados {count} tokens',
   // System Config Management
   'pages.config.system.title': 'Configurações do Sistema',
   'pages.config.system.all': 'Todos',
@@ -781,9 +779,8 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     'Importação dinâmica bem-sucedida, agent de teste montado',
   'pages.diagnose.testAgentDestroyed': 'Agent de teste destruído',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
   'pages.diagnose.dynamicImportFailed':
-    'Falha na importação dinâmica: ${error}',
+    'Falha na importação dinâmica: {error}',
   'pages.diagnose.integrationNormal': 'Integração Normal',
   'pages.diagnose.agentMounted': 'RTC Agent foi montado com sucesso na página',
   'pages.diagnose.agentNotMounted':
@@ -1308,4 +1305,6 @@ export default {
   'pages.config.system.changeNoteRequired': 'Change note is required',
   'pages.config.system.historyLoadFailed': 'Failed to load config history',
   'pages.config.system.rollbackFailed': 'Failed to rollback config',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': 'Sessão expirada, faça login novamente',
 };

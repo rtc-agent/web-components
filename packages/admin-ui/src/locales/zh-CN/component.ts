@@ -20,4 +20,5 @@ export default {
   'component.profileSettings.updateFailed': '更新失败，请重试',
   'component.globalForm.ok': '确定',
   'component.globalForm.cancel': '取消',
+  'component.tableEmptyState.noData': '暂无数据',
 };

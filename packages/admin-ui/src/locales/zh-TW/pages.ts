@@ -171,10 +171,8 @@ export default {
   'pages.messages.detail.rawError': '原始錯誤',
   'pages.messages.detail.compressedContext': '壓縮的上下文',
   'pages.messages.detail.error': '錯誤',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '已釋放 ${count} tokens',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '增加 ${count} tokens',
+  'pages.messages.detail.releasedTokens': '已釋放 {count} tokens',
+  'pages.messages.detail.increasedTokens': '增加 {count} tokens',
   // System Config Management
   'pages.config.system.title': '系統配置',
   'pages.config.system.all': '全部',
@@ -704,8 +702,7 @@ export default {
   'pages.diagnose.testingDynamicImport': '正在測試動態匯入...',
   'pages.diagnose.dynamicImportSuccess': '動態匯入成功，測試 agent 已掛載',
   'pages.diagnose.testAgentDestroyed': '測試 agent 已銷毀',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': '動態匯入失敗: ${error}',
+  'pages.diagnose.dynamicImportFailed': '動態匯入失敗: {error}',
   'pages.diagnose.integrationNormal': '整合正常',
   'pages.diagnose.agentMounted': 'RTC Agent 已成功掛載到頁面',
   'pages.diagnose.agentNotMounted': 'RTC Agent 未掛載（這可能是因為您未登入）',
@@ -1155,4 +1152,6 @@ export default {
   'pages.config.system.changeNoteRequired': '請輸入變更說明',
   'pages.config.system.historyLoadFailed': '加載配置歷史失敗',
   'pages.config.system.rollbackFailed': '配置回滾失敗',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': '登入已過期，請重新登入',
 };

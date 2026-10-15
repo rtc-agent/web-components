@@ -186,10 +186,8 @@ export default {
   'pages.messages.detail.rawError': '生エラー',
   'pages.messages.detail.compressedContext': '圧縮されたコンテキスト',
   'pages.messages.detail.error': 'エラー',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '${count} トークンを解放',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '${count} トークンを増加',
+  'pages.messages.detail.releasedTokens': '{count} トークンを解放',
+  'pages.messages.detail.increasedTokens': '{count} トークンを増加',
   // System Config Management
   'pages.config.system.title': 'システム設定',
   'pages.config.system.all': 'すべて',
@@ -758,8 +756,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     '動的インポート成功、テストエージェントがマウントされました',
   'pages.diagnose.testAgentDestroyed': 'テストエージェントが破棄されました',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': '動的インポート失敗: ${error}',
+  'pages.diagnose.dynamicImportFailed': '動的インポート失敗: {error}',
   'pages.diagnose.integrationNormal': '統合正常',
   'pages.diagnose.agentMounted': 'RTC Agent がページに正常にマウントされました',
   'pages.diagnose.agentNotMounted':
@@ -1237,4 +1234,6 @@ export default {
   'pages.config.system.changeNoteRequired': '変更メモを入力してください',
   'pages.config.system.historyLoadFailed': '設定履歴の読み込みに失敗しました',
   'pages.config.system.rollbackFailed': '設定のロールバックに失敗しました',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': 'セッションが期限切れです。再度ログインしてください',
 };

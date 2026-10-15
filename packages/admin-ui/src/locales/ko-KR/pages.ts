@@ -201,10 +201,8 @@ export default {
   'pages.messages.detail.rawError': '원시 오류',
   'pages.messages.detail.compressedContext': '압축된 컨텍스트',
   'pages.messages.detail.error': '오류',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '해제된 토큰 ${count}개',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '증가된 토큰 ${count}개',
+  'pages.messages.detail.releasedTokens': '해제된 토큰 {count}개',
+  'pages.messages.detail.increasedTokens': '증가된 토큰 {count}개',
   // System Config Management
   'pages.config.system.title': '시스템 설정',
   'pages.config.system.all': '전체',
@@ -1067,8 +1065,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     '동적 가져오기 성공, 테스트 에이전트가 마운트되었습니다',
   'pages.diagnose.testAgentDestroyed': '테스트 에이전트가 소멸되었습니다',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': '동적 가져오기 실패: ${error}',
+  'pages.diagnose.dynamicImportFailed': '동적 가져오기 실패: {error}',
   'pages.diagnose.integrationNormal': '통합 정상',
   'pages.diagnose.agentMounted':
     'RTC Agent가 페이지에 성공적으로 마운트되었습니다',
@@ -1218,4 +1215,6 @@ export default {
   'pages.config.system.changeNoteRequired': '변경 메모를 입력해주세요',
   'pages.config.system.historyLoadFailed': '구성 기록을 로드하지 못했습니다',
   'pages.config.system.rollbackFailed': '구성 롤백에 실패했습니다',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': '세션이 만료되었습니다. 다시 로그인해주세요',
 };

@@ -28,4 +28,5 @@ export default {
   'component.avatarDropdown.settings': '個人設定',
   'component.avatarDropdown.theme': 'テーマ設定',
   'component.avatarDropdown.logout': 'ログアウト',
+  'component.tableEmptyState.noData': 'データがありません',
 };

@@ -183,10 +183,8 @@ export default {
   'pages.messages.detail.rawError': 'خطای خام',
   'pages.messages.detail.compressedContext': 'متن فشرده شده',
   'pages.messages.detail.error': 'خطا',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.releasedTokens': '${count} توکن آزاد شد',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.messages.detail.increasedTokens': '${count} توکن افزایش یافت',
+  'pages.messages.detail.releasedTokens': '{count} توکن آزاد شد',
+  'pages.messages.detail.increasedTokens': '{count} توکن افزایش یافت',
   // System Config Management
   'pages.config.system.title': 'پیکربندی‌های سیستم',
   'pages.config.system.all': 'همه',
@@ -752,8 +750,7 @@ export default {
   'pages.diagnose.dynamicImportSuccess':
     'واردات پویا موفقیت‌آمیز بود، عامل آزمایشی نصب شد',
   'pages.diagnose.testAgentDestroyed': 'عامل آزمایشی از بین رفت',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: i18n placeholder
-  'pages.diagnose.dynamicImportFailed': 'واردات پویا ناموفق بود: ${error}',
+  'pages.diagnose.dynamicImportFailed': 'واردات پویا ناموفق بود: {error}',
   'pages.diagnose.integrationNormal': 'یکپارچه‌سازی طبیعی',
   'pages.diagnose.agentMounted': 'RTC Agent با موفقیت به صفحه نصب شد',
   'pages.diagnose.agentNotMounted':
@@ -1245,4 +1242,6 @@ export default {
   'pages.config.system.changeNoteRequired': 'Change note is required',
   'pages.config.system.historyLoadFailed': 'Failed to load config history',
   'pages.config.system.rollbackFailed': 'Failed to rollback config',
+  // Auth - Session Management
+  'pages.auth.sessionExpired': 'جلسه منقضی شده است، لطفاً دوباره وارد شوید',
 };
