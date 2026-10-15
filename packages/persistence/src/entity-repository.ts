@@ -292,12 +292,23 @@ async function emitUIUpdates(
  * P1-FIX: Added maxDepth parameter to prevent stack overflow on deeply nested objects.
  * When depth limit is reached, returns a conservative estimate instead of recursing further.
  *
+ * P2-FIX: Added WeakSet-based cycle detection to prevent infinite recursion on circular
+ * references. This complements the depth limit by catching cycles at any depth level.
+ * Without cycle detection, objects with circular references (e.g., DOM nodes, linked lists)
+ * would cause stack overflow even with a depth limit if the cycle occurs before maxDepth.
+ *
  * @param obj - The object to estimate size for
  * @param maxDepth - Maximum recursion depth (default: 10). Prevents stack overflow on deeply nested objects.
  * @param currentDepth - Current depth (internal use for recursion)
+ * @param visited - WeakSet of visited objects for cycle detection (internal use)
  * @returns Approximate size in bytes
  */
-function estimateSize(obj: unknown, maxDepth: number = 10, currentDepth: number = 0): number {
+function estimateSize(
+  obj: unknown,
+  maxDepth: number = 10,
+  currentDepth: number = 0,
+  visited: WeakSet<object> = new WeakSet()
+): number {
   // P1-FIX: Prevent stack overflow on deeply nested objects
   if (currentDepth >= maxDepth) {
     // Return conservative estimate for remaining nested structure
@@ -308,12 +319,23 @@ function estimateSize(obj: unknown, maxDepth: number = 10, currentDepth: number 
   if (typeof obj === 'string') return obj.length * 2;
   if (typeof obj === 'number') return 8;
   if (typeof obj === 'boolean') return 4;
+
+  // P2-FIX: Cycle detection for objects and arrays
+  // If we've already visited this object, return 0 to break the cycle
+  if (typeof obj === 'object' && obj !== null) {
+    if (visited.has(obj)) {
+      log.debug('estimateSize: circular reference detected, breaking cycle');
+      return 0; // Return 0 for cyclic references to avoid infinite recursion
+    }
+    visited.add(obj);
+  }
+
   if (Array.isArray(obj)) {
-    return obj.reduce((sum, item) => sum + estimateSize(item, maxDepth, currentDepth + 1), 8);
+    return obj.reduce((sum, item) => sum + estimateSize(item, maxDepth, currentDepth + 1, visited), 8);
   }
   if (typeof obj === 'object') {
     return Object.entries(obj).reduce(
-      (sum, [k, v]) => sum + k.length * 2 + estimateSize(v, maxDepth, currentDepth + 1),
+      (sum, [k, v]) => sum + k.length * 2 + estimateSize(v, maxDepth, currentDepth + 1, visited),
       8
     );
   }
@@ -529,9 +551,13 @@ export class EntityRepository {
    *                excessive data into memory. Pass a larger value only when necessary.
    *
    * Performance notes:
-   * - Uses compound index [deleted_at+updated_at] (added in v16) for DB-level cursor pagination.
-   *   Results are queried via `orderBy('updated_at').reverse()` with optional cursor-based
-   *   filtering, then soft-deleted sessions are filtered out in-memory.
+   * - P1-FIX: Uses updated_at index for efficient ordering and cursor pagination.
+   *   Soft-deleted sessions (deleted_at is truthy) are filtered in-memory after fetching.
+   *   This is acceptable because:
+   *   1. Most sessions are active (deleted sessions are rare)
+   *   2. The limit ensures we only fetch a small page of results
+   *   3. The alternative (compound index with undefined) has compatibility issues
+   *      with fake-indexeddb used in tests
    * - Cursor pagination: when a cursor is provided, the method finds the cursor session's
    *   updated_at timestamp and queries sessions with older timestamps (backward pagination).
    * - For typical use cases (< 1000 sessions), performance is acceptable.
@@ -553,14 +579,18 @@ export class EntityRepository {
   ): Promise<LocalSession[]> {
     const db = getDatabase();
 
-    // PERFORMANCE: Use updated_at index for cursor pagination.
+    // P1-FIX: Use updated_at index for cursor pagination.
     // Filter out soft-deleted sessions in-memory (where deleted_at is truthy).
     //
-    // NOTE: We previously used compound index [deleted_at+updated_at] with undefined values,
-    // but that approach is not portable across all IndexedDB implementations (e.g., fake-indexeddb
-    // used in tests does not support undefined in compound keys). The current approach uses
-    // the simpler updated_at index and filters deleted_at in-memory, which is compatible with
-    // all IndexedDB implementations and still performant for typical use cases.
+    // NOTE: We use the simpler updated_at index and filter deleted_at in-memory,
+    // which is compatible with all IndexedDB implementations (including fake-indexeddb
+    // used in tests) and still performant for typical use cases.
+    //
+    // PERFORMANCE RATIONALE: In-memory filtering is acceptable because:
+    // 1. Most sessions are active (deleted sessions are rare in typical usage)
+    // 2. We only fetch limit*2 sessions from DB, then filter in-memory
+    // 3. The alternative (compound index [deleted_at+updated_at]) has compatibility
+    //    issues with undefined values in fake-indexeddb
 
     let cursorUpdatedAt: number | null = null;
     if (cursor) {
@@ -586,12 +616,14 @@ export class EntityRepository {
         .reverse();
     }
 
+    // P1-FIX: Fetch more than limit to account for soft-deleted sessions.
+    // Fetch limit*2 to reduce the chance of needing a second query.
+    // If after filtering we still don't have enough, that's acceptable for now
+    // (UI can request more with another cursor).
+    const candidates = await query.limit(limit * 2).toArray();
+
     // Filter out soft-deleted sessions in-memory
-    // This is an O(n) filter but only runs on the already-fetched page of results
-    const active = await query
-      .filter((s) => !s.deleted_at)
-      .limit(limit)
-      .toArray();
+    const active = candidates.filter((s) => !s.deleted_at).slice(0, limit);
 
     if (active.length > 1000) {
       log.warn(
@@ -919,8 +951,6 @@ export class EntityRepository {
     // Cursor format: "${timestamp}|${clientId}" for deterministic ordering.
     // Dexie compound index [session_client_id+created_at] enables range queries within a session.
 
-    const MAX_SESSION_MESSAGES = 10000;
-
     if (cursor) {
       // Parse cursor: format is "${timestamp}|${clientId}"
       const parts = cursor.split('|');
@@ -995,58 +1025,63 @@ export class EntityRepository {
     }
 
     // No cursor: get first page
-    // PERFORMANCE: Use compound index [session_client_id+created_at] for DB-level sorting.
-    // This avoids in-memory sorting and leverages IndexedDB's native ordering.
-    // The compound index was added in v15 schema migration.
+    // P1-FIX: Use DB-level pagination instead of loading MAX_SESSION_MESSAGES then slicing.
+    // For backward direction: use reverse() + limit() to get the most recent messages directly.
+    // For forward direction: use limit() to get the oldest messages directly.
+    // This avoids loading thousands of messages into memory when only a few are needed.
     //
-    // HOT/COLD DATA PROTECTION: We limit to MAX_SESSION_MESSAGES to avoid loading
-    // thousands of messages at once. The UI layer should implement virtual scrolling
-    // or pagination to display large message histories. For long-term storage,
-    // consider implementing a hot/cold data separation where older messages are
-    // archived or loaded on-demand.
-    const allMessages = await db.messages
-      .where('[session_client_id+created_at]')
-      .between(
-        [sessionClientId, Dexie.minKey],
-        [sessionClientId, Dexie.maxKey],
-      )
-      .limit(MAX_SESSION_MESSAGES)
-      .toArray();
+    // The compound index [session_client_id+created_at] ensures messages are already sorted
+    // by created_at at the DB level, so reverse() and limit() are efficient indexed operations.
+    if (direction === 'backward') {
+      // Backward from now: get most recent messages (reverse order, then sort ascending)
+      const messages = await db.messages
+        .where('[session_client_id+created_at]')
+        .between(
+          [sessionClientId, Dexie.minKey],
+          [sessionClientId, Dexie.maxKey],
+        )
+        .reverse()
+        .limit(limit)
+        .toArray();
 
-    if (allMessages.length >= MAX_SESSION_MESSAGES) {
-      log.warn(
-        `listMessagesBySession: session ${sessionClientId} has >= ${MAX_SESSION_MESSAGES} messages, ` +
-          `results may be truncated.`,
-      );
-    }
-
-    // Messages are already sorted by created_at via compound index [session_client_id+created_at].
-    // PERFORMANCE: Only perform tie-breaking sort when created_at values are equal.
-    // The compound index guarantees created_at ordering, so JavaScript sort is only needed
-    // for deterministic ordering of messages with identical timestamps (rare edge case).
-    let needsTieBreak = false;
-    for (let i = 1; i < allMessages.length; i++) {
-      if (allMessages[i].created_at === allMessages[i - 1].created_at) {
-        needsTieBreak = true;
-        break;
-      }
-    }
-
-    if (needsTieBreak) {
-      allMessages.sort((a, b) => {
+      // Sort in ascending order (oldest first) before returning
+      return messages.sort((a, b) => {
         const tsA = new Date(a.created_at).getTime();
         const tsB = new Date(b.created_at).getTime();
         if (tsA !== tsB) return tsA - tsB;
         return a.client_id.localeCompare(b.client_id);
       });
-    }
-
-    if (direction === 'backward') {
-      // Backward from now: get most recent messages
-      return allMessages.slice(-limit);
     } else {
-      // Forward from start: get oldest messages
-      return allMessages.slice(0, limit);
+      // Forward from start: get oldest messages (ascending order)
+      const messages = await db.messages
+        .where('[session_client_id+created_at]')
+        .between(
+          [sessionClientId, Dexie.minKey],
+          [sessionClientId, Dexie.maxKey],
+        )
+        .limit(limit)
+        .toArray();
+
+      // Messages are already in ascending order via compound index
+      // Only perform tie-breaking sort when created_at values are equal (rare edge case)
+      let needsTieBreak = false;
+      for (let i = 1; i < messages.length; i++) {
+        if (messages[i].created_at === messages[i - 1].created_at) {
+          needsTieBreak = true;
+          break;
+        }
+      }
+
+      if (needsTieBreak) {
+        messages.sort((a, b) => {
+          const tsA = new Date(a.created_at).getTime();
+          const tsB = new Date(b.created_at).getTime();
+          if (tsA !== tsB) return tsA - tsB;
+          return a.client_id.localeCompare(b.client_id);
+        });
+      }
+
+      return messages;
     }
   }
 
@@ -2804,9 +2839,14 @@ export class EntityRepository {
    *
    * PERFORMANCE OPTIMIZATION: Uses batch operations instead of N+1 queries.
    * - bulkGet for parallel session reads (single IndexedDB transaction)
-   * - Parallel countActiveTurns queries (all sessions at once)
+   * - P1-FIX: Batched countActiveTurns queries with concurrency limit (50 per batch)
+   *   to prevent overwhelming IndexedDB with 200+ parallel queries on large batches.
    * - bulkPut for batch session updates (single write operation)
    * This reduces DB round-trips from O(N) to O(1) for typical cases. (P2-FIX)
+   *
+   * P1-FIX: Concurrency limit prevents IndexedDB lock contention and timeouts when
+   * processing large batches (e.g., 500+ turns). Each batch of 50 queries runs in parallel,
+   * but batches are processed sequentially to limit concurrent IndexedDB operations.
    */
   private async writebackTurnCountsInTx(
     turns: Partial<LocalTurn>[],
@@ -2830,11 +2870,19 @@ export class EntityRepository {
     // P2-FIX: Replaces N individual db.sessions.get() calls
     const sessions = await db.sessions.bulkGet(sessionIds);
 
-    // Phase 2: Parallel count active turns for all sessions
-    // All countActiveTurns queries run in parallel (they are read-only within the same transaction)
-    const countResults = await Promise.all(
-      sessionIds.map((sessionId) => this.countActiveTurns(sessionId)),
-    );
+    // Phase 2: P1-FIX - Batched count active turns with concurrency limit.
+    // Process sessions in batches of 50 to prevent overwhelming IndexedDB.
+    // Each batch runs in parallel, but batches are sequential.
+    const BATCH_SIZE = 50;
+    const countResults: Array<{ pending: number; running: number }> = [];
+
+    for (let i = 0; i < sessionIds.length; i += BATCH_SIZE) {
+      const batchSessionIds = sessionIds.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batchSessionIds.map((sessionId) => this.countActiveTurns(sessionId)),
+      );
+      countResults.push(...batchResults);
+    }
 
     // Phase 3: Build batch update array - only include sessions where counts changed
     const sessionsToUpdate: LocalSession[] = [];
