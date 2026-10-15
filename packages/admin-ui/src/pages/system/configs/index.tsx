@@ -7,6 +7,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { useOptimisticLockConflict } from '@/hooks/useOptimisticLockConflict';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
+import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
 import { useProTableLocale } from '@/hooks/useProTableLocale';
 import {
   formatConfigValue,
@@ -97,6 +98,7 @@ const SystemConfigsPage: React.FC = () => {
     'pages.config.system.empty',
     'No configurations found',
   );
+  const { refreshPermissions } = usePermissionRefresh();
 
   // Modal states managed by useModalState hook for consistency
   const editModal = useModalState<ServerConfigItem>();
@@ -214,6 +216,20 @@ const SystemConfigsPage: React.FC = () => {
 
   /** Handle delete */
   const handleDelete = async (record: ServerConfigItem) => {
+    // Refresh permissions before sensitive operation to ensure they are current
+    await refreshPermissions({ showErrorMessage: true });
+
+    // Re-check permission after refresh
+    if (!access.canServerConfigDelete) {
+      message.error(
+        intl.formatMessage({
+          id: 'pages.permission.denied',
+          defaultMessage: 'Permission denied',
+        }),
+      );
+      return;
+    }
+
     try {
       await deleteServerConfig(record.key, record.version);
       message.success(

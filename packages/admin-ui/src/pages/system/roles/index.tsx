@@ -26,7 +26,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
 import {
   getMaxLengthRule,
   getMinLengthRule,
@@ -38,6 +37,7 @@ import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -84,6 +84,10 @@ const RoleListPage: React.FC = () => {
   const modalWidth = useResponsiveModalWidth(520);
   const permissionModalWidth = useResponsiveModalWidth(800);
   const { refreshPermissions } = usePermissionRefresh();
+  const tableLocale = useProTableLocale(
+    'pages.roles.empty',
+    'No admin roles found',
+  );
   /** Debounce timer ref for async role name validation (prevents excessive API calls) */
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -221,6 +225,20 @@ const RoleListPage: React.FC = () => {
   /** Handle role delete with optimistic feedback and cache invalidation */
   const handleDeleteRole = useCallback(
     async (record: RoleTableItem) => {
+      // Refresh permissions before sensitive operation to ensure they are current
+      await refreshPermissions({ showErrorMessage: true });
+
+      // Re-check permission after refresh
+      if (!access.canAdminRoleEdit) {
+        message.error(
+          intl.formatMessage({
+            id: 'pages.permission.denied',
+            defaultMessage: 'Permission denied',
+          }),
+        );
+        return;
+      }
+
       try {
         await deleteRole(record.id);
         message.success(
@@ -249,7 +267,7 @@ const RoleListPage: React.FC = () => {
         );
       }
     },
-    [intl, message, queryClient, refreshPermissions],
+    [intl, message, queryClient, refreshPermissions, access],
   );
 
   /** Open permission management modal */
@@ -688,14 +706,7 @@ const RoleListPage: React.FC = () => {
           },
         )}
         columns={columns}
-        locale={{
-          emptyText: (
-            <TableEmptyState
-              descriptionId="pages.roles.empty"
-              defaultDescription="No admin roles found"
-            />
-          ),
-        }}
+        locale={tableLocale}
       />
 
       <ModalForm<RoleFormValues>

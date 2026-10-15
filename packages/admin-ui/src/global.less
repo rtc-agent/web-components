@@ -181,6 +181,20 @@ ol {
   }
 }
 
+/* TODO: Migrate these responsive styles to Tailwind utility classes or React components
+   See src/styles/responsive.ts for breakpoint configuration.
+   Migration plan:
+   1. Replace media query classes with Tailwind responsive prefixes (sm:, md:, lg:)
+   2. Use Tailwind's flex/grid utilities for layout adjustments
+   3. Apply spacing utilities (p-*, m-*) for responsive padding/margins
+   4. For Modal/Drawer width overrides, prefer useIsMobile hook + responsive props
+   5. Test each component individually before removing from this file
+
+   Current status: !important overrides are necessary because antd components use
+   inline styles. Migration to React-based responsive props will eliminate the need
+   for these CSS overrides entirely.
+*/
+
 @media (max-width: 768px) {
   /* Dashboard height variable for mobile */
   :root {
@@ -256,7 +270,13 @@ ol {
     text-align: right;
   }
 
-  /* Modal adjustments */
+  /* Modal adjustments
+   * NOTE: !important required to override antd Modal's inline width style.
+   * antd sets width via inline styles (e.g., style="width: 520px"), which have
+   * higher specificity than CSS classes. !important is necessary to force the
+   * responsive width on mobile. Future improvement: use useIsMobile hook with
+   * responsive width props instead of CSS overrides.
+   */
   .ant-modal {
     width: calc(100vw - 32px) !important;
     max-width: none;
@@ -267,7 +287,12 @@ ol {
     }
   }
 
-  /* Drawer adjustments */
+  /* Drawer adjustments
+   * NOTE: !important required to override antd Drawer's inline width style.
+   * Similar to Modal, antd sets Drawer width via inline styles. !important
+   * ensures full-width drawers on mobile. Future improvement: use useIsMobile
+   * hook with responsive width props.
+   */
   .ant-drawer {
     width: 100vw !important;
 
@@ -299,7 +324,11 @@ ol {
     }
   }
 
-  /* Space adjustments */
+  /* Space adjustments
+   * NOTE: !important required to override antd Space's default gap (8px).
+   * antd Space uses inline styles for gap, requiring !important for override.
+   * This provides tighter spacing on mobile for better UX.
+   */
   .ant-space {
     gap: 4px !important;
   }

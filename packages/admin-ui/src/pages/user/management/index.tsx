@@ -16,11 +16,11 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import TableEmptyState from '@/components/TableEmptyState';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
 import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { usePermissionRefresh } from '@/hooks/usePermissionRefresh';
+import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useRoleOptions } from '@/hooks/useRoleOptions';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
@@ -78,6 +78,10 @@ const AdminUserManagementPage: React.FC = () => {
   // Legacy state for role management (needs additional data)
   const [userRoles, setUserRoles] = useState<UserRoleAssignment[]>([]);
   const isMobile = useIsMobile();
+  const tableLocale = useProTableLocale(
+    'pages.adminUsers.noData',
+    'No administrators found',
+  );
   const modalWidth = isMobile ? '95vw' : 520;
   const roleModalWidth = isMobile ? '95vw' : 600;
   const { refreshPermissions } = usePermissionRefresh();
@@ -463,6 +467,20 @@ const AdminUserManagementPage: React.FC = () => {
   /** Handle admin user delete with permission refresh */
   const handleDeleteUser = useCallback(
     async (record: UserInfo) => {
+      // Refresh permissions before sensitive operation to ensure they are current
+      await refreshPermissions({ showErrorMessage: true });
+
+      // Re-check permission after refresh
+      if (!access.canAdminUserDelete) {
+        message.error(
+          intl.formatMessage({
+            id: 'pages.permission.denied',
+            defaultMessage: 'Permission denied',
+          }),
+        );
+        return;
+      }
+
       try {
         await deleteAdminUser(record.id);
         message.success(
@@ -487,7 +505,7 @@ const AdminUserManagementPage: React.FC = () => {
         );
       }
     },
-    [intl, message, refreshPermissions],
+    [intl, message, refreshPermissions, access],
   );
 
   /** Table column definitions */
@@ -576,7 +594,7 @@ const AdminUserManagementPage: React.FC = () => {
         })}
         actionRef={actionRef}
         rowKey="id"
-        locale={{ emptyText: <TableEmptyState /> }}
+        locale={tableLocale}
         search={{
           labelWidth: 'auto',
         }}
