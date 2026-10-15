@@ -192,6 +192,15 @@ admin-ui (standalone React app)
 └── protocol
 ```
 
+### pnpm Overrides
+
+The root `package.json` includes `pnpm.overrides` to enforce consistent versions across all packages:
+
+- **vitest** and related packages: Ensures all tests use the same version, preventing inconsistent test behavior
+- **typescript**: Guarantees consistent compilation behavior across all packages
+
+These overrides are managed centrally to avoid version conflicts and ensure reproducible builds.
+
 ---
 
 ## 🛠️ Development Setup
