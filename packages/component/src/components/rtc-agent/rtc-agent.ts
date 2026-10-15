@@ -1261,6 +1261,10 @@ export class RtcAgent extends LitElement {
   /* ── Lifecycle ── */
 
   connectedCallback() {
+    // IMPORTANT: super.connectedCallback() triggers hostConnected() on all controllers.
+    // Cross-controller deps (e.g., notification.sessionController) are NOT yet available
+    // during hostConnected(). Controllers must handle undefined deps gracefully and rely
+    // on setter-based injection for post-connect setup.
     super.connectedCallback();
 
     // Reset destruction guard (supports reconnect after temporary removal).

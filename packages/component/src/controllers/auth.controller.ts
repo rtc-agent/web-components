@@ -471,6 +471,8 @@ export class AuthController implements ReactiveController {
   /**
    * Convenience: trigger login directly on the controller.
    *
+   * @internal Use actions.login() for Context consumers. Direct method for demo/test only.
+   *
    * Note: For Context consumers, login/logout are accessed via `actions.login()`
    * and `actions.logout()` to maintain consistency with other Contexts
    * (SessionContext, ModeContext, etc.).
@@ -483,7 +485,11 @@ export class AuthController implements ReactiveController {
     this._login();
   }
 
-  /** Convenience: trigger logout directly on the controller. */
+  /**
+   * Convenience: trigger logout directly on the controller.
+   *
+   * @internal Use actions.logout() for Context consumers. Direct method for demo/test only.
+   */
   logout() {
     this._logout();
   }

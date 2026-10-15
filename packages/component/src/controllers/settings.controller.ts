@@ -29,7 +29,6 @@ export class SettingsController implements ReactiveController {
 
   readonly actions: SettingsActions;
 
-  private _storageListener?: () => void;
   private _themeMediaQuery?: MediaQueryList;
   private _themeMediaListener?: () => void;
 
@@ -109,8 +108,7 @@ export class SettingsController implements ReactiveController {
     this._applyFontSize();
 
     // Listen for multi-tab synchronization
-    this._storageListener = () => this._handleStorageChange();
-    window.addEventListener('storage', this._storageListener);
+    window.addEventListener('storage', this._handleStorageChange);
   }
 
   hostDisconnected() {
@@ -130,10 +128,7 @@ export class SettingsController implements ReactiveController {
 
   /** Remove all global event listeners (safe to call even if nothing was added). */
   private _removeGlobalListeners(): void {
-    if (this._storageListener) {
-      window.removeEventListener('storage', this._storageListener);
-      this._storageListener = undefined;
-    }
+    window.removeEventListener('storage', this._handleStorageChange);
     if (this._themeMediaQuery && this._themeMediaListener) {
       this._themeMediaQuery.removeEventListener(
         'change',
@@ -247,12 +242,15 @@ export class SettingsController implements ReactiveController {
   }
 
   /** Handle multi-tab synchronization via storage event */
-  private _handleStorageChange() {
+  private _handleStorageChange = (e: StorageEvent) => {
+    // Only react to settings key changes — ignore other localStorage mutations
+    // to prevent unnecessary _restore() + requestUpdate() cycles.
+    if (e.key !== STORAGE_KEYS.settings) return;
     const oldState = this._state;
     this._restore();
     this._applyDiff(oldState, this._state);
     this.host.requestUpdate();
-  }
+  };
 
   /** Validate theme value */
   private _validateTheme(value: unknown): 'light' | 'dark' | 'system' {

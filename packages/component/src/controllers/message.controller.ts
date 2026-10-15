@@ -398,8 +398,10 @@ export class MessageController implements ReactiveController {
       log.debug(`Clearing ${chainCount} pending session chains on disconnect`);
     }
     this._sessionUpdateChains.clear();
-    // Note: _chainActivityStatus is a WeakMap and will be automatically garbage collected
-    // when the Promise keys are no longer referenced. No explicit cleanup needed.
+    // Rebuild WeakMap to release references to settled Promises.
+    // While WeakMap keys are garbage-collected, explicitly rebuilding ensures
+    // prompt release of memory when the controller is disconnected.
+    this._chainActivityStatus = new WeakMap();
     // Cancel any in-flight streaming to prevent stale updates after reconnect.
     this._cancelStreaming();
   }
