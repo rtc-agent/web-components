@@ -140,7 +140,7 @@ import {
   isValidLocale,
   type SupportedLocale,
 } from '../../core/i18n.js';
-import { msg, localized } from '@lit/localize';
+import { msg, localized, str } from '@lit/localize';
 
 // Logo
 import { renderBubbleLogo } from '../../icons/logo.js';
@@ -2586,7 +2586,7 @@ export class RtcAgent extends LitElement {
           role="button"
           tabindex="0"
           title=${this.appLabel}
-          aria-label="Restore ${this.appLabel}"
+          aria-label=${msg(str`Restore ${this.appLabel}`)}
           @click=${this._handleBubbleClick}
           @keydown=${this._handleBubbleKeydown}>
         ${this._renderBubbleContent()}

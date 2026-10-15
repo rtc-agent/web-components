@@ -370,6 +370,38 @@ export function formatBanMessage(reason?: string): string {
 }
 
 /**
+ * Format a number using compact notation (e.g. 1.2K, 3.4M).
+ *
+ * Uses cached Intl.NumberFormat instances to avoid repeated allocations.
+ * `compactDisplay: 'short'` is chosen over `'long'` (which would render "1.2 thousand")
+ * to keep UIs concise; surrounding labels typically convey the unit.
+ *
+ * @param value - Number to format
+ * @param locale - Locale to use for formatting (defaults to current locale)
+ * @returns Formatted compact number string
+ */
+export function formatCompactNumber(value: number, locale?: string): string {
+  const currentLocale = locale || getLocale();
+
+  try {
+    const formatter = getCachedNumberFormatter(currentLocale, {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    });
+    return formatter.format(value);
+  } catch {
+    // Fallback to en-US if locale is invalid
+    const formatter = getCachedNumberFormatter('en-US', {
+      notation: 'compact',
+      compactDisplay: 'short',
+      maximumFractionDigits: 1,
+    });
+    return formatter.format(value);
+  }
+}
+
+/**
  * Extract plain text content from a ContentData object.
  *
  * Handles all content types uniformly:

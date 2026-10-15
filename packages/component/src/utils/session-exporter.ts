@@ -7,76 +7,35 @@
  */
 import type { Session, Message } from '../types/index.js';
 import { getLocale } from '../core/i18n.js';
+import { msg } from '@lit/localize';
 
 /**
- * Translation map for session export labels.
- * Keys are English, values are translations for each supported locale.
- */
-const EXPORT_LABELS: Record<string, Record<string, string>> = {
-  'context-compression': {
-    'zh-CN': '上下文压缩',
-    'en-US': 'Context compression',
-  },
-  released: {
-    'zh-CN': '释放',
-    'en-US': 'released',
-  },
-  tokens: {
-    'zh-CN': 'tokens',
-    'en-US': 'tokens',
-  },
-  duration: {
-    'zh-CN': '耗时',
-    'en-US': 'duration',
-  },
-  result: {
-    'zh-CN': '结果',
-    'en-US': 'Result',
-  },
-  reasoning: {
-    'zh-CN': '推理过程',
-    'en-US': 'Reasoning',
-  },
-  'conversation-summary': {
-    'zh-CN': '对话摘要',
-    'en-US': 'Conversation Summary',
-  },
-  'created-at': {
-    'zh-CN': '创建时间',
-    'en-US': 'Created at',
-  },
-  'message-count': {
-    'zh-CN': '消息数',
-    'en-US': 'Messages',
-  },
-  'input-tokens': {
-    'zh-CN': '输入 Tokens',
-    'en-US': 'Input Tokens',
-  },
-  'output-tokens': {
-    'zh-CN': '输出 Tokens',
-    'en-US': 'Output Tokens',
-  },
-  'cache-read': {
-    'zh-CN': '缓存读取',
-    'en-US': 'Cache Read',
-  },
-  'cache-write': {
-    'zh-CN': '缓存写入',
-    'en-US': 'Cache Write',
-  },
-  'total-cost': {
-    'zh-CN': '总花费',
-    'en-US': 'Total Cost',
-  },
-};
-
-/**
- * Get translated label for current locale.
+ * Get translated label using @lit/localize msg() system.
+ *
+ * All labels are wrapped in msg() for proper internationalization support.
+ * The msg() function automatically handles locale switching and translation extraction.
  */
 function t(key: string): string {
-  const locale = getLocale();
-  return EXPORT_LABELS[key]?.[locale] ?? EXPORT_LABELS[key]?.['en-US'] ?? key;
+  // Map of keys to msg()-wrapped translations
+  const labels: Record<string, () => string> = {
+    'context-compression': () => msg('上下文压缩'),
+    released: () => msg('释放'),
+    tokens: () => msg('tokens'),
+    duration: () => msg('耗时'),
+    result: () => msg('结果'),
+    reasoning: () => msg('推理过程'),
+    'conversation-summary': () => msg('对话摘要'),
+    'created-at': () => msg('创建时间'),
+    'message-count': () => msg('消息数'),
+    'input-tokens': () => msg('输入 Tokens'),
+    'output-tokens': () => msg('输出 Tokens'),
+    'cache-read': () => msg('缓存读取'),
+    'cache-write': () => msg('缓存写入'),
+    'total-cost': () => msg('总花费'),
+  };
+
+  const labelFn = labels[key];
+  return labelFn ? labelFn() : key;
 }
 
 /**

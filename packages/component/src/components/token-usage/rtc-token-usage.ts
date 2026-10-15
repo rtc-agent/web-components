@@ -31,6 +31,7 @@ import { lightTheme } from '../../styles/themes/light.js';
 import { darkTheme } from '../../styles/themes/dark.js';
 import { baseStyles } from '../../styles/base.js';
 import { createLogger } from '@rtc-agent/protocol';
+import { formatCompactNumber } from '../../utils/format.js';
 
 const log = createLogger('TokenUsage');
 
@@ -374,15 +375,10 @@ export class RtcTokenUsage extends LitElement {
 
   /**
    * Format a number using compact notation (e.g. 1.2K, 3.4M).
-   * `compactDisplay: 'short'` is chosen over `'long'` (which would render "1.2 thousand")
-   * to keep the token-usage UI concise; the surrounding labels already convey the unit.
+   * Delegates to shared formatCompactNumber() which caches Intl.NumberFormat instances.
    */
   private _formatNumber(n: number): string {
-    return new Intl.NumberFormat(this._localeCtx.locale, {
-      notation: 'compact',
-      compactDisplay: 'short',
-      maximumFractionDigits: 1,
-    }).format(n);
+    return formatCompactNumber(n, this._localeCtx.locale);
   }
 }
 
