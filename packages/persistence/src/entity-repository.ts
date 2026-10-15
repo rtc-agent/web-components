@@ -1405,9 +1405,14 @@ export class EntityRepository {
     // Fast path: empty input
     if (!updates || updates.length === 0) return;
 
-    // Fast path: single update, use original per-item logic
+    // Fast path: single update without deletes, use original per-item logic
+    // This avoids the overhead of batch processing for simple cases.
+    // Single updates WITH deletes must go through batch logic for proper server_id → client_id resolution.
     if (updates.length === 1) {
-      return this.applyUpdateOriginal(updates[0]);
+      const hasDeletes = updates[0].items.some((item) => item.action === 'deleted');
+      if (!hasDeletes) {
+        return this.applyUpdateOriginal(updates[0]);
+      }
     }
 
     const db = getDatabase();
@@ -2268,20 +2273,13 @@ export class EntityRepository {
         id?: string;
       };
       const mapped: Partial<LocalSession> = {
-        owner_kind: '',
-        owner_ref_id: '',
-        status: 'active',
-        created_at: now,
-        updated_at: now,
-        pending_turn_count: 0,
-        running_turn_count: 0,
-        agent_prompt: '',
         ...rest,
-        // Force override incoming values
+        // Force override incoming values (these are always set)
         server_id: serverId,
         client_id: clientId,
         sync_status: 'synced',
       };
+
       result.sessions.push(mapped);
     }
 
@@ -2886,7 +2884,30 @@ export class EntityRepository {
           // Start with existing, overlay incoming fields
           return { ...prev, ...item } as T;
         }
-        // New: prepared already contains defaults, use directly
+        // New entity: apply required defaults for fields not in incoming data.
+        // This ensures new entities have all required fields for database writes.
+        // We only apply defaults for session entities here; other entity types
+        // have their defaults set in prepareEntitiesForBatch.
+        if (entityName === 'session') {
+          const session = item as Partial<LocalSession>;
+          const now = nowRFC3339();
+          const newSession = {
+            owner_kind: '',
+            owner_ref_id: '',
+            status: 'active',
+            created_at: now,
+            updated_at: now,
+            pending_turn_count: 0,
+            running_turn_count: 0,
+            agent_prompt: '',
+            ...session,
+            // Required fields (always set)
+            client_id: session.client_id || cid,
+            sync_status: session.sync_status || 'synced',
+          };
+          return newSession as unknown as T;
+        }
+        // For other entity types, use prepared data directly
         return item;
       });
     };

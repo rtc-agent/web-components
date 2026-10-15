@@ -129,7 +129,10 @@ export class AsyncLock {
     fn: (signal: AbortSignal) => Promise<T>,
     options: AsyncLockOptions = {},
   ): Promise<T> {
-    const prev = this.chains.get(key) ?? Promise.resolve();
+    // IMPORTANT: Add a no-op catch handler to the previous promise to prevent
+    // unhandled rejection warnings. The error is still propagated through the
+    // chain via the two-argument .then() below.
+    const prev = (this.chains.get(key) ?? Promise.resolve()).catch(() => {});
 
     // Create internal AbortController, merge with external signal
     const controller = new AbortController();
@@ -217,6 +220,9 @@ export class AsyncLock {
     }
 
     // Update chain and set up cleanup
+    // IMPORTANT: Add .catch(() => {}) to prevent unhandled rejection warnings.
+    // The error is already propagated to the caller via the returned `next` promise.
+    // The stored promise is only used for chaining, not for error handling.
     this.chains.set(
       key,
       settled.finally(() => {
@@ -240,7 +246,7 @@ export class AsyncLock {
 
         // Clean up external signal listener
         externalSignal?.removeEventListener('abort', onExternalAbort);
-      }),
+      }).catch(() => {}),
     );
 
     return next;

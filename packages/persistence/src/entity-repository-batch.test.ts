@@ -106,7 +106,7 @@ describe('applyUpdates (batch processing)', () => {
   // KNOWN ISSUE: Batch delete bug not yet fixed (tracked in GitHub Issues)
   // resolveDeleteClientIds + bulkDelete does not correctly remove the record.
   // TODO: Re-enable once the batch delete bug is resolved.
-  it.skip('should handle delete without data_list (hard delete)', async () => {
+  it('should handle delete without data_list (hard delete)', async () => {
     // Setup: insert a session
     await repo.applyUpdates([
       {
@@ -373,7 +373,7 @@ describe('applyUpdates (batch processing)', () => {
   // KNOWN ISSUE: Batch delete bug not yet fixed (tracked in GitHub Issues)
   // resolveDeleteClientIds does not correctly delete the record via bulkDelete.
   // TODO: Re-enable once the batch delete bug is resolved.
-  it.skip('should handle upsert and delete for same entity in one batch (delete wins)', async () => {
+  it('should handle upsert and delete for same entity in one batch (delete wins)', async () => {
     // Insert session first
     await repo.applyUpdates([
       {
@@ -838,7 +838,7 @@ describe('Multiple upserts for same entity (merge + last-wins)', () => {
 
   describe('Field merge with existing IndexedDB data', () => {
     // TODO: Fix batch merge logic to preserve fields not in update payload
-    it.skip('should merge incoming fields with existing fields (not replace)', async () => {
+    it('should merge incoming fields with existing fields (not replace)', async () => {
       // Step 1: Create a session with initial fields
       await repo.applyUpdates([
         {

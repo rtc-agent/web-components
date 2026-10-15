@@ -413,43 +413,56 @@ describe('AuthController - Token Exchange mode', () => {
   });
 
   it('should call logout when getExchangeToken fails', async () => {
-    const host = new MockHost();
-    const ctrl = new AuthController(host as any);
+    vi.useFakeTimers();
+    try {
+      const host = new MockHost();
+      const ctrl = new AuthController(host as any);
 
-    const provider = createTokenExchangeProvider({
-      getExchangeToken: vi
-        .fn()
-        .mockRejectedValue(new Error('getExchangeToken failed')),
-    });
+      const provider = createTokenExchangeProvider({
+        getExchangeToken: vi
+          .fn()
+          .mockRejectedValue(new Error('getExchangeToken failed')),
+      });
 
-    ctrl.setAuthProvider(provider);
-    // Wait for all retries to complete (5 retries × exponential backoff + buffer)
-    // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total, plus initial attempts
-    await new Promise((resolve) => setTimeout(resolve, 35000));
+      ctrl.setAuthProvider(provider);
 
-    // State should be cleared (not logged in)
-    expect(ctrl.value.state.isLoggedIn).toBe(false);
-  }, 40000);
+      // Advance timers to complete all retries (5 retries × exponential backoff)
+      // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total
+      // Use advanceTimersByTimeAsync to allow promises to resolve
+      await vi.advanceTimersByTimeAsync(35000);
+
+      // State should be cleared (not logged in)
+      expect(ctrl.value.state.isLoggedIn).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('should call logout when tokenExchange fails', async () => {
-    const host = new MockHost();
-    const ctrl = new AuthController(host as any);
+    vi.useFakeTimers();
+    try {
+      const host = new MockHost();
+      const ctrl = new AuthController(host as any);
 
-    const provider = createTokenExchangeProvider();
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-    });
+      const provider = createTokenExchangeProvider();
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+      });
 
-    ctrl.setAuthProvider(provider);
-    // Wait for all retries to complete (5 retries × exponential backoff + buffer)
-    // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total, plus initial attempts
-    await new Promise((resolve) => setTimeout(resolve, 35000));
+      ctrl.setAuthProvider(provider);
 
-    // State should be cleared (not logged in)
-    expect(ctrl.value.state.isLoggedIn).toBe(false);
-  }, 40000);
+      // Advance timers to complete all retries (5 retries × exponential backoff)
+      // Retry schedule: 1s, 2s, 4s, 8s, 16s = 31s total
+      await vi.advanceTimersByTimeAsync(35000);
+
+      // State should be cleared (not logged in)
+      expect(ctrl.value.state.isLoggedIn).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('should use form-encoded request body for token exchange', async () => {
     const host = new MockHost();
@@ -847,44 +860,49 @@ describe('AuthController - BroadcastChannel coordination', () => {
   });
 
   it('should timeout _deferredRefresh after 15 seconds', async () => {
-    const host = createMockHost();
-    const ctrl = new AuthController(host as any);
+    vi.useFakeTimers();
+    try {
+      const host = createMockHost();
+      const ctrl = new AuthController(host as any);
 
-    const provider = {
-      getToken: vi.fn().mockReturnValue('token'),
-      refreshToken: vi
-        .fn()
-        .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
-      isLoggedIn: vi.fn().mockReturnValue(true),
-    };
-    ctrl.setAuthProvider(provider);
+      const provider = {
+        getToken: vi.fn().mockReturnValue('token'),
+        refreshToken: vi
+          .fn()
+          .mockResolvedValue({ accessToken: 'new-token', expiresIn: 3600 }),
+        isLoggedIn: vi.fn().mockReturnValue(true),
+      };
+      ctrl.setAuthProvider(provider);
 
-    // Trigger the yield mechanism
-    const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
-    const channel = channels[0];
-    channel.onmessage?.(
-      new MessageEvent('message', {
-        data: {
-          type: 'refresh-start',
-          tabId: 'other-tab-id',
-          timestamp: Date.now() - 1000, // Earlier timestamp (other tab is leader)
-        },
-      }),
-    );
+      // Trigger the yield mechanism
+      const channels = MockBroadcastChannel.channels.get('rtc-auth-refresh')!;
+      const channel = channels[0];
+      channel.onmessage?.(
+        new MessageEvent('message', {
+          data: {
+            type: 'refresh-start',
+            tabId: 'other-tab-id',
+            timestamp: Date.now() - 1000, // Earlier timestamp (other tab is leader)
+          },
+        }),
+      );
 
-    // Verify deferred refresh was created
-    expect((ctrl as any)._deferredRefresh).toBeDefined();
+      // Verify deferred refresh was created
+      expect((ctrl as any)._deferredRefresh).toBeDefined();
 
-    // Wait for timeout (15 seconds + buffer)
-    await new Promise((resolve) => setTimeout(resolve, 15500));
+      // Advance timers past the 15-second timeout
+      await vi.advanceTimersByTimeAsync(15500);
 
-    // Deferred refresh should be cleared by timeout
-    expect((ctrl as any)._deferredRefresh).toBeUndefined();
-    expect((ctrl as any)._deferredResolve).toBeUndefined();
+      // Deferred refresh should be cleared by timeout
+      expect((ctrl as any)._deferredRefresh).toBeUndefined();
+      expect((ctrl as any)._deferredResolve).toBeUndefined();
 
-    // Clean up
-    ctrl.hostDisconnected();
-  }, 20000);
+      // Clean up
+      ctrl.hostDisconnected();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it('should prevent concurrent token exchange with _tokenExchanging guard', async () => {
     const host = createMockHost();

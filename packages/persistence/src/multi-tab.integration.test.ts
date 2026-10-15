@@ -58,8 +58,15 @@ describe('Multi-Tab Collaboration', () => {
 
       await Promise.all(promises);
 
-      // Verify all writes completed without error
-      expect(promises).toHaveLength(3);
+      // Verify all writes completed and data is correct
+      const [content1, content2, content3] = await Promise.all([
+        virtualFS.read('/tab1-file.txt'),
+        virtualFS.read('/tab2-file.txt'),
+        virtualFS.read('/tab3-file.txt'),
+      ]);
+      expect(content1).toBe('Tab 1');
+      expect(content2).toBe('Tab 2');
+      expect(content3).toBe('Tab 3');
     });
 
     it('should handle concurrent writes to same file', async () => {
@@ -76,8 +83,9 @@ describe('Multi-Tab Collaboration', () => {
       // Both writes should complete without error
       await Promise.all([tab1Write, tab2Write]);
 
-      // Verify no error occurred (last write wins is acceptable)
-      expect(true).toBe(true);
+      // Verify final content (last write wins due to concurrency)
+      const content = await virtualFS.read(filePath);
+      expect(content).toMatch(/^Tab [12] content$/);
     });
   });
 
@@ -93,8 +101,13 @@ describe('Multi-Tab Collaboration', () => {
 
       await Promise.all([batch1, batch2]);
 
-      // Verify both batches completed without error
-      expect(true).toBe(true);
+      // Verify both batches completed and data is correct
+      const [content1, content2] = await Promise.all([
+        virtualFS.read('/tx-test-1.txt'),
+        virtualFS.read('/tx-test-2.txt'),
+      ]);
+      expect(content1).toBe('Batch 1');
+      expect(content2).toBe('Batch 2');
     });
   });
 
@@ -111,26 +124,37 @@ describe('Multi-Tab Collaboration', () => {
 
       await Promise.allSettled([delete1, delete2]);
 
-      // Verify no error occurred
-      expect(true).toBe(true);
+      // Verify file was deleted
+      const exists = await virtualFS.exists(filePath);
+      expect(exists).toBe(false);
     });
   });
 
   describe('Large File Synchronization', () => {
     it('should handle concurrent large file writes', async () => {
+      const content1 = 'a'.repeat(512 * 1024);
+      const content2 = 'b'.repeat(512 * 1024);
+
       const promises = [
-        virtualFS.write('/large1.txt', 'a'.repeat(512 * 1024), {
+        virtualFS.write('/large1.txt', content1, {
           mode: 'overwrite',
         }),
-        virtualFS.write('/large2.txt', 'b'.repeat(512 * 1024), {
+        virtualFS.write('/large2.txt', content2, {
           mode: 'overwrite',
         }),
       ];
 
       await Promise.all(promises);
 
-      // Verify both large file writes completed without error
-      expect(true).toBe(true);
+      // Verify both large file writes completed with correct content
+      const [read1, read2] = await Promise.all([
+        virtualFS.read('/large1.txt'),
+        virtualFS.read('/large2.txt'),
+      ]);
+      expect(read1).toBe(content1);
+      expect(read2).toBe(content2);
+      expect(read1.length).toBe(512 * 1024);
+      expect(read2.length).toBe(512 * 1024);
     });
   });
 });
