@@ -10,6 +10,9 @@ import type { ContentData, PromptContent } from '../types/index.js';
 import { msg, str } from '@lit/localize';
 import { getLocale } from '../core/i18n.js';
 import { clearRelativeTimeFormatterCache } from './relative-time.js';
+import { createLogger } from '@rtc-agent/protocol';
+
+const log = createLogger('Format');
 
 /**
  * Format a number with thousand separators using current locale.
@@ -36,7 +39,7 @@ export function formatNumber(
   // If decimals is specified, use toFixed for exact control
   if (decimals !== undefined) {
     if (decimals < 0 || decimals > 20) {
-      console.warn(`formatNumber: decimals ${decimals} out of range (0-20), using 0`);
+      log.warn(`formatNumber: decimals ${decimals} out of range (0-20), using 0`);
       decimals = 0;
     }
     num = Number(num.toFixed(decimals));

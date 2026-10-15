@@ -1,4 +1,7 @@
 import { createContext } from '@lit/context';
+import { createLogger } from '@rtc-agent/protocol';
+
+const log = createLogger('TurnCount');
 
 /**
  * Turn Count Context — Number of active turns in the current session.
@@ -60,7 +63,7 @@ export const DEFAULT_TURN_COUNT: TurnCountContextValue = {
   actions: {
     refresh: async () => {
       // No-op default implementation
-      console.warn('TurnCountContext: refresh() called on default context');
+      log.warn('TurnCountContext: refresh() called on default context');
     },
   },
 };

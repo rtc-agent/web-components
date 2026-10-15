@@ -439,7 +439,7 @@ export class RtcToolCallCard extends LitElement {
       case 'todoWrite': {
         const todos = input.todos as unknown[] | undefined;
         const count = Array.isArray(todos) ? todos.length : 0;
-        return msg(str`todoWrite (${formatPluralCount(count, 'task', 'tasks')})`);
+        return msg(str`todoWrite (${formatPluralCount(count, msg('task'), msg('tasks'))})`);
       }
       default:
         return toolName;

@@ -137,7 +137,7 @@ export class RtcFunctionParams extends LitElement {
                     autocomplete="off"
                     autocorrect="off"
                     autocapitalize="off"
-                    placeholder='{"key": "value"}'
+                    placeholder=${msg('{"key": "value"}')}
                 ></textarea>
             </div>
         `;

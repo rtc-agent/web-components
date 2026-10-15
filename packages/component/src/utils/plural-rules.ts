@@ -22,7 +22,7 @@ export function formatPluralCount(
 ): string {
   // Use Intl.PluralRules to determine the plural category
   // 'one' = singular (1 item), 'other' = plural (0, 2+ items)
-  const resolvedLocale = locale || document.documentElement.lang || 'en-US';
+  const resolvedLocale = locale || document.documentElement.lang || 'zh-CN';
   const pr = new Intl.PluralRules(resolvedLocale);
   const category = pr.select(count);
 

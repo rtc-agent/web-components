@@ -17,6 +17,30 @@ import { z, withMeta } from '../validation/index.js';
 import { getLocale } from './i18n.js';
 
 /**
+ * Cache for DateTimeFormat instances to avoid repeated allocations.
+ * Key format: `${locale}_${options_hash}`
+ */
+const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Get or create a cached DateTimeFormat instance.
+ */
+function getCachedDateTimeFormat(
+  locale?: string,
+  options?: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const cacheKey = `${locale ?? 'default'}_${JSON.stringify(options ?? {})}`;
+
+  let formatter = dateFormatterCache.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    dateFormatterCache.set(cacheKey, formatter);
+  }
+
+  return formatter;
+}
+
+/**
  * system group definition
  */
 export const SYSTEM_GROUP_DEF = {
@@ -253,7 +277,7 @@ export const TIMEZONE_DEF: FunctionDef = {
     description: 'Timezone name and UTC offset',
   },
   handler: () => {
-    const name = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const name = getCachedDateTimeFormat().resolvedOptions().timeZone;
     const offsetMinutes = -new Date().getTimezoneOffset();
     const sign = offsetMinutes >= 0 ? '+' : '-';
     const abs = Math.abs(offsetMinutes);
