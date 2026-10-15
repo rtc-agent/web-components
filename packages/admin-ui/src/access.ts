@@ -73,10 +73,8 @@ let _cachedPermissionsTimestamp = 0;
  *
  * Even if currentUser hasn't changed, permissions may be modified
  * on the server side (e.g., role changes by another admin). This TTL ensures
- * the client eventually picks up server-side changes.
- *
- * Security: Reduced from 5 minutes to 1 minute to minimize the window
- * where stale permissions could be used after server-side changes.
+ * the client eventually picks up server-side changes while minimizing the
+ * window where stale permissions could be used.
  */
 const PERMISSION_CACHE_MAX_AGE_MS = 60 * 1000;
 
@@ -140,6 +138,17 @@ export default function access(
     _cachedPermissionsKey === cacheKey &&
     now - _cachedPermissionsTimestamp < PERMISSION_CACHE_MAX_AGE_MS
   ) {
+    // Debug logging for near-expired cache (helps diagnose permission timing issues)
+    if (process.env.NODE_ENV === 'development') {
+      const cacheAge = now - _cachedPermissionsTimestamp;
+      const cacheAgePercent = (cacheAge / PERMISSION_CACHE_MAX_AGE_MS) * 100;
+      if (cacheAgePercent > 80) {
+        console.debug(
+          `[access] Returning near-expired cache (age: ${cacheAge}ms, ` +
+            `TTL: ${PERMISSION_CACHE_MAX_AGE_MS}ms, usage: ${cacheAgePercent.toFixed(1)}%)`,
+        );
+      }
+    }
     return _cachedPermissions;
   }
 

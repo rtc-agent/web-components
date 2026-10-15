@@ -8,10 +8,18 @@
  * 如果应用遭受 XSS 攻击，攻击者可能窃取 refresh_token 并长期保持认证状态。
  *
  * 🔒 当前安全措施（2026-10-13 增强）：
+ * - Token encryption：使用 Web Crypto API 对 token 进行加密存储（见 token-encryption.ts）
  * - Token rotation：每次刷新后立即标记旧 token 为已使用
  * - 过期时间检查：refresh_token 默认 3 天过期（从 7 天缩短）
  * - 重放防护：刷新时验证 token 未被使用过
  * - 超时保护：10 秒超时 + AbortController，超时后立即取消 HTTP 请求
+ *
+ * 🔐 加密密钥存储说明（P2 设计决策）：
+ * - 加密密钥存储在 sessionStorage 中（per-tab 隔离）
+ * - **这是有意为之的安全设计**：每个标签页有独立的密钥
+ * - 安全优势：即使一个标签页被攻击，其他标签页的 token 仍受保护
+ * - 自动清理：关闭标签页后密钥自动消失
+ * - 详见 token-encryption.ts 中的 "跨标签页行为说明"
  *
  * 📋 迁移计划：
  * 1. 短期（当前）：实施 token rotation 机制，缩短 refresh_token 过期时间
@@ -72,6 +80,11 @@ export const setTokens = async (
     // 加密 access token 和 refresh token
     // P1 修复 (2026-10-14): encryptToken 现在会在加密失败时抛出错误
     // 而非降级到明文存储。这确保了 token 始终以加密形式存储。
+    //
+    // ⚠️ 降级策略说明：
+    // - 加密失败时**不会**静默降级到明文存储
+    // - 下面的 catch 块会清除已部分写入的 token，防止明文泄漏
+    // - 然后重新抛出错误，让调用方知道 token 存储失败
     const [encryptedAccess, encryptedRefresh] = await Promise.all([
       encryptToken(accessToken),
       encryptToken(refreshToken),
@@ -105,19 +118,26 @@ export const setTokens = async (
     // 通知 auth 状态变化
     notifyAuthStateChanged();
   } catch (error) {
-    // P1 修复：加密失败时不再静默继续，而是清除 token 并抛出错误
-    // 这确保了不会出现"加密失败但 token 已存储为明文"的不一致状态
+    // P1 修复：加密失败时的错误处理
+    //
+    // ⚠️ 降级策略说明：
+    // - 加密失败时**不会**静默继续（这会导致明文 token 被存储）
+    // - 而是清除可能已部分写入的 token，防止明文泄漏
+    // - 然后重新抛出错误，让调用方知道 token 存储失败
+    // - 调用方应捕获错误并提示用户（如"浏览器不支持加密，请更换浏览器"）
     console.error('Failed to encrypt and save tokens:', error);
 
     // 清除可能已部分写入的 token（防止明文泄漏）
+    // 这是"fail-secure"策略：宁可丢失 token，也不要以明文存储
     try {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
     } catch {
-      // 清除失败时忽略错误
+      // 清除失败时忽略错误（可能是浏览器存储被禁用）
     }
 
     // 重新抛出错误，让调用方知道 token 存储失败
+    // 注意：这里不使用原始 error 的消息，避免泄露敏感的堆栈信息
     throw new Error(
       'Token encryption failed. Please ensure you are using a modern browser. ' +
         'If the problem persists, contact support.',
@@ -193,13 +213,14 @@ export const getRefreshToken = async (): Promise<string | null> => {
   try {
     const tokenData = JSON.parse(tokenStr);
 
-    // 检查是否为旧格式（纯字符串），兼容历史数据
+    // ⚠️ 向后兼容：检测到旧格式 token 时发出警告
+    // 这些 token 未加密，应在下次登录时重新加密
+    // P1 修复：这不是降级，而是支持历史数据迁移
     if (typeof tokenData === 'string') {
-      // P1 修复：检测到旧格式 token 时发出警告
-      // 这些 token 未加密，应在下次登录时重新加密
       console.warn(
-        '[getRefreshToken] Detected legacy unencrypted token. ' +
-          'This token should be re-encrypted on next login.',
+        '[getRefreshToken] Detected legacy unencrypted token (plain string format). ' +
+          'This token should be re-encrypted on next login. ' +
+          'If you see this warning repeatedly, please clear browser data and re-login.',
       );
       return tokenData; // 旧 token 未加密，直接返回
     }
@@ -236,6 +257,8 @@ export const getRefreshToken = async (): Promise<string | null> => {
     }
 
     // 未加密的旧 token，直接返回
+    // ⚠️ 向后兼容：这些 token 的 encrypted 标记为 false 或缺失
+    // 应在下次登录时重新加密
     return tokenData.token;
   } catch (error) {
     console.error('[getRefreshToken] 解析 token 失败:', error);
@@ -448,7 +471,8 @@ export const refreshAccessToken = async (): Promise<string | null> => {
       }
       // 超时后标记旧 token 为已使用（防止重放攻击）
       markRefreshTokenAsRotated();
-      refreshPromise = null;
+      // 注意：不在此处设置 refreshPromise = null，让 finally 统一处理清理
+      // 这样可以防止在 catch/finally 执行前，另一个调用者发起新的刷新请求
       refreshTimeout = null;
       refreshAbortController = null;
       reject(new Error('Token refresh timeout'));

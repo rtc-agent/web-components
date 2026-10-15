@@ -60,6 +60,32 @@ import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
+/**
+ * Execute a function safely, logging errors without blocking initialization.
+ * Used for non-critical cosmetic initializations (i18n, direction) that should
+ * never block the authentication flow.
+ */
+const safeInit = (fn: () => void, errorLabel: string): void => {
+  try {
+    fn();
+  } catch (error) {
+    const currentLocale = navigator.language || 'unknown';
+    console.warn(
+      `[getInitialState] ${errorLabel} failed (locale: ${currentLocale})`,
+      error,
+    );
+    // Dispatch custom event for optional error reporting integration
+    // (e.g., Sentry, Datadog)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('rtc:i18n-error', {
+          detail: { type: errorLabel, locale: currentLocale, error },
+        }),
+      );
+    }
+  }
+};
+
 // localStorage key for theme settings persistence
 const THEME_SETTINGS_KEY = 'admin_ui_theme';
 
@@ -228,40 +254,8 @@ export async function getInitialState(): Promise<InitialState> {
     // Set document direction and load dayjs locale early.
     // These are non-critical cosmetic initializations — wrap individually
     // so their failure never blocks the authentication flow.
-    try {
-      setDocumentDirection();
-    } catch (error) {
-      const currentLocale = navigator.language || 'unknown';
-      const errorMessage = `[getInitialState] setDocumentDirection failed (locale: ${currentLocale}), using default ltr`;
-      console.warn(errorMessage, error);
-      // Dispatch custom event for optional error reporting integration (e.g., Sentry, Datadog)
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('rtc:i18n-error', {
-            detail: {
-              type: 'setDocumentDirection',
-              locale: currentLocale,
-              error,
-            },
-          }),
-        );
-      }
-    }
-    try {
-      loadDayjsLocale();
-    } catch (error) {
-      const currentLocale = navigator.language || 'unknown';
-      const errorMessage = `[getInitialState] loadDayjsLocale failed (locale: ${currentLocale}), using default en`;
-      console.warn(errorMessage, error);
-      // Dispatch custom event for optional error reporting integration (e.g., Sentry, Datadog)
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('rtc:i18n-error', {
-            detail: { type: 'loadDayjsLocale', locale: currentLocale, error },
-          }),
-        );
-      }
-    }
+    safeInit(setDocumentDirection, 'setDocumentDirection');
+    safeInit(loadDayjsLocale, 'loadDayjsLocale');
 
     const fetchUserInfo = async (
       signal?: AbortSignal,
@@ -474,7 +468,7 @@ export const layout: RunTimeLayoutConfig = ({
       // 根路由智能重定向：根据用户权限动态决定默认页面
       // 必须在登录检查之前执行，避免未登录用户被重定向到登录页后再跳回
       if (location.pathname === '/') {
-        // 如果用户信息尚未加载，根据认证状态决定下一步
+        // 用户信息尚未加载，根据认证状态决定下一步
         if (!initialState?.currentUser) {
           if (isAuthenticated()) {
             // Token 有效但用户信息加载失败（网络错误/API 异常），
