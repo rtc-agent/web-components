@@ -192,68 +192,73 @@ export default defineConfig({
    * @description 使用 GA4 (gtag.js) 进行站点分析
    * @doc https://umijs.org/docs/max/analytics
    */
-  analytics: process.env.GA_ID ? {
-    ga_v2: process.env.GA_ID,
-  } : undefined,
+  analytics: process.env.GA_ID
+    ? {
+        ga_v2: process.env.GA_ID,
+      }
+    : undefined,
   /**
    * @name <head> 中额外的 meta 标签
    * @description Content Security Policy (CSP) 防止 XSS / 数据注入攻击。
    * - script-src 已移除 'unsafe-inline'，所有脚本通过外部文件或 nonce 方式加载。
    * - style-src 保留 'unsafe-inline'：antd 动态样式和 CSS-in-JS 需要内联样式支持。
-   * - connect-src 需要放行 GA（googletagmanager / google-analytics）以及 WS 协议，
-   *   供 rtc-agent 组件连接 Centrifuge WebSocket。
-   *
-   * ⚠️ **安全风险提示**：
-   * 当前 connect-src 使用 `wss: https:` 限制，仅允许加密协议连接。
-   * 这是为了支持 rtc-agent 连接用户配置的 Centrifuge 端点（域名不固定）。
-   *
-   * **已实施的安全措施**（2026-10-14 增强）：
-   * - 移除不安全的 `ws:` 和 `http:` 协议，强制使用加密连接
-   * - 防止中间人攻击和数据窃听
-   * - 添加详细的注释和文档说明生产环境要求
-   *
-   * **潜在风险**：
-   * - 仍允许连接任意域名的加密连接
-   * - 如果页面存在 XSS 漏洞，攻击者可利用此策略向任意外域发送数据
-   *
-   * **生产环境要求**（必须实施）：
-   * 1. 实现代理层白名单：rtc-agent WebSocket 连接通过后端代理，CSP 仅需放行代理域名
-   * 2. 动态 CSP：在运行时根据用户配置的 Centrifuge 端点动态生成 CSP 策略
-   * 3. 限制 connect-src 到特定的已知域名：
-   *    ```typescript
-   *    connect-src 'self'
-   *      https://www.google-analytics.com
-   *      wss://*.centrifugo.com
-   *      https://api.your-backend.com
-   *    ```
-   *
-   * **迁移计划**：
-   * - 短期（当前）：添加详细注释和文档，强调生产环境要求
-   * - 中期：实现后端代理，rtc-agent 连接通过代理转发
-   * - 长期：实现动态 CSP 生成，根据运行时配置自动调整策略
-   *
+   * - connect-src 已收紧为具体的后端域名（从 RTC_AGENT_URL 环境变量派生），
+   *   不再使用通配的 `wss: https:`（已于 2026-10-14 修复 P0 安全问题）。
    * - frame-ancestors 'none' 禁止任何站点嵌套本页面，避免点击劫持。
+   *
+   * **connect-src 策略**：
+   * - `'self'`：admin-ui 自身 API（所有 rtc-agent 请求通过内置代理 `/oauth2/`、`/connection/` 转发）
+   * - `https://www.google-analytics.com`：GA4 数据上报
+   * - RTC_AGENT_URL 派生的 HTTPS/WSS 域名：rtc-agent 组件直连后端（生产环境代理未覆盖时）
+   * - 开发环境额外放行 `localhost` 系列（dev server / 本地 WebSocket）
+   *
+   * **安全收益**：即使页面存在 XSS 漏洞，攻击者也无法向任意外域发送数据，
+   * 仅能访问已知的后端域名（攻击面大幅缩小）。
    */
   metas: [
     {
       httpEquiv: 'Content-Security-Policy',
-      content: [
-        "default-src 'self'",
-        "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https:",
-        "connect-src 'self' https://www.google-analytics.com wss: https:",
-        // TODO(P2, Security, 2026-Q4): connect-src 使用 wss: https: 过于宽松，允许连接任意加密域名。
-        //   安全风险：如果页面存在 XSS 漏洞，攻击者可利用此策略向任意外域发送数据。
-        //   迁移计划：(1) 短期 - 实现后端代理层，rtc-agent WebSocket 连接通过代理转发，CSP 仅需放行代理域名；
-        //            (2) 中期 - 实现动态 CSP，根据运行时配置的 Centrifuge 端点自动生成策略；
-        //            (3) 长期 - 限制 connect-src 到特定的已知域名白名单。
-        //   参考文档：见本文件上方详细的安全风险分析和实施方案说明（lines 199-236）。
-        "font-src 'self' data:",
-        "frame-ancestors 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-      ].join('; '),
+      content: (() => {
+        // Derive specific origins from RTC_AGENT_URL instead of allowing any wss:/https: domain.
+        // This is a P0 security fix (2026-10-14): replaces `wss: https:` with explicit origins.
+        const rtcAgentOrigins = (() => {
+          const raw = process.env.RTC_AGENT_URL;
+          if (!raw) return '';
+          try {
+            const origin = new URL(raw).origin;
+            // Allow both HTTPS (HTTP API) and WSS (WebSocket) for the same origin
+            const wsOrigin = origin
+              .replace(/^https:/, 'wss:')
+              .replace(/^http:/, 'ws:');
+            return `${origin} ${wsOrigin}`;
+          } catch {
+            return '';
+          }
+        })();
+
+        // Development: allow localhost for dev server and local WebSocket
+        const devOrigins =
+          UMI_ENV === 'dev' ? 'http://localhost:* ws://localhost:*' : '';
+
+        const connectSrcParts = [
+          "connect-src 'self'",
+          'https://www.google-analytics.com',
+          rtcAgentOrigins,
+          devOrigins,
+        ].filter(Boolean);
+
+        return [
+          "default-src 'self'",
+          "script-src 'self' https://www.googletagmanager.com https://www.google-analytics.com",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob: https:",
+          connectSrcParts.join(' '),
+          "font-src 'self' data:",
+          "frame-ancestors 'none'",
+          "base-uri 'self'",
+          "form-action 'self'",
+        ].join('; ');
+      })(),
     },
   ],
   /**

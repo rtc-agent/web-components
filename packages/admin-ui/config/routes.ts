@@ -56,7 +56,7 @@ export default [
         path: '/user/login',
         name: 'login',
         component: './user/login',
-        // Note: No icon field needed — layout: false means no menu/sidebar is rendered
+        // 注意：无需 icon 字段 — layout: false 表示不渲染菜单/侧边栏
       },
       {
         path: '/user/register',
@@ -80,32 +80,30 @@ export default [
     icon: 'dashboard',
     component: './dashboard/container',
     /**
-     * Access Inheritance for Dashboard Child Routes:
+     * Dashboard 子路由权限继承：
      *
-     * Umi Max automatically inherits the `access` field from parent routes to child routes.
-     * Child routes without an explicit `access` field will use the parent's access code.
+     * Umi Max 自动将父路由的 `access` 字段继承给未显式设置 `access` 的子路由。
      *
-     * Implementation:
-     * - See src/.umi/plugin-access/index.tsx, useAccessMarkedRoutes() function
-     * - Lines 27-34: if (!accessCode && parentAccessCode) { accessCode = parentAccessCode; }
+     * 实现原理：
+     * - 参见 src/.umi/plugin-access/index.tsx 的 useAccessMarkedRoutes() 函数
+     * - 第 27-34 行：if (!accessCode && parentAccessCode) { accessCode = parentAccessCode; }
      *
-     * Security Model:
-     * - Parent route (/dashboard) sets: access: 'canDashboardView'
-     * - All child routes (grafana, rtc-agent, etc.) inherit this permission automatically
-     * - Explicit `access` fields on child routes are NOT needed and would be redundant
+     * 安全模型：
+     * - 父路由 (/dashboard) 设置：access: 'canDashboardView'
+     * - 所有子路由（grafana、rtc-agent 等）自动继承该权限
+     * - 子路由无需显式设置 `access`，重复设置反而冗余
      *
-     * Why This Design:
-     * - Single source of truth: permission defined once at parent level
-     * - Cleaner configuration: no duplication across 8+ child routes
-     * - Consistent behavior: all dashboard sub-pages require the same permission
+     * 设计考量：
+     * - 单一可信源：权限仅在父级定义一次
+     * - 配置简洁：避免在 8+ 个子路由中重复声明
+     * - 行为一致：所有 dashboard 子页面要求相同权限
      *
-     * Note:
-     * If different sub-pages need different permissions, add explicit `access` to those children.
-     * The inheritance only applies when child routes don't specify their own `access` field.
+     * 注意：如果不同子页面需要不同权限，可在子路由上显式添加 `access` 字段。
+     * 仅当子路由未指定 `access` 时，才会继承父级的权限。
      */
     access: 'canDashboardView',
     routes: [
-      // TODO: jaeger/pyroscope dashboards not yet implemented
+      // TODO: jaeger/pyroscope 仪表板尚未实现
       // {
       //   name: 'jaeger',
       //   icon: 'BugOutlined',
@@ -126,7 +124,7 @@ export default [
         name: 'grafana',
         icon: 'lineChart',
         path: '/dashboard/grafana',
-        // Inherits 'canDashboardView' from parent (see parent route JSDoc for details)
+        // 继承父级的 'canDashboardView' 权限（详见父路由 JSDoc）
         routes: [
           {
             path: '/dashboard/grafana',
@@ -134,8 +132,11 @@ export default [
           },
           /**
            * Grafana 子路由设计说明：
-           * - 这些子路由不配置 component，因为父路由的 component (./dashboard/container)
-           *   已经通过 iframe 缓存策略统一管理所有 dashboard 的加载和显示
+           *
+           * 渲染链路：/dashboard(component: ./dashboard/container) → 子路由(path 匹配)
+           *
+           * - 子路由不配置 component，因为 /dashboard 的 container 组件
+           *   通过 iframe 缓存策略统一管理所有 dashboard 的加载和显示
            * - 子路由的 name 字段用于生成侧边栏菜单项
            * - 子路由的 path 用于 URL 定位和 CSS 可见性控制
            * - 具体实现参见 src/pages/dashboard/container.tsx 的 DASHBOARD_CONFIGS
@@ -143,20 +144,17 @@ export default [
           {
             name: 'rtc-agent',
             path: '/dashboard/grafana/rtc-agent',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             name: 'go-runtime',
             path: '/dashboard/grafana/go-runtime',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             name: 'http-server',
             path: '/dashboard/grafana/http-server',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             // NOTE: path 使用 `-overview` 后缀是为了与 Grafana dashboard 的实际名称保持一致
@@ -164,36 +162,31 @@ export default [
             // 这种命名方式确保 URL 路径与 Grafana 内部标识符的可读性一致
             name: 'error-feedback',
             path: '/dashboard/grafana/error-feedback-overview',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'logs',
             path: '/dashboard/grafana/logs-overview',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'oss3',
             path: '/dashboard/grafana/oss3-overview',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             // NOTE: path 使用 `-overview` 后缀，与 Grafana dashboard 显示名称保持一致
             name: 'minio',
             path: '/dashboard/grafana/minio-overview',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
           {
             // NOTE: path 使用 `system-health-watchdog`，与 Grafana dashboard 显示名称保持一致
             name: 'health-watchdog',
             path: '/dashboard/grafana/system-health-watchdog',
-            // 由父路由 ./dashboard/container 通过 DASHBOARD_CONFIGS 渲染
-            // 参见 src/pages/dashboard/container.tsx
+            // 由 /dashboard 的 container 组件通过 DASHBOARD_CONFIGS 渲染（参见 src/pages/dashboard/container.tsx）
           },
         ],
       },
@@ -203,6 +196,24 @@ export default [
     path: '/rtc-users',
     name: 'rtc-users',
     icon: 'team',
+    /**
+     * RTC 用户菜单权限模型：
+     *
+     * 父路由 (/rtc-users):
+     * - access: 'canRtcUsersMenu' — 菜单可见性权限
+     * - 作用：控制整个 /rtc-users 菜单是否显示
+     *
+     * 子路由 (/rtc-users/*):
+     * - 每个子路由使用细粒度权限 (canRtcUserView, canRtcSessionView, canRtcMessageView)
+     * - 作用：控制各子页面的访问权限
+     * - 与 /dashboard 不同，这里显式设置子路由权限，因为各子页面需要独立的权限控制
+     *
+     * 与 /dashboard 的区别：
+     * - /dashboard 所有子页面共享相同权限，使用父级继承模式
+     * - /rtc-users 各子页面权限独立，需显式声明每个子路由的 access
+     *
+     * 参见：src/access.ts 中各权限的定义
+     */
     access: 'canRtcUsersMenu',
     routes: [
       {
@@ -237,35 +248,33 @@ export default [
     name: 'system',
     icon: 'setting',
     /**
-     * Permission Hierarchy:
+     * 权限层次结构：
      *
-     * Parent Route (/system):
-     * - access: 'canSystemView' — composite permission (admin role OR any system read permission)
-     * - Purpose: Controls menu visibility. If false, entire /system menu is hidden.
-     * - Definition: src/access.ts (see canSystemView JSDoc for business rules)
+     * 父路由 (/system):
+     * - access: 'canSystemView' — 组合权限（admin 角色 OR 任意 system 读权限）
+     * - 作用：控制菜单可见性。如果为 false，整个 /system 菜单隐藏。
+     * - 定义：src/access.ts（详见 canSystemView JSDoc 中的业务规则）
      *
-     * Child Routes (/system/*):
-     * - Each uses a specific permission (canAdminUserView, canAuditLogView, etc.)
-     * - Purpose: Controls access to individual sub-pages within the system menu
-     * - These are MORE restrictive than the parent — users may see the menu but
-     *   not have access to all sub-pages
+     * 子路由 (/system/*):
+     * - 每个子路由使用特定权限（canAdminUserView、canAuditLogView 等）
+     * - 作用：控制 system 菜单内各子页面的访问权限
+     * - 比父路由更严格 — 用户可能看到菜单，但不一定有权访问所有子页面
      *
-     * Dependency:
-     * - canSystemView is a SUPERSET of all child permissions
-     * - If any child permission is true, canSystemView MUST be true
-     * - But canSystemView can be true while all child permissions are false
-     *   (e.g., admin role without fine-grained permissions)
+     * 依赖关系：
+     * - canSystemView 是所有子权限的超集
+     * - 如果任意子权限为 true，则 canSystemView 必须为 true
+     * - 但 canSystemView 为 true 时，所有子权限可能都为 false
+     *   （例如：admin 角色但没有细粒度权限）
      *
-     * Security Model:
-     * - Parent acts as the "gate" — controls menu visibility
-     * - Children act as "fine-grained filters" — control page access
-     * - This two-tier model prevents unauthorized access while maintaining
-     *   a clean menu structure
+     * 安全模型：
+     * - 父路由作为"大门" — 控制菜单可见性
+     * - 子路由作为"精细过滤器" — 控制各页面访问权限
+     * - 这种两层模型防止未授权访问，同时保持清晰的菜单结构
      *
-     * Related:
-     * - src/constants/permission-groups.ts: SYSTEM_MENU_PERMISSIONS definition
-     * - src/access.ts: canSystemView implementation
-     * - src/pages/system/index.tsx: Permission-based sub-page routing
+     * 相关文件：
+     * - src/constants/permission-groups.ts: SYSTEM_MENU_PERMISSIONS 定义
+     * - src/access.ts: canSystemView 实现
+     * - src/pages/system/index.tsx: 基于权限的子页面路由
      */
     access: 'canSystemView',
     routes: [
@@ -315,24 +324,22 @@ export default [
     ],
   },
   /**
-   * Account pages: intentionally no `access` field.
+   * 账户页面：故意不设置 `access` 字段。
    *
-   * Security Boundary:
-   * Any authenticated user can view their own profile and settings — no RBAC
-   * permission control is needed. Security is enforced at the application level
-   * by `src/app.tsx`'s `onPageChange()`, which redirects unauthenticated users
-   * to `/user/login` before any route renders.
+   * 安全边界：
+   * 任何已认证用户都可以查看自己的个人资料和设置，无需 RBAC 权限控制。
+   * 安全性由 `src/app.tsx` 的 `onPageChange()` 在应用层面强制执行，
+   * 该方法会在任何路由渲染前将未认证用户重定向到 `/user/login`。
    *
-   * Why no access field:
-   * - These pages are user-specific (each user sees only their own data)
-   * - No admin-level permissions are required
-   * - Authentication (login) is the only gate — "authenticated = authorized"
+   * 不设置 access 字段的原因：
+   * - 这些页面是用户专属的（每个用户只能看到自己的数据）
+   * - 不需要管理员级别的权限
+   * - 认证（登录）是唯一的门槛 — "已认证 = 已授权"
    *
-   * Consistency:
-   * This design aligns with /chatbot — both are user-facing features where
-   * authentication is the sole security boundary.
+   * 一致性：
+   * 此设计与 /chatbot 一致 — 两者都是面向用户的功能，认证是唯一的安全边界。
    *
-   * See: src/app.tsx onPageChange() for authentication enforcement
+   * 参见：src/app.tsx onPageChange() 中的认证强制执行逻辑
    */
   {
     name: 'account',
@@ -359,23 +366,21 @@ export default [
     ],
   },
   /**
-   * Chatbot: AI assistant accessible to all authenticated users.
+   * Chatbot：面向所有已认证用户的 AI 助手。
    *
-   * Security Boundary:
-   * No `access` field is set — security is enforced at the application level
-   * by `src/app.tsx`'s `onPageChange()`, which redirects unauthenticated users
-   * to `/user/login` before any route renders.
+   * 安全边界：
+   * 未设置 `access` 字段，安全性由 `src/app.tsx` 的 `onPageChange()` 在应用层面强制执行，
+   * 该方法会在任何路由渲染前将未认证用户重定向到 `/user/login`。
    *
-   * Why no access field:
-   * - Chatbot is a user-facing feature available to all authenticated users
-   * - No admin-level permissions are required
-   * - Authentication (login) is the only gate — "authenticated = authorized"
+   * 不设置 access 字段的原因：
+   * - Chatbot 是面向用户的功能，所有已认证用户均可使用
+   * - 不需要管理员级别的权限
+   * - 认证（登录）是唯一的门槛 — "已认证 = 已授权"
    *
-   * Consistency:
-   * This design aligns with /account — both are user-facing features where
-   * authentication is the sole security boundary.
+   * 一致性：
+   * 此设计与 /account 一致 — 两者都是面向用户的功能，认证是唯一的安全边界。
    *
-   * See: src/app.tsx onPageChange() for authentication enforcement
+   * 参见：src/app.tsx onPageChange() 中的认证强制执行逻辑
    */
   {
     path: '/chatbot',
