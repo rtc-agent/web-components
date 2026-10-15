@@ -1145,6 +1145,55 @@ export class WorkerCore implements WorkerPersistenceCore {
   }
 
   /**
+   * Generic broadcast helper: invoke a callback on all registered tabs with unified
+   * error handling, failure tracking, and zombie state detection.
+   *
+   * Extracted from broadcastGapFillState/broadcastAccountBanned/broadcastConnectionState
+   * to eliminate duplicated Promise orchestration logic.
+   *
+   * @param invoke - Function that calls the appropriate method on a callback
+   * @param context - Label for zombie state log messages (e.g., 'broadcastGapFillState')
+   */
+  private _broadcastToAll(
+    invoke: (cb: WorkerCallbacks) => void | Promise<void>,
+    context: string,
+  ): void {
+    const callbacks = Array.from(this.callbacks);
+
+    const promises = callbacks.map((cb) => {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          const result = invoke(cb);
+          if (isPromiseLike<void>(result)) {
+            result.then(
+              () => {
+                this._callbackFailureCounts.delete(cb);
+                resolve();
+              },
+              (err) => {
+                this._recordAsyncFailure(cb, err);
+                reject(err);
+              },
+            );
+          } else {
+            this._callbackFailureCounts.delete(cb);
+            resolve();
+          }
+        } catch (err) {
+          this._recordSyncFailure(cb, err);
+          reject(err);
+        }
+      });
+    });
+
+    // Fire-and-forget: detect zombie state when all callbacks fail
+    Promise.allSettled(promises).then((results) => {
+      const failedCount = results.filter((r) => r.status === 'rejected').length;
+      this._checkZombieState(callbacks.length, failedCount, context);
+    });
+  }
+
+  /**
    * Broadcast a file sync status change to all registered Tab callbacks.
    *
    * P0-2 fix: emits a UIUpdateEvent so the UI can react to sync status changes
@@ -1170,16 +1219,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   /**
    * Broadcast gap fill state change to all registered Tab callbacks.
-   *
-   * PERFORMANCE OPTIMIZATION: Uses Promise.allSettled() to process callbacks in parallel
-   * instead of sequentially. This prevents slow callbacks from blocking other callbacks.
-   *
-   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
-   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
-   *
-   * ZOMBIE STATE DETECTION:
-   * Uses Promise.allSettled() return values to count failures. When all promises reject,
-   * the system enters zombie state and clears all callbacks for recovery.
+   * Delegates to _broadcastToAll for unified Promise orchestration and zombie detection.
    */
   private broadcastGapFillState(isSyncing: boolean): void {
     log.debug(
@@ -1188,57 +1228,15 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    const callbacks = Array.from(this.callbacks);
-
-    const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve, reject) => {
-        try {
-          const result = cb.onGapFillState(isSyncing);
-          if (isPromiseLike<void>(result)) {
-            result.then(
-              () => {
-                this._callbackFailureCounts.delete(cb);
-                resolve();
-              },
-              (err) => {
-                this._recordAsyncFailure(cb, err);
-                reject(err); // Reject to allow allSettled to count failures
-              },
-            );
-          } else {
-            this._callbackFailureCounts.delete(cb);
-            resolve();
-          }
-        } catch (err) {
-          this._recordSyncFailure(cb, err);
-          reject(err); // Reject to allow allSettled to count failures
-        }
-      });
-    });
-
-    // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then((results) => {
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
-      this._checkZombieState(
-        callbacks.length,
-        failedCount,
-        'broadcastGapFillState',
-      );
-    });
+    this._broadcastToAll(
+      (cb) => cb.onGapFillState(isSyncing),
+      'broadcastGapFillState',
+    );
   }
 
   /**
    * Broadcast account banned notification to all registered Tab callbacks.
-   *
-   * PERFORMANCE OPTIMIZATION: Uses Promise.allSettled() to process callbacks in parallel
-   * instead of sequentially. This prevents slow callbacks from blocking other callbacks.
-   *
-   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
-   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
-   *
-   * ZOMBIE STATE DETECTION:
-   * Uses Promise.allSettled() return values to count failures. When all promises reject,
-   * the system enters zombie state and clears all callbacks for recovery.
+   * Delegates to _broadcastToAll for unified Promise orchestration and zombie detection.
    */
   private broadcastAccountBanned(reason: string): void {
     log.warn(
@@ -1247,43 +1245,10 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    const callbacks = Array.from(this.callbacks);
-
-    const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve, reject) => {
-        try {
-          const result = cb.onAccountBanned(reason);
-          if (isPromiseLike<void>(result)) {
-            result.then(
-              () => {
-                this._callbackFailureCounts.delete(cb);
-                resolve();
-              },
-              (err) => {
-                this._recordAsyncFailure(cb, err);
-                reject(err); // Reject to allow allSettled to count failures
-              },
-            );
-          } else {
-            this._callbackFailureCounts.delete(cb);
-            resolve();
-          }
-        } catch (err) {
-          this._recordSyncFailure(cb, err);
-          reject(err); // Reject to allow allSettled to count failures
-        }
-      });
-    });
-
-    // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then((results) => {
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
-      this._checkZombieState(
-        callbacks.length,
-        failedCount,
-        'broadcastAccountBanned',
-      );
-    });
+    this._broadcastToAll(
+      (cb) => cb.onAccountBanned(reason),
+      'broadcastAccountBanned',
+    );
   }
 
   /**
@@ -1468,16 +1433,7 @@ export class WorkerCore implements WorkerPersistenceCore {
 
   /**
    * Broadcast a connection state change to all registered Tab callbacks.
-   *
-   * PERFORMANCE OPTIMIZATION: Uses Promise.allSettled() to process callbacks in parallel
-   * instead of sequentially. This prevents slow callbacks from blocking other callbacks.
-   *
-   * CRITICAL: Comlink proxies all callbacks to return Promises, even void-returning ones.
-   * We explicitly handle Promise rejections to track failures and clean up dead callbacks.
-   *
-   * ZOMBIE STATE DETECTION:
-   * Uses Promise.allSettled() return values to count failures. When all promises reject,
-   * the system enters zombie state and clears all callbacks for recovery.
+   * Delegates to _broadcastToAll for unified Promise orchestration and zombie detection.
    */
   private broadcastConnectionState(event: ConnectionStateEvent): void {
     log.debug(
@@ -1488,43 +1444,10 @@ export class WorkerCore implements WorkerPersistenceCore {
       'callbacks:',
       this.callbacks.size,
     );
-    const callbacks = Array.from(this.callbacks);
-
-    const promises = callbacks.map((cb) => {
-      return new Promise<void>((resolve, reject) => {
-        try {
-          const result = cb.onConnectionStateChange(event);
-          if (isPromiseLike<void>(result)) {
-            result.then(
-              () => {
-                this._callbackFailureCounts.delete(cb);
-                resolve();
-              },
-              (err) => {
-                this._recordAsyncFailure(cb, err);
-                reject(err); // Reject to allow allSettled to count failures
-              },
-            );
-          } else {
-            this._callbackFailureCounts.delete(cb);
-            resolve();
-          }
-        } catch (err) {
-          this._recordSyncFailure(cb, err);
-          reject(err); // Reject to allow allSettled to count failures
-        }
-      });
-    });
-
-    // Fire-and-forget: detect zombie state when all callbacks fail
-    Promise.allSettled(promises).then((results) => {
-      const failedCount = results.filter((r) => r.status === 'rejected').length;
-      this._checkZombieState(
-        callbacks.length,
-        failedCount,
-        'broadcastConnectionState',
-      );
-    });
+    this._broadcastToAll(
+      (cb) => cb.onConnectionStateChange(event),
+      'broadcastConnectionState',
+    );
   }
 
   // ========== File Cache & S3 Operations ==========
