@@ -2,8 +2,8 @@ import { HistoryOutlined } from '@ant-design/icons';
 import { Access } from '@umijs/max';
 import { Button, Popconfirm, Space } from 'antd';
 import React from 'react';
-import type { ServerConfigItem } from '../service';
 import type { IntlShape } from '@/types/intl';
+import type { ServerConfigItem } from '../service';
 
 interface AccessShape {
   canServerConfigEdit: boolean;
@@ -28,7 +28,10 @@ const ActionColumn = React.memo<ActionColumnProps>(
     <Space>
       <Access accessible={access.canServerConfigEdit} fallback={null}>
         <Button type="link" size="small" onClick={() => onEdit(record)}>
-          {intl.formatMessage({ id: 'pages.config.system.edit' })}
+          {intl.formatMessage({
+            id: 'pages.config.system.edit',
+            defaultMessage: 'Edit',
+          })}
         </Button>
       </Access>
       {record.version > 0 && (
@@ -42,7 +45,10 @@ const ActionColumn = React.memo<ActionColumnProps>(
           icon={<HistoryOutlined />}
           onClick={() => onViewHistory(record)}
         >
-          {intl.formatMessage({ id: 'pages.config.system.history' })}
+          {intl.formatMessage({
+            id: 'pages.config.system.history',
+            defaultMessage: 'History',
+          })}
         </Button>
       )}
       <Access accessible={access.canServerConfigDelete} fallback={null}>
@@ -50,20 +56,28 @@ const ActionColumn = React.memo<ActionColumnProps>(
           <Popconfirm
             title={intl.formatMessage({
               id: 'pages.config.system.confirmDelete',
+              defaultMessage: 'Confirm Delete',
             })}
             description={intl.formatMessage({
               id: 'pages.config.system.confirmDeleteDesc',
+              defaultMessage:
+                'After deletion, it will revert to YAML default value. Are you sure?',
             })}
             onConfirm={() => onDelete(record)}
             okText={intl.formatMessage({
               id: 'pages.config.system.confirm',
+              defaultMessage: 'Confirm',
             })}
             cancelText={intl.formatMessage({
               id: 'pages.config.system.cancel',
+              defaultMessage: 'Cancel',
             })}
           >
             <Button type="link" size="small" danger>
-              {intl.formatMessage({ id: 'pages.config.system.delete' })}
+              {intl.formatMessage({
+                id: 'pages.config.system.delete',
+                defaultMessage: 'Delete',
+              })}
             </Button>
           </Popconfirm>
         )}

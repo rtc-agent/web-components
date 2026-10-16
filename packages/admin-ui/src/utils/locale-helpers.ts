@@ -1,9 +1,9 @@
 import { getLocale, setLocale } from '@umijs/max';
 import dayjs from 'dayjs';
+import { RTL_LOCALES } from '@/constants/locales';
 
-// RTL (Right-to-Left) language prefixes
-// Aligned with component package's RTL_LOCALES for consistency
-export const RTL_LOCALES = ['fa', 'ar', 'he', 'ur'];
+// Re-export for backwards compatibility
+export { RTL_LOCALES };
 
 /**
  * Set document direction (ltr/rtl) based on current locale

@@ -46,7 +46,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
       onOpenChange={onOpenChange}
       width={modalWidth}
       modalProps={{
-        destroyOnClose: true,
+        destroyOnHidden: true,
         style: { maxWidth: modalWidth },
       }}
       submitter={{
@@ -60,6 +60,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
             >
               {intl.formatMessage({
                 id: 'pages.config.system.conflict.reload',
+                defaultMessage: 'Reload',
               })}
             </Button>
             <Button
@@ -87,6 +88,7 @@ const ConflictModal: React.FC<ConflictModalProps> = ({
         showIcon
         message={intl.formatMessage({
           id: 'pages.config.system.conflict.warningTitle',
+          defaultMessage: 'Config has been modified by another admin',
         })}
         description={intl.formatMessage({
           id: isDeleteAction

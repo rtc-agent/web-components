@@ -50,7 +50,10 @@ export default function RtcAgentTestPage() {
     // Prevent double-mount
     if (document.querySelector('rtc-agent[data-test-agent="true"]')) {
       message.warning(
-        intl.formatMessage({ id: 'pages.rtcAgentTest.agentAlreadyRunning' }),
+        intl.formatMessage({
+          id: 'pages.rtcAgentTest.agentAlreadyRunning',
+          defaultMessage: 'Test agent is already running',
+        }),
       );
       return;
     }
@@ -89,35 +92,67 @@ export default function RtcAgentTestPage() {
 
   return (
     <PageContainer>
-      <Card title={intl.formatMessage({ id: 'pages.rtcAgentTest.title' })}>
+      <Card
+        title={intl.formatMessage({
+          id: 'pages.rtcAgentTest.title',
+          defaultMessage: 'RTC Agent Integration Test',
+        })}
+      >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.status' })}</h3>
+            <h3>
+              {intl.formatMessage({
+                id: 'pages.rtcAgentTest.status',
+                defaultMessage: 'Status',
+              })}
+            </h3>
             <p>{status}</p>
             {error && <p style={{ color: token.colorError }}>{error}</p>}
           </div>
 
           <div>
-            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.actions' })}</h3>
+            <h3>
+              {intl.formatMessage({
+                id: 'pages.rtcAgentTest.actions',
+                defaultMessage: 'Actions',
+              })}
+            </h3>
             <Space>
               <Button type="primary" onClick={handleTestMount}>
                 {intl.formatMessage({
                   id: 'pages.rtcAgentTest.testDynamicImport',
+                  defaultMessage: 'Test Dynamic Import',
                 })}
               </Button>
               <Button onClick={() => window.location.reload()}>
-                {intl.formatMessage({ id: 'pages.rtcAgentTest.reloadPage' })}
+                {intl.formatMessage({
+                  id: 'pages.rtcAgentTest.reloadPage',
+                  defaultMessage: 'Reload Page',
+                })}
               </Button>
             </Space>
           </div>
 
           <div>
-            <h3>{intl.formatMessage({ id: 'pages.rtcAgentTest.console' })}</h3>
+            <h3>
+              {intl.formatMessage({
+                id: 'pages.rtcAgentTest.console',
+                defaultMessage: 'Console',
+              })}
+            </h3>
             <p>
-              {intl.formatMessage({ id: 'pages.rtcAgentTest.consoleHint' })}
+              {intl.formatMessage({
+                id: 'pages.rtcAgentTest.consoleHint',
+                defaultMessage:
+                  'Open the browser console to see detailed logs.',
+              })}
             </p>
             <p>
-              {intl.formatMessage({ id: 'pages.rtcAgentTest.typeErrorHint' })}
+              {intl.formatMessage({
+                id: 'pages.rtcAgentTest.typeErrorHint',
+                defaultMessage:
+                  "If you see \"TypeError: Cannot destructure property 'dispatcher' of 'useContext(...)'\" in the console, the integration is broken.",
+              })}
             </p>
           </div>
         </Space>

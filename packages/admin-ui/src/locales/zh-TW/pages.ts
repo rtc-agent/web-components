@@ -277,6 +277,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': '回滾到 v{version}',
   // User Detail
   'pages.rtcUsers.detail.title': '用戶詳情',
+  'pages.rtcUsers.detail.basicInfo': '基本資訊',
   'pages.rtcUsers.detail.devices': '設備',
   'pages.rtcUsers.detail.tokens': 'Token 使用量',
   'pages.rtcUsers.detail.online': '在線',

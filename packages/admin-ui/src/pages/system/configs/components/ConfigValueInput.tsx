@@ -43,12 +43,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
               name="value"
               label={intl.formatMessage({
                 id: 'pages.config.system.configValue',
+                defaultMessage: 'Config Value',
               })}
               rules={[
                 {
                   required: true,
                   message: intl.formatMessage({
                     id: 'pages.config.system.configValueRequired',
+                    defaultMessage: 'Please enter config value',
                   }),
                 },
               ]}
@@ -65,12 +67,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
             ]}
@@ -83,12 +87,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
             ]}
@@ -103,12 +109,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
             ]}
@@ -123,12 +131,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
             ]}
@@ -141,26 +151,32 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
               {
                 pattern: /^(\d+(ns|us|ms|s|m|h))+$/,
                 message: intl.formatMessage({
                   id: 'pages.config.system.durationFormat',
+                  defaultMessage:
+                    'Format error, please enter Go duration format (e.g., 5m, 1h30m, 500ms)',
                 }),
               },
             ]}
             placeholder={intl.formatMessage({
               id: 'pages.config.system.durationPlaceholder',
+              defaultMessage: 'Go duration format, e.g., 5m, 1h30m, 500ms',
             })}
             tooltip={intl.formatMessage({
               id: 'pages.config.system.durationTooltip',
+              defaultMessage: 'Supported units: ns, us, ms, s, m, h',
             })}
             width="md"
             disabled={disabled}
@@ -172,12 +188,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
               {
@@ -190,6 +208,7 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
                         new Error(
                           intl.formatMessage({
                             id: 'pages.config.system.jsonNullError',
+                            defaultMessage: 'Config value cannot be null',
                           }),
                         ),
                       );
@@ -200,6 +219,7 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
                       new Error(
                         intl.formatMessage({
                           id: 'pages.config.system.jsonFormatError',
+                          defaultMessage: 'Please enter valid JSON format',
                         }),
                       ),
                     );
@@ -213,6 +233,7 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             }}
             placeholder={intl.formatMessage({
               id: 'pages.config.system.jsonPlaceholder',
+              defaultMessage: 'Please enter valid JSON (array or object)',
             })}
             disabled={disabled}
           />
@@ -223,12 +244,14 @@ const ConfigValueInput: React.FC<ConfigValueInputProps> = ({
             name="value"
             label={intl.formatMessage({
               id: 'pages.config.system.configValue',
+              defaultMessage: 'Config Value',
             })}
             rules={[
               {
                 required: true,
                 message: intl.formatMessage({
                   id: 'pages.config.system.configValueRequired',
+                  defaultMessage: 'Please enter config value',
                 }),
               },
             ]}

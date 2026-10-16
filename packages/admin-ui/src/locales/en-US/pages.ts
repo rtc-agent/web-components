@@ -360,6 +360,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'Rollback to v{version}',
   // User Detail
   'pages.rtcUsers.detail.title': 'User Detail',
+  'pages.rtcUsers.detail.basicInfo': 'Basic Information',
   'pages.rtcUsers.detail.devices': 'Devices',
   'pages.rtcUsers.detail.tokens': 'Token Usage',
   'pages.rtcUsers.detail.online': 'Online',

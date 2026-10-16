@@ -5,7 +5,7 @@
 (function () {
   try {
     var lang = navigator.language || navigator.languages[0] || 'zh-CN';
-    var rtlLocales = ['fa', 'ar', 'he'];
+    var rtlLocales = ['fa', 'ar', 'he', 'ur'];
     var isRTL = rtlLocales.some(function (rtl) {
       return lang.startsWith(rtl);
     });

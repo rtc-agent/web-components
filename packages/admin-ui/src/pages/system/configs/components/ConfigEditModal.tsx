@@ -7,7 +7,7 @@ import {
   getRequiredRule,
   getWhitespaceRule,
 } from '@/constants/form-rules';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useResponsiveModalWidth } from '@/hooks/useResponsiveModalWidth';
 import { parseConfigValue } from '@/utils/configFormat';
 import type { ServerConfigItem } from '../service';
 import ConfigValueInput from './ConfigValueInput';
@@ -35,8 +35,7 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
   const [form] = Form.useForm<{ value: unknown; change_note?: string }>();
   const intl = useIntl();
   const { message } = App.useApp();
-  const isMobile = useIsMobile();
-  const modalWidth = isMobile ? '95vw' : 480;
+  const modalWidth = useResponsiveModalWidth(480);
 
   useEffect(() => {
     if (config && open) {
@@ -54,13 +53,13 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
 
   return (
     <ModalForm
-      title={`${intl.formatMessage({ id: 'pages.config.system.editTitle' })}${config.key}`}
+      title={`${intl.formatMessage({ id: 'pages.config.system.editTitle', defaultMessage: 'Edit Config: ' })}${config.key}`}
       form={form}
       open={open}
       onOpenChange={onOpenChange}
       width={modalWidth}
       modalProps={{
-        destroyOnClose: true,
+        destroyOnHidden: true,
         style: { maxWidth: modalWidth },
       }}
       onFinish={async (values) => {
@@ -69,11 +68,17 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
         if (!result.success) {
           if (result.error === 'json') {
             message.error(
-              intl.formatMessage({ id: 'pages.config.system.jsonFormatError' }),
+              intl.formatMessage({
+                id: 'pages.config.system.jsonFormatError',
+                defaultMessage: 'Please enter valid JSON format',
+              }),
             );
           } else if (result.error === 'null') {
             message.error(
-              intl.formatMessage({ id: 'pages.config.system.jsonNullError' }),
+              intl.formatMessage({
+                id: 'pages.config.system.jsonNullError',
+                defaultMessage: 'Config value cannot be null',
+              }),
             );
           }
           return false;
@@ -96,9 +101,13 @@ const ConfigEditModal: React.FC<ConfigEditModalProps> = ({
       <ConfigValueInput valueType={config.value_type} configKey={config.key} />
       <ProFormTextArea
         name="change_note"
-        label={intl.formatMessage({ id: 'pages.config.system.changeNote' })}
+        label={intl.formatMessage({
+          id: 'pages.config.system.changeNote',
+          defaultMessage: 'Change Note',
+        })}
         placeholder={intl.formatMessage({
           id: 'pages.config.system.changeNotePlaceholder',
+          defaultMessage: 'Optional, explain the reason for this change',
         })}
         rules={[
           getRequiredRule(intl.formatMessage, {

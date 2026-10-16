@@ -67,7 +67,7 @@ const ProfileSettingsModal: React.FC<ProfileSettingsModalProps> = ({
       open={open}
       onFinish={handleSubmit}
       modalProps={{
-        destroyOnClose: true,
+        destroyOnHidden: true,
         onCancel: onClose,
         okText: intl.formatMessage({ id: 'component.globalForm.ok' }),
         cancelText: intl.formatMessage({ id: 'component.globalForm.cancel' }),

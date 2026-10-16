@@ -23,10 +23,16 @@ const Exception403: React.FC = () => {
       <Result
         status="403"
         title="403"
-        subTitle={intl.formatMessage({ id: 'pages.403.subTitle' })}
+        subTitle={intl.formatMessage({
+          id: 'pages.403.subTitle',
+          defaultMessage: 'Sorry, you are not authorized to access this page.',
+        })}
         extra={
           <Button type="primary" onClick={handleGoBack}>
-            {intl.formatMessage({ id: 'pages.403.backHome' })}
+            {intl.formatMessage({
+              id: 'pages.403.backHome',
+              defaultMessage: 'Back Home',
+            })}
           </Button>
         }
       />

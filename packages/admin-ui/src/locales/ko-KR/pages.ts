@@ -328,6 +328,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'v{version}으로 롤백',
   // User Detail
   'pages.rtcUsers.detail.title': '사용자 상세',
+  'pages.rtcUsers.detail.basicInfo': '기본 정보',
   'pages.rtcUsers.detail.devices': '디바이스',
   'pages.rtcUsers.detail.tokens': '토큰 사용량',
   'pages.rtcUsers.detail.online': '온라인',

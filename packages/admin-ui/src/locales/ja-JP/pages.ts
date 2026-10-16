@@ -301,6 +301,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'v{version} にロールバック',
   // User Detail
   'pages.rtcUsers.detail.title': 'ユーザー詳細',
+  'pages.rtcUsers.detail.basicInfo': '基本情報',
   'pages.rtcUsers.detail.devices': 'デバイス',
   'pages.rtcUsers.detail.tokens': 'トークン使用量',
   'pages.rtcUsers.detail.online': 'オンライン',

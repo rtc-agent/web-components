@@ -439,9 +439,11 @@ const ToolCallOutputContent: React.FC<{ data: unknown }> = ({ data }) => {
                 {isSuccess
                   ? intl.formatMessage({
                       id: 'pages.messages.detail.toolResult',
+                      defaultMessage: 'Tool Result',
                     })
                   : intl.formatMessage({
                       id: 'pages.messages.detail.toolFailed',
+                      defaultMessage: 'Failed',
                     })}
               </Tag>
               <Text>{header}</Text>
@@ -677,11 +679,17 @@ const SummaryContent: React.FC<{ data: unknown }> = ({ data }) => {
           {tokensSaved > 0
             ? intl.formatMessage(
                 { id: 'pages.messages.detail.releasedTokens' },
-                { count: tokensSaved },
+                {
+                  count: tokensSaved,
+                  defaultMessage: 'Released {count} tokens',
+                },
               )
             : intl.formatMessage(
                 { id: 'pages.messages.detail.increasedTokens' },
-                { count: Math.abs(tokensSaved) },
+                {
+                  count: Math.abs(tokensSaved),
+                  defaultMessage: 'Increased {count} tokens',
+                },
               )}{' '}
         </span>
       )}

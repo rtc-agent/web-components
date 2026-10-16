@@ -50,23 +50,29 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
 
   return (
     <ModalForm
-      title={`${intl.formatMessage({ id: 'pages.config.user.editTitle' })}${item.key}`}
+      title={`${intl.formatMessage({ id: 'pages.config.user.editTitle', defaultMessage: 'Edit Config: ' })}${item.key}`}
       form={form}
       open={open}
       onOpenChange={onOpenChange}
       width={modalWidth}
-      modalProps={{ destroyOnClose: true }}
+      modalProps={{ destroyOnHidden: true }}
       onFinish={async (values: { value: unknown; change_note?: string }) => {
         // 根据配置类型解析值
         const result = parseConfigValue(values.value, item.value_type);
         if (!result.success) {
           if (result.error === 'json') {
             message.error(
-              intl.formatMessage({ id: 'pages.config.system.jsonFormatError' }),
+              intl.formatMessage({
+                id: 'pages.config.system.jsonFormatError',
+                defaultMessage: 'Please enter valid JSON format',
+              }),
             );
           } else if (result.error === 'null') {
             message.error(
-              intl.formatMessage({ id: 'pages.config.system.jsonNullError' }),
+              intl.formatMessage({
+                id: 'pages.config.system.jsonNullError',
+                defaultMessage: 'Config value cannot be null',
+              }),
             );
           }
           return false;
@@ -94,9 +100,13 @@ const UserConfigEditModal: React.FC<UserConfigEditModalProps> = ({
       />
       <ProFormTextArea
         name="change_note"
-        label={intl.formatMessage({ id: 'pages.config.system.changeNote' })}
+        label={intl.formatMessage({
+          id: 'pages.config.system.changeNote',
+          defaultMessage: 'Change Note',
+        })}
         placeholder={intl.formatMessage({
           id: 'pages.config.system.changeNotePlaceholder',
+          defaultMessage: 'Optional, explain the reason for this change',
         })}
         fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
         rules={[

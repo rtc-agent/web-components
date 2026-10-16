@@ -9,11 +9,17 @@ const Exception500: React.FC = () => {
       <Result
         status="500"
         title="500"
-        subTitle={intl.formatMessage({ id: 'pages.500.subTitle' })}
+        subTitle={intl.formatMessage({
+          id: 'pages.500.subTitle',
+          defaultMessage: 'Sorry, something went wrong.',
+        })}
         extra={
           <Link to="/" prefetch>
             <Button type="primary">
-              {intl.formatMessage({ id: 'pages.500.backHome' })}
+              {intl.formatMessage({
+                id: 'pages.500.backHome',
+                defaultMessage: 'Back Home',
+              })}
             </Button>
           </Link>
         }

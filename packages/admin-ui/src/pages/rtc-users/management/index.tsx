@@ -723,7 +723,7 @@ const RtcUserManagementPage: React.FC = () => {
         }}
         width={banModalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           onCancel: () => banModal.close(),
         }}
         onFinish={handleBanUser}

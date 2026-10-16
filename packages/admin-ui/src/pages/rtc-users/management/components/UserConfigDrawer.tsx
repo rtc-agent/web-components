@@ -93,7 +93,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         getFriendlyErrorMessage(
           error,
           intl,
-          intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+          intl.formatMessage({
+            id: 'pages.roles.operationFailed',
+            defaultMessage: 'Operation failed',
+          }),
         ),
       );
     },
@@ -118,14 +121,19 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   }) => {
     if (!userId) {
       message.error(
-        intl.formatMessage({ id: 'pages.config.user.contextLost' }),
+        intl.formatMessage({
+          id: 'pages.config.user.contextLost',
+          defaultMessage: 'User context lost, please refresh',
+        }),
       );
       return;
     }
     const changeNote = data.changeNote
-      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
+      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix', defaultMessage: '(force overwrite)' })}`
       : intl.formatMessage({
           id: 'pages.config.system.forceOverwriteSuffix',
+
+          defaultMessage: '(force overwrite)',
         });
     await setUserConfig(userId, data.key, {
       value: data.value,
@@ -137,14 +145,20 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   const doForceDelete = async (data: { key: string; version?: number }) => {
     if (!userId) {
       message.error(
-        intl.formatMessage({ id: 'pages.config.user.contextLost' }),
+        intl.formatMessage({
+          id: 'pages.config.user.contextLost',
+          defaultMessage: 'User context lost, please refresh',
+        }),
       );
       return;
     }
     // version 应该总是存在的（从冲突数据或原始数据中获取）
     if (!data.version) {
       message.error(
-        intl.formatMessage({ id: 'pages.config.user.versionRequired' }),
+        intl.formatMessage({
+          id: 'pages.config.user.versionRequired',
+          defaultMessage: 'Version is required for force delete',
+        }),
       );
       return;
     }
@@ -188,7 +202,11 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
     try {
       await deleteUserConfig(userId, item.key, item.version);
       message.success(
-        intl.formatMessage({ id: 'pages.config.user.deleteSuccess' }),
+        intl.formatMessage({
+          id: 'pages.config.user.deleteSuccess',
+          defaultMessage:
+            'User override deleted, reverted to system default value',
+        }),
       );
       loadConfigs();
     } catch (error: unknown) {
@@ -203,7 +221,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
           getFriendlyErrorMessage(
             error,
             intl,
-            intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+            intl.formatMessage({
+              id: 'pages.roles.operationFailed',
+              defaultMessage: 'Operation failed',
+            }),
           ),
         );
       }
@@ -228,7 +249,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         change_note: values.change_note,
       });
       message.success(
-        intl.formatMessage({ id: 'pages.config.user.updateSuccess' }),
+        intl.formatMessage({
+          id: 'pages.config.user.updateSuccess',
+          defaultMessage: 'User config updated successfully',
+        }),
       );
       editModal.close();
       loadConfigs();
@@ -249,7 +273,10 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
         getFriendlyErrorMessage(
           error,
           intl,
-          intl.formatMessage({ id: 'pages.roles.operationFailed' }),
+          intl.formatMessage({
+            id: 'pages.roles.operationFailed',
+            defaultMessage: 'Operation failed',
+          }),
         ),
       );
       return false;
@@ -267,6 +294,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.user.key',
+
+          defaultMessage: 'Config Key',
         }),
         dataIndex: 'key',
         width: 220,
@@ -277,6 +306,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.user.effectiveValue',
+
+          defaultMessage: 'Effective Value',
         }),
         dataIndex: 'effective_value',
         ellipsis: true,
@@ -297,6 +328,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.source',
+
+          defaultMessage: 'Source',
         }),
         dataIndex: 'source',
         width: 100,
@@ -305,6 +338,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.user.systemValue',
+
+          defaultMessage: 'System Value',
         }),
         dataIndex: 'system_value',
         width: 120,
@@ -326,6 +361,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.actions',
+
+          defaultMessage: 'Actions',
         }),
         dataIndex: 'option',
         width: 120,
@@ -341,6 +378,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
               >
                 {intl.formatMessage({
                   id: 'pages.config.user.edit',
+
+                  defaultMessage: 'Edit',
                 })}
               </Button>
             )}
@@ -353,6 +392,8 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                       icon: <HistoryOutlined />,
                       label: intl.formatMessage({
                         id: 'pages.config.user.history',
+
+                        defaultMessage: 'History',
                       }),
                       onClick: () => handleViewHistory(record),
                     },
@@ -365,21 +406,33 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
                               <Popconfirm
                                 title={intl.formatMessage({
                                   id: 'pages.config.user.confirmDelete',
+
+                                  defaultMessage:
+                                    'Confirm delete user override?',
                                 })}
                                 description={intl.formatMessage({
                                   id: 'pages.config.user.confirmDeleteDesc',
+
+                                  defaultMessage:
+                                    'After deletion, it will revert to system default value',
                                 })}
                                 onConfirm={() => handleDelete(record)}
                                 okText={intl.formatMessage({
                                   id: 'pages.config.user.confirm',
+
+                                  defaultMessage: 'Confirm',
                                 })}
                                 cancelText={intl.formatMessage({
                                   id: 'pages.config.user.cancel',
+
+                                  defaultMessage: 'Cancel',
                                 })}
                               >
                                 <span className="text-red-500">
                                   {intl.formatMessage({
                                     id: 'pages.config.user.deleteOverride',
+
+                                    defaultMessage: 'Delete Override',
                                   })}
                                 </span>
                               </Popconfirm>
@@ -415,7 +468,7 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
   return (
     <>
       <Drawer
-        title={`${intl.formatMessage({ id: 'pages.config.user.drawerTitle' })}${user.name || user.email || user.id}`}
+        title={`${intl.formatMessage({ id: 'pages.config.user.drawerTitle', defaultMessage: 'User Configs: ' })}${user.name || user.email || user.id}`}
         open={open}
         onClose={onClose}
         // NOTE: Drawer 宽度未使用 useResponsiveModalWidth()，因为 Drawer 通常需要比 Modal 更宽
@@ -425,12 +478,18 @@ const UserConfigDrawer: React.FC<UserConfigDrawerProps> = ({
       >
         <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item
-            label={intl.formatMessage({ id: 'pages.config.user.userId' })}
+            label={intl.formatMessage({
+              id: 'pages.config.user.userId',
+              defaultMessage: 'User ID',
+            })}
           >
             <Text copyable>{user.id}</Text>
           </Descriptions.Item>
           <Descriptions.Item
-            label={intl.formatMessage({ id: 'pages.config.user.email' })}
+            label={intl.formatMessage({
+              id: 'pages.config.user.email',
+              defaultMessage: 'Email',
+            })}
           >
             {user.email || '-'}
           </Descriptions.Item>

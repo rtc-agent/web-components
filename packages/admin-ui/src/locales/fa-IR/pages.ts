@@ -298,6 +298,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'Rollback to v{version}',
   // User Detail
   'pages.rtcUsers.detail.title': 'جزئیات کاربر',
+  'pages.rtcUsers.detail.basicInfo': 'اطلاعات پایه',
   'pages.rtcUsers.detail.devices': 'دستگاه‌ها',
   'pages.rtcUsers.detail.tokens': 'استفاده از توکن',
   'pages.rtcUsers.detail.online': 'آنلاین',

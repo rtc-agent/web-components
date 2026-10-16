@@ -119,9 +119,10 @@ const SystemConfigsPage: React.FC = () => {
     changeNote?: string;
   }) => {
     const changeNote = data.changeNote
-      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix' })}`
+      ? `${data.changeNote} ${intl.formatMessage({ id: 'pages.config.system.forceOverwriteSuffix', defaultMessage: '(force overwrite)' })}`
       : intl.formatMessage({
           id: 'pages.config.system.forceOverwriteSuffix',
+          defaultMessage: '(force overwrite)',
         });
     await updateServerConfig(data.key, {
       value: data.value,
@@ -176,7 +177,10 @@ const SystemConfigsPage: React.FC = () => {
         change_note: values.change_note,
       });
       message.success(
-        intl.formatMessage({ id: 'pages.config.system.updateSuccess' }),
+        intl.formatMessage({
+          id: 'pages.config.system.updateSuccess',
+          defaultMessage: 'Config updated successfully',
+        }),
       );
       editModal.close();
       reload();
@@ -233,7 +237,10 @@ const SystemConfigsPage: React.FC = () => {
     try {
       await deleteServerConfig(record.key, record.version);
       message.success(
-        intl.formatMessage({ id: 'pages.config.system.deleteSuccess' }),
+        intl.formatMessage({
+          id: 'pages.config.system.deleteSuccess',
+          defaultMessage: 'Config deleted, reverted to YAML default value',
+        }),
       );
       reload();
     } catch (error: unknown) {
@@ -291,7 +298,10 @@ const SystemConfigsPage: React.FC = () => {
         ),
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.value' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.value',
+          defaultMessage: 'Value',
+        }),
         dataIndex: 'value',
         ellipsis: true,
         search: false,
@@ -318,7 +328,10 @@ const SystemConfigsPage: React.FC = () => {
         },
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.yamlDefault' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.yamlDefault',
+          defaultMessage: 'YAML Default',
+        }),
         dataIndex: 'yaml_default',
         ellipsis: true,
         search: false,
@@ -340,21 +353,30 @@ const SystemConfigsPage: React.FC = () => {
         },
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.source' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.source',
+          defaultMessage: 'Source',
+        }),
         dataIndex: 'source',
         width: 100,
         search: false,
         render: (_, record) => renderConfigSource(record.source),
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.type' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.type',
+          defaultMessage: 'Type',
+        }),
         dataIndex: 'value_type',
         width: 80,
         search: false,
         render: (_, record) => <Tag>{record.value_type}</Tag>,
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.version' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.version',
+          defaultMessage: 'Version',
+        }),
         dataIndex: 'version',
         width: 70,
         search: false,
@@ -366,7 +388,10 @@ const SystemConfigsPage: React.FC = () => {
           ),
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.updatedAt' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.updatedAt',
+          defaultMessage: 'Updated At',
+        }),
         dataIndex: 'updated_at',
         valueType: 'dateTime',
         width: 180,
@@ -374,7 +399,10 @@ const SystemConfigsPage: React.FC = () => {
         sorter: true,
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.description' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.description',
+          defaultMessage: 'Description',
+        }),
         dataIndex: 'description',
         ellipsis: true,
         search: false,
@@ -382,7 +410,10 @@ const SystemConfigsPage: React.FC = () => {
         hideInTable: isMobile,
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.actions' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.actions',
+          defaultMessage: 'Actions',
+        }),
         dataIndex: 'option',
         width: 180,
         search: false,
@@ -526,7 +557,10 @@ const SystemConfigsPage: React.FC = () => {
         style={{ marginBottom: 16 }}
       />
       <ProTable<ServerConfigItem>
-        headerTitle={intl.formatMessage({ id: 'pages.config.system.title' })}
+        headerTitle={intl.formatMessage({
+          id: 'pages.config.system.title',
+          defaultMessage: 'System Configs',
+        })}
         actionRef={actionRef}
         rowKey="key"
         search={false}
@@ -562,7 +596,10 @@ const SystemConfigsPage: React.FC = () => {
         columns={columns}
         toolBarRender={() => [
           <Button key="refresh" onClick={reload}>
-            {intl.formatMessage({ id: 'pages.config.system.refresh' })}
+            {intl.formatMessage({
+              id: 'pages.config.system.refresh',
+              defaultMessage: 'Refresh',
+            })}
           </Button>,
         ]}
         locale={locale}

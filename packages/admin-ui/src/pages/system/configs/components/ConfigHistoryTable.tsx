@@ -88,7 +88,10 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
   const columns = useMemo<ProColumns<ConfigHistoryItem>[]>(
     () => [
       {
-        title: intl.formatMessage({ id: 'pages.config.system.historyVersion' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyVersion',
+          defaultMessage: 'Version',
+        }),
         dataIndex: 'version',
         width: 80,
         render: (_, record) => (
@@ -100,6 +103,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.historyOldValue',
+          defaultMessage: 'Old Value',
         }),
         dataIndex: 'old_value',
         ellipsis: true,
@@ -118,6 +122,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.historyNewValue',
+          defaultMessage: 'New Value',
         }),
         dataIndex: 'new_value',
         ellipsis: true,
@@ -136,6 +141,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.historyChangedBy',
+          defaultMessage: 'Changed By',
         }),
         dataIndex: 'changed_by',
         width: 150,
@@ -144,6 +150,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.historyChangeNote',
+          defaultMessage: 'Change Note',
         }),
         dataIndex: 'change_note',
         ellipsis: true,
@@ -152,6 +159,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
       {
         title: intl.formatMessage({
           id: 'pages.config.system.historyChangedAt',
+          defaultMessage: 'Changed At',
         }),
         dataIndex: 'changed_at',
         valueType: 'dateTime',
@@ -161,7 +169,10 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         defaultSortOrder: 'descend',
       },
       {
-        title: intl.formatMessage({ id: 'pages.config.system.historyActions' }),
+        title: intl.formatMessage({
+          id: 'pages.config.system.historyActions',
+          defaultMessage: 'Actions',
+        }),
         dataIndex: 'option',
         width: 80,
         render: (_, record) => (
@@ -173,7 +184,10 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
               setRollbackModalOpen(true);
             }}
           >
-            {intl.formatMessage({ id: 'pages.config.system.historyRollback' })}
+            {intl.formatMessage({
+              id: 'pages.config.system.historyRollback',
+              defaultMessage: 'Rollback',
+            })}
           </Button>
         ),
       },
@@ -191,7 +205,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         onOpenChange={onOpenChange}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           style: { maxWidth: modalWidth },
         }}
         submitter={false}
@@ -241,7 +255,7 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         title={intl.formatMessage({ id: rollbackTitleId })}
         open={rollbackModalOpen}
         onOpenChange={setRollbackModalOpen}
-        modalProps={{ destroyOnClose: true }}
+        modalProps={{ destroyOnHidden: true }}
         onFinish={async (values: { change_note?: string }) => {
           if (!rollbackTarget) return false;
           try {
@@ -283,9 +297,13 @@ const ConfigHistoryTable: React.FC<ConfigHistoryTableProps> = ({
         </p>
         <ProFormTextArea
           name="change_note"
-          label={intl.formatMessage({ id: 'pages.config.system.changeNote' })}
+          label={intl.formatMessage({
+            id: 'pages.config.system.changeNote',
+            defaultMessage: 'Change Note',
+          })}
           placeholder={intl.formatMessage({
             id: 'pages.config.system.rollbackNotePlaceholder',
+            defaultMessage: 'Optional, explain the reason for rollback',
           })}
           fieldProps={{ rows: 2, maxLength: 500, showCount: true }}
         />

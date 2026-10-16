@@ -9,7 +9,10 @@ const Exception404: React.FC = () => {
       <Result
         status="404"
         title="404"
-        subTitle={intl.formatMessage({ id: 'pages.404.subTitle' })}
+        subTitle={intl.formatMessage({
+          id: 'pages.404.subTitle',
+          defaultMessage: 'Sorry, the page you visited does not exist.',
+        })}
         extra={
           // Design decision: /account/center is accessible to all authenticated users,
           // so no additional permission check is needed before redirecting here.
@@ -17,7 +20,10 @@ const Exception404: React.FC = () => {
           // 个人中心对所有已认证用户可见，是安全的默认跳转目标
           <Link to="/account/center" prefetch>
             <Button type="primary">
-              {intl.formatMessage({ id: 'pages.404.buttonText' })}
+              {intl.formatMessage({
+                id: 'pages.404.buttonText',
+                defaultMessage: 'Back Home',
+              })}
             </Button>
           </Link>
         }

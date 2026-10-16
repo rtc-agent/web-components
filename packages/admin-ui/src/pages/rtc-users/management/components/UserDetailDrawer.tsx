@@ -8,6 +8,7 @@ import {
   Drawer,
   Row,
   Space,
+  Spin,
   Statistic,
   Table,
   Tabs,
@@ -286,6 +287,7 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
   };
 
   const titleSuffix = user ? ` - ${user.email || user.id.slice(0, 8)}` : '';
+  const isLoading = devicesLoading || statsLoading;
 
   return (
     <Drawer
@@ -295,12 +297,17 @@ const UserDetailDrawer: React.FC<UserDetailDrawerProps> = ({
       })}${titleSuffix}`}
       open={open}
       onClose={onClose}
-      width={isMobile ? '90%' : 800}
+      width={isMobile ? '95vw' : 800}
       destroyOnHidden
+      extra={isLoading && <Spin size="small" />}
     >
       {user && (
         <>
           <Descriptions
+            title={intl.formatMessage({
+              id: 'pages.rtcUsers.detail.basicInfo',
+              defaultMessage: 'Basic information',
+            })}
             column={2}
             bordered
             size="small"

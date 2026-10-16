@@ -294,6 +294,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'Rollback to v{version}',
   // User Detail
   'pages.rtcUsers.detail.title': 'ব্যবহারকারীর বিবরণ',
+  'pages.rtcUsers.detail.basicInfo': 'মৌলিক তথ্য',
   'pages.rtcUsers.detail.devices': 'ডিভাইস',
   'pages.rtcUsers.detail.tokens': 'টোকেন ব্যবহার',
   'pages.rtcUsers.detail.online': 'অনলাইন',

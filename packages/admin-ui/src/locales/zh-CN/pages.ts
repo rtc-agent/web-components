@@ -331,6 +331,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': '回滚到 v{version}',
   // 用户详情
   'pages.rtcUsers.detail.title': '用户详情',
+  'pages.rtcUsers.detail.basicInfo': '基本信息',
   'pages.rtcUsers.detail.devices': '设备列表',
   'pages.rtcUsers.detail.tokens': 'Token 消耗',
   'pages.rtcUsers.detail.online': '在线',

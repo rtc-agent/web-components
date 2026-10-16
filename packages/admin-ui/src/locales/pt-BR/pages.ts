@@ -309,6 +309,7 @@ export default {
   'pages.config.user.rollbackDefaultNote': 'Reverter para v{version}',
   // User Detail
   'pages.rtcUsers.detail.title': 'Detalhes do Usuário',
+  'pages.rtcUsers.detail.basicInfo': 'Informações Básicas',
   'pages.rtcUsers.detail.devices': 'Dispositivos',
   'pages.rtcUsers.detail.tokens': 'Uso de Tokens',
   'pages.rtcUsers.detail.online': 'Online',
