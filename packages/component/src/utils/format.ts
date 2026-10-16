@@ -119,6 +119,9 @@ export function formatPercentage(
  * - Using Intl.NumberFormat with `style: 'unit'` and `unit: 'megabyte'` (limited support)
  * - Creating a locale-specific unit mapping (not recommended for technical audiences)
  *
+ * TODO(i18n): File size units are always in English (IEC standard).
+ * Consider locale-based unit names if requested by users.
+ *
  * @param bytes - Number of bytes
  * @param decimals - Number of decimal places (default: 2)
  * @param locale - Optional locale override (defaults to current locale)
@@ -210,11 +213,9 @@ function getCachedNumberFormatter(
   locale: string,
   options?: Intl.NumberFormatOptions,
 ): Intl.NumberFormat {
-  // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
-  const optsKey = options
-    ? `${options.minimumFractionDigits ?? ''}${options.maximumFractionDigits ?? ''}${options.style ?? ''}${options.currency ?? ''}`
-    : '';
-  const cacheKey = `${locale}_${optsKey}`;
+  // Use JSON.stringify for the options portion to guarantee a unique cache key
+  // regardless of option content (avoids collisions from simple concatenation).
+  const cacheKey = `${locale}_${options ? JSON.stringify(options) : ''}`;
 
   let formatter = numberFormatterCache.get(cacheKey);
   if (!formatter) {
@@ -233,11 +234,9 @@ function getCachedFormatter(
   type: 'date' | 'time' | 'datetime',
   options?: Intl.DateTimeFormatOptions,
 ): Intl.DateTimeFormat {
-  // Build cache key from commonly-used option fields to avoid JSON.stringify overhead
-  const optsKey = options
-    ? `${options.year ?? ''}${options.month ?? ''}${options.day ?? ''}${options.hour ?? ''}${options.minute ?? ''}${options.second ?? ''}${options.hour12 ?? ''}${options.timeZone ?? ''}`
-    : '';
-  const cacheKey = `${locale}_${type}_${optsKey}`;
+  // Use JSON.stringify for the options portion to guarantee a unique cache key
+  // regardless of option content (avoids collisions from simple concatenation).
+  const cacheKey = `${locale}_${type}_${options ? JSON.stringify(options) : ''}`;
 
   let formatter = dateFormatterCache.get(cacheKey);
   if (!formatter) {
