@@ -84,17 +84,15 @@ export function createAdminAuthProvider(): AuthProvider {
       // 旧的 admin JWT 虽不能再被 exchange，但仍可用于 admin-server API，
       // 因此刷新失败时保留本地状态比直接 logout 更友好。
       if (hint?.reason === 'already_used') {
-        console.log('[getExchangeToken] already_used hint received, attempting refresh');
         const refreshToken = await getRefreshToken();
         if (refreshToken) {
           const newToken = await refreshAccessTokenForExchange();
           if (newToken) {
-            console.log('[getExchangeToken] refresh succeeded, returning new token');
             return newToken;
           }
           // 刷新失败：抛出错误，让 Auth Controller 的重试循环决定是否继续
           // 而不是返回已知无效的旧 token（会导致 5 次无效重试）
-          console.warn('[getExchangeToken] refresh failed, throwing error');
+          console.warn('[getExchangeToken] refresh failed after already_used rejection');
           throw new Error('Failed to refresh token after already_used rejection');
         }
 
@@ -102,18 +100,15 @@ export function createAdminAuthProvider(): AuthProvider {
         // 等待并发刷新真正完成（而不是盲目等待固定时间）
         // waitForConcurrentRefresh() 会检查 refreshPromise 是否存在，
         // 如果存在则 await 它，确保 setTokens() 的加密操作已完成
-        console.log('[getExchangeToken] refresh token already rotated, waiting for concurrent refresh to complete');
         await waitForConcurrentRefresh();
 
         // 重新读取最新的 access token（应该已经被并发刷新更新了）
         const newToken = await getAccessTokenDecrypted();
         if (newToken) {
-          console.log('[getExchangeToken] got new token after waiting, returning it');
           return newToken;
         }
 
         // 仍然没有 token，无法继续
-        console.warn('[getExchangeToken] no token available after waiting');
         throw new Error('No refresh token or access token available for already_used retry');
       }
 

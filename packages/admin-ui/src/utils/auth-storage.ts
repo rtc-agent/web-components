@@ -660,13 +660,10 @@ export const cancelPendingRefresh = () => {
  */
 export const waitForConcurrentRefresh = async (): Promise<void> => {
   if (refreshPromise) {
-    console.log('[waitForConcurrentRefresh] Waiting for concurrent refresh to complete');
     try {
       await refreshPromise;
-      console.log('[waitForConcurrentRefresh] Concurrent refresh completed');
-    } catch (error) {
+    } catch {
       // 刷新失败也继续，调用方会尝试读取当前 token
-      console.warn('[waitForConcurrentRefresh] Concurrent refresh failed:', error);
     }
   }
 };
