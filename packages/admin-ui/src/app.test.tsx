@@ -104,8 +104,6 @@ describe('app getInitialState', () => {
     expect(state.currentUser?.permissions).toBeInstanceOf(Set);
     expect(state.currentUser?.permissions?.size).toBe(0);
     expect(state.currentUser?.roles).toBeUndefined();
-    expect(state.settingDrawerOpen).toBe(false);
-    expect(state.fetchUserInfo).toBeDefined();
   });
 
   it('should return undefined when currentUser fetch fails (401 handled by interceptor)', async () => {
@@ -131,7 +129,6 @@ describe('app getInitialState', () => {
 
     expect(mockGetCurrentUser).not.toHaveBeenCalled();
     expect(state.currentUser).toBeUndefined();
-    expect(state.fetchUserInfo).toBeDefined();
   });
 
   it('should not redirect on 401 (handled by response interceptor)', async () => {
@@ -164,7 +161,6 @@ describe('app getInitialState', () => {
   });
 
   it('fetchUserInfo should return user data on success', async () => {
-    const { getInitialState } = await import('./app');
     mockGetCurrentUser.mockResolvedValue({
       id: '1',
       name: 'Fetched User',
@@ -172,9 +168,10 @@ describe('app getInitialState', () => {
       avatar_url: '',
     });
 
-    const state = await getInitialState();
+    // fetchUserInfo is now a standalone utility (not part of InitialState)
+    const { fetchUserInfo } = await import('@/utils/auth-actions');
 
-    const user = await state.fetchUserInfo?.();
+    const user = await fetchUserInfo();
     expect(user).toMatchObject({
       userid: '1',
       name: 'Fetched User',

@@ -31,7 +31,7 @@ export const queryKeys = {
   // System configuration list (server-config.ts)
   configs: {
     all: ['configs'] as const,
-    list: (params?: Record<string, unknown>) =>
+    list: <T extends Record<string, unknown>>(params?: T) =>
       [...queryKeys.configs.all, 'list', params] as const,
     detail: (key: string) => [...queryKeys.configs.all, 'detail', key] as const,
     history: (key: string) =>
@@ -41,17 +41,21 @@ export const queryKeys = {
   rtcAgent: {
     all: ['rtc-agent'] as const,
     // User management list
-    users: (params?: Record<string, unknown>) =>
+    users: <T extends Record<string, unknown>>(params?: T) =>
       [...queryKeys.rtcAgent.all, 'users', params] as const,
     // User detail/info
     userDetail: (userId: string) =>
       [...queryKeys.rtcAgent.all, 'user-detail', userId] as const,
     // User sessions list
-    userSessions: (userId: string, params?: Record<string, unknown>) =>
-      [...queryKeys.rtcAgent.all, 'user-sessions', userId, params] as const,
+    userSessions: <T extends Record<string, unknown>>(
+      userId: string,
+      params?: T,
+    ) => [...queryKeys.rtcAgent.all, 'user-sessions', userId, params] as const,
     // User messages list
-    userMessages: (userId: string, params?: Record<string, unknown>) =>
-      [...queryKeys.rtcAgent.all, 'user-messages', userId, params] as const,
+    userMessages: <T extends Record<string, unknown>>(
+      userId: string,
+      params?: T,
+    ) => [...queryKeys.rtcAgent.all, 'user-messages', userId, params] as const,
     // User configs
     userConfigs: (userId: string, category?: string) =>
       [...queryKeys.rtcAgent.all, 'user-configs', userId, category] as const,
@@ -59,7 +63,7 @@ export const queryKeys = {
   // Audit logs (audit-logs page)
   auditLogs: {
     all: ['audit-logs'] as const,
-    list: (params?: Record<string, unknown>) =>
+    list: <T extends Record<string, unknown>>(params?: T) =>
       [...queryKeys.auditLogs.all, 'list', params] as const,
     detail: (id: string) => [...queryKeys.auditLogs.all, 'detail', id] as const,
   },

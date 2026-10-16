@@ -6,17 +6,12 @@ import {
   ProFormText,
 } from '@ant-design/pro-components';
 import { useQuery } from '@tanstack/react-query';
-import {
-  FormattedMessage,
-  Helmet,
-  SelectLang,
-  useIntl,
-  useModel,
-} from '@umijs/max';
+import { FormattedMessage, Helmet, SelectLang, useIntl } from '@umijs/max';
 import { Alert, App, Button, Skeleton, Tabs } from 'antd';
 import { createStyles } from 'antd-style';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Footer } from '@/components';
+import { fetchUserInfo } from '@/utils/auth-actions';
 import { setTokens, setUserInfo } from '@/utils/auth-storage';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 import { CONFIG_CACHE } from '@/utils/queryCacheConfig';
@@ -151,7 +146,6 @@ const Login: React.FC = () => {
   const [type, setType] = useState<string>('account');
   // 提交中状态，用于禁用按钮并展示 loading
   const [submitting, setSubmitting] = useState(false);
-  const { initialState } = useModel('@@initialState');
   const { styles } = useStyles();
   const { message } = App.useApp();
   const intl = useIntl();
@@ -177,13 +171,13 @@ const Login: React.FC = () => {
     }
   }, [loginConfig, configLoading]);
 
-  const fetchUserInfo = useCallback(async () => {
+  const refreshUserInfo = useCallback(async () => {
     try {
-      // Call the shared fetchUserInfo from initialState (defined in app.tsx).
+      // Call the shared fetchUserInfo utility (defined in utils/auth-actions.ts).
       // This function handles token validation, API calls, and fallback logic.
       // We don't manually call setInitialState here — instead, we rely on the
       // unified initialization flow to update state after redirect.
-      await initialState?.fetchUserInfo?.();
+      await fetchUserInfo();
     } catch (error) {
       // Log fetchUserInfo failure for debugging, but don't block login flow.
       // The user info will be re-fetched on subsequent page loads.
@@ -192,7 +186,7 @@ const Login: React.FC = () => {
         error,
       );
     }
-  }, [initialState]);
+  }, []);
 
   /** 密码登录 */
   const handlePasswordLogin = async (values: {
@@ -213,7 +207,7 @@ const Login: React.FC = () => {
       const handled = await handleLoginSuccess(result, {
         setTokensFn: setTokens,
         setUserInfoFn: setUserInfo,
-        fetchUserInfo,
+        fetchUserInfo: refreshUserInfo,
         messageSuccess: message.success,
         successText,
       });
@@ -269,7 +263,7 @@ const Login: React.FC = () => {
       const handled = await handleLoginSuccess(result, {
         setTokensFn: setTokens,
         setUserInfoFn: setUserInfo,
-        fetchUserInfo,
+        fetchUserInfo: refreshUserInfo,
         messageSuccess: message.success,
         successText,
       });

@@ -8,9 +8,11 @@ import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React, { startTransition, useState } from 'react';
 import { logout as apiLogout } from '@/services/admin-auth';
+import { fetchUserInfo } from '@/utils/auth-actions';
 import { clearAuth, getRefreshToken } from '@/utils/auth-storage';
 import { iframeCacheManager } from '@/utils/iframe-cache';
 import { unmountRtcAgent } from '@/utils/rtc-agent-manager';
+import { openSettingDrawer } from '@/utils/settingDrawer';
 import HeaderDropdown from '../HeaderDropdown';
 import ProfileSettingsModal from '../ProfileSettingsModal';
 
@@ -108,7 +110,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
     }
     if (key === 'theme') {
       try {
-        setInitialState((s) => ({ ...s, settingDrawerOpen: true }));
+        openSettingDrawer();
       } catch (error) {
         console.error('[AvatarDropdown] Failed to open theme settings:', error);
       }
@@ -151,7 +153,7 @@ export const AvatarDropdown: React.FC<GlobalHeaderRightProps> = ({
         onSuccess={async () => {
           setProfileModalOpen(false);
           // Refresh user info without full page reload
-          const userInfo = await initialState?.fetchUserInfo?.();
+          const userInfo = await fetchUserInfo();
           if (userInfo) {
             startTransition(() => {
               try {

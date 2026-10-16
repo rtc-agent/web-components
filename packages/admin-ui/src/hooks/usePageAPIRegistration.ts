@@ -32,7 +32,11 @@ export function usePageAPIRegistration<K extends keyof PagesRegistry>(
     console.log(`[Page:${pageName}] Page API registered`);
 
     return () => {
-      delete window.__pages__?.[pageName];
+      // Create a new registry object to ensure any code that destructured
+      // window.__pages__ doesn't observe a stale snapshot after deletion.
+      const registry = { ...window.__pages__ };
+      delete registry[pageName];
+      window.__pages__ = registry;
       cleanup?.();
       console.log(`[Page:${pageName}] Page API unregistered`);
     };

@@ -5,7 +5,7 @@ import { getLocale, history, Link, useIntl } from '@umijs/max';
 import { App } from 'antd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { InitialState } from '@/initialState.types';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/zh-tw';
@@ -39,10 +39,10 @@ import {
 } from '@/components';
 import { getTopLevelRedirectTarget } from '@/constants/permission-priority';
 import { isPublicPath, PUBLIC_PATHS } from '@/constants/routes';
+import { fetchUserInfo } from '@/utils/auth-actions';
 import {
   AUTH_STATE_CHANGED_EVENT,
   cancelPendingRefresh,
-  getUserInfo,
   isAuthenticated,
 } from '@/utils/auth-storage';
 import {
@@ -54,8 +54,10 @@ import {
   RTL_LOCALES,
   setDocumentDirection,
 } from '@/utils/locale-helpers';
-import { buildCurrentUser } from '@/utils/permission';
-import { fetchAndBuildCurrentUser } from '@/utils/user-utils';
+import {
+  setSettingDrawerOpen,
+  subscribeSettingDrawer,
+} from '@/utils/settingDrawer';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig, setGlobalSetInitialState } from './requestErrorConfig';
 
@@ -256,56 +258,6 @@ export async function getInitialState(): Promise<InitialState> {
     safeInit(setDocumentDirection, 'setDocumentDirection');
     safeInit(loadDayjsLocale, 'loadDayjsLocale');
 
-    const fetchUserInfo = async (
-      signal?: AbortSignal,
-    ): Promise<API.CurrentUser | undefined> => {
-      // Check if already aborted before starting
-      if (signal?.aborted) {
-        return undefined;
-      }
-
-      // 先检查 localStorage 是否有有效的 token
-      if (!isAuthenticated()) {
-        return undefined;
-      }
-
-      try {
-        // Fetch user info and build CurrentUser object using shared helper
-        const currentUser = await fetchAndBuildCurrentUser({ signal }, true);
-
-        // Check if aborted during the request — data is already persisted,
-        // but skip the in-memory state update to avoid racing with a new init
-        if (signal?.aborted) {
-          console.warn(
-            '[getInitialState] fetchUserInfo aborted after completion, skipping state update',
-          );
-          return undefined;
-        }
-
-        return currentUser;
-      } catch (_error: unknown) {
-        // Check if this was an abort — fall through to cached fallback below
-        const errName = _error instanceof Error ? _error.name : undefined;
-        if (errName === 'AbortError' || signal?.aborted) {
-          console.warn('[getInitialState] fetchUserInfo aborted');
-        } else {
-          // Non-abort errors: network failures, 5xx, etc.
-          // Note: 401 errors are typically handled by responseInterceptors (token refresh/redirect),
-          // but may reach here if the interceptor itself fails or is bypassed.
-          console.warn('[getInitialState] fetchUserInfo failed', _error);
-        }
-
-        // 尝试从 localStorage 读取旧的用户信息作为 fallback
-        const cachedUserInfo = getUserInfo();
-        if (cachedUserInfo) {
-          console.warn('[getInitialState] Using cached user info as fallback');
-          return buildCurrentUser(cachedUserInfo);
-        }
-
-        return undefined;
-      }
-    };
-
     // 如果不是登录页面，执行
     const { location } = history;
     if (!isPublicPath(location.pathname)) {
@@ -348,10 +300,8 @@ export async function getInitialState(): Promise<InitialState> {
         // initManager.initPromise is guaranteed to be non-null here due to the check above
         const currentUser = await initManager.initPromise;
         return {
-          fetchUserInfo,
           currentUser,
           settings: loadThemeSettings(),
-          settingDrawerOpen: false,
           // Degraded flag: token exists but user info failed to load.
           // Downstream code (onPageChange) uses this to show a warning toast.
           degraded: !currentUser && isAuthenticated(),
@@ -362,9 +312,7 @@ export async function getInitialState(): Promise<InitialState> {
       }
     }
     return {
-      fetchUserInfo,
       settings: loadThemeSettings(),
-      settingDrawerOpen: false,
       degraded: false,
     };
   } catch (error) {
@@ -374,10 +322,8 @@ export async function getInitialState(): Promise<InitialState> {
       error,
     );
     return {
-      fetchUserInfo: async (_signal?: AbortSignal) => undefined,
       currentUser: undefined, // 明确设置 currentUser，防止后续依赖代码出现未定义错误
       settings: loadThemeSettings(),
-      settingDrawerOpen: false,
       degraded: true, // P0 修复：明确标记为降级状态，让 onPageChange 能够正确处理
     };
   }
@@ -406,6 +352,49 @@ const redirectByPermissions = (
     return true;
   }
   return false;
+};
+
+/**
+ * SettingsDrawer wrapper with local state management.
+ *
+ * Uses local useState instead of InitialState to avoid re-rendering all
+ * initialState consumers when the drawer opens/closes (pure UI state).
+ * Subscribes to external open requests via the settingDrawer module
+ * (e.g. AvatarDropdown's "Theme" menu item).
+ */
+const SettingsDrawerManager: React.FC<{
+  settings?: Partial<LayoutSettings>;
+  onSettingChange: (settings: Partial<LayoutSettings>) => void;
+}> = ({ settings, onSettingChange }) => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    // Subscribe to external open requests (e.g. from AvatarDropdown)
+    const unsubscribe = subscribeSettingDrawer((open) => setDrawerOpen(open));
+    return unsubscribe;
+  }, []);
+
+  return (
+    <SettingDrawer
+      disableUrlParams
+      enableDarkTheme
+      collapse={drawerOpen}
+      onCollapseChange={(open) => {
+        try {
+          setDrawerOpen(open);
+          // Sync back to the module state so getSettingDrawerOpen() stays accurate
+          setSettingDrawerOpen(open);
+        } catch (error) {
+          console.error(
+            '[SettingsDrawerManager] Failed to toggle setting drawer:',
+            error,
+          );
+        }
+      }}
+      settings={settings}
+      onSettingChange={onSettingChange}
+    />
+  );
 };
 
 // ProLayout 支持的api https://procomponents.ant.design/components/layout
@@ -583,23 +572,7 @@ export const layout: RunTimeLayoutConfig = ({
       return (
         <>
           {children}
-          <SettingDrawer
-            disableUrlParams
-            enableDarkTheme
-            collapse={initialState?.settingDrawerOpen}
-            onCollapseChange={(open) => {
-              try {
-                setInitialState((s) => ({
-                  ...s,
-                  settingDrawerOpen: open,
-                }));
-              } catch (error) {
-                console.error(
-                  '[app.tsx] Failed to toggle setting drawer:',
-                  error,
-                );
-              }
-            }}
+          <SettingsDrawerManager
             settings={initialState?.settings}
             onSettingChange={(settings) => {
               saveThemeSettings(settings);
