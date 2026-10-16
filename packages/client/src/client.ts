@@ -935,6 +935,12 @@ export class RTCAgentClient implements IRTCAgentClient {
           return; // Gap fill caught up
         }
 
+        // Gap fill still in progress — treat as activity to prevent heartbeat false positive.
+        // The polling loop actively checks IndexedDB for offset progress, which counts as
+        // legitimate connection activity (we're monitoring the gap fill state machine).
+        // Without this update, long gap fills (>60s) could trigger heartbeat timeout reconnect.
+        this._lastActivityTime = Date.now();
+
         // Check again after await in case abort happened during getLastOffset
         if (waitAbort.signal.aborted) {
           throw new Error(`Gap fill aborted for channel ${channel}`);

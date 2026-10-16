@@ -219,18 +219,125 @@ export class OAuth2Client {
   /**
    * Refresh the access token.
    *
+   * Retry strategy: Up to 1 retry (2 total attempts) with exponential backoff.
+   * - 502/503/504: Transient server errors, safe to retry.
+   * - 429: Rate limit signal, should retry (respect Retry-After header if present).
+   * - 4xx errors: Client errors (invalid request, unauthorized), NOT retried.
+   * - Network errors: Transient connectivity issues, safe to retry.
+   *
+   * SECURITY: Retry limit is intentionally low (max 1 retry) to prevent resource exhaustion.
+   * If the refresh token is invalid or expired, retries would waste resources;
+   * the caller should handle the error and prompt the user to re-authenticate.
+   *
    * @param refreshToken Refresh token
    * @returns New access token response
    */
   async refreshToken(
     refreshToken: string,
   ): Promise<OAuth2TokenRefreshResponse> {
-    const resp = await this.fetchWithTimeout('/oauth2/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    return (await resp.json()) as OAuth2TokenRefreshResponse;
+    const url = `${this.serverURL}/oauth2/refresh`;
+    const body = JSON.stringify({ refresh_token: refreshToken });
+    const maxRetries = 1;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          credentials: 'omit', // SECURITY: prevent cookie leakage to cross-origin requests
+          signal: controller.signal,
+        });
+
+        if (!resp.ok) {
+          const statusCode = resp.status;
+
+          // Check if this is a retryable error (502, 503, 504, 429)
+          const isRetryable =
+            statusCode === 502 ||
+            statusCode === 503 ||
+            statusCode === 504 ||
+            statusCode === 429;
+
+          if (isRetryable && attempt < maxRetries) {
+            // Respect Retry-After header for 429 responses to prevent overwhelming rate-limited servers
+            const retryAfterHeader = resp.headers.get('Retry-After');
+            let retryDelay: number;
+
+            if (retryAfterHeader) {
+              const retryAfterSeconds = parseInt(retryAfterHeader, 10);
+              if (!isNaN(retryAfterSeconds) && retryAfterSeconds > 0) {
+                retryDelay = retryAfterSeconds * 1000;
+                log.debug(
+                  `refreshToken: respecting Retry-After header (${retryAfterSeconds}s)`,
+                );
+              } else {
+                // Invalid Retry-After value, fall back to exponential backoff
+                retryDelay =
+                  OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+                  Math.random() * 500;
+              }
+            } else {
+              // No Retry-After header, use exponential backoff with jitter
+              retryDelay =
+                OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+                Math.random() * 500;
+            }
+
+            log.debug(
+              `refreshToken: retryable error ${statusCode}, ` +
+                `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+                `retrying in ${Math.round(retryDelay)}ms`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, retryDelay));
+            continue;
+          }
+
+          // Non-retryable error or final attempt
+          throw new Error(
+            `Token refresh failed: ${statusCode} ${resp.statusText || 'Request failed'}`,
+          );
+        }
+
+        return (await resp.json()) as OAuth2TokenRefreshResponse;
+      } catch (err) {
+        // Re-throw Error as-is (HTTP errors already handled above)
+        if (
+          err instanceof Error &&
+          err.message.startsWith('Token refresh failed:')
+        ) {
+          throw err;
+        }
+
+        // Network errors (fetch failures, AbortError) are retryable — they indicate
+        // transient connectivity issues, not client errors.
+        if (attempt < maxRetries) {
+          const retryDelay =
+            OAuth2Client.TOKEN_EXCHANGE_RETRY_DELAY_MS * 2 ** attempt +
+            Math.random() * 500;
+          log.debug(
+            `refreshToken: network error, ` +
+              `attempt ${attempt + 1}/${maxRetries + 1}, ` +
+              `retrying in ${Math.round(retryDelay)}ms`,
+            err instanceof Error ? err.message : String(err),
+          );
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          continue;
+        }
+
+        throw new Error(
+          `Token refresh failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // Should never reach here, but satisfy TypeScript
+    throw new Error('Token refresh failed: max retries exceeded');
   }
 
   /**

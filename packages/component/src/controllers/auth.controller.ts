@@ -850,7 +850,7 @@ export class AuthController implements ReactiveController {
       const rtcUserId = this._parseUserIdFromJwtPayload(response.access_token);
       if (!rtcUserId) {
         log.error(
-          'token_exchange.no_sub_in_jwt: RTC JWT does not contain a `sub` claim. ' +
+          'token_exchange.no_user_id_in_jwt: RTC JWT does not contain `user_id` or `sub` claim. ' +
             'Cannot determine RTC userId. Refusing to fall back to authProvider.getUserId() ' +
             'because that would use the external identity system.',
         );
