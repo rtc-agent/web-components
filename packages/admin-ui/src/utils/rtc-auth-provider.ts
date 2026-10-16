@@ -96,9 +96,23 @@ export function createAdminAuthProvider(): AuthProvider {
           console.warn('[getExchangeToken] refresh failed, throwing error');
           throw new Error('Failed to refresh token after already_used rejection');
         }
-        // 没有 refresh token，无法刷新
-        console.warn('[getExchangeToken] no refresh token available');
-        throw new Error('No refresh token available for already_used retry');
+
+        // Refresh token 已被标记为 rotated，说明其他地方（如 checkAuth）刚完成了刷新
+        // 等待一小段时间，让 setTokens() 完成加密和存储
+        // 然后重新读取最新的 access token
+        console.log('[getExchangeToken] refresh token already rotated, waiting for concurrent refresh to complete');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 重新读取最新的 access token（应该已经被并发刷新更新了）
+        const newToken = await getAccessTokenDecrypted();
+        if (newToken) {
+          console.log('[getExchangeToken] got new token after waiting, returning it');
+          return newToken;
+        }
+
+        // 仍然没有 token，无法继续
+        console.warn('[getExchangeToken] no token available after waiting');
+        throw new Error('No refresh token or access token available for already_used retry');
       }
 
       // Case 1: 常规过期刷新（失败即 logout，保持原有行为）
