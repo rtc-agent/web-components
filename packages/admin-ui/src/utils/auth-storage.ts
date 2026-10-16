@@ -537,8 +537,13 @@ export const refreshAccessToken = async (
       }
       // 超时后标记旧 token 为已使用（防止重放攻击）
       markRefreshTokenAsRotated();
-      // 注意：不在此处设置 refreshPromise = null，让 finally 统一处理清理
-      // 这样可以防止在 catch/finally 执行前，另一个调用者发起新的刷新请求
+
+      // CRITICAL: 在 reject 之前清空 refreshPromise，防止竞态条件
+      // 如果在 reject 和 finally 之间有新的并发调用，新调用会看到
+      // refreshPromise 仍存在并返回该 promise，但该 promise 正在被拒绝。
+      // 提前清空可以让新调用发起新的刷新请求。
+      refreshPromise = null;
+
       refreshTimeout = null;
       refreshAbortController = null;
       reject(new Error('Token refresh timeout'));

@@ -224,3 +224,14 @@ export function unmountRtcAgent() {
     console.log('[RTC Agent Manager] No RTC Agent instance to destroy');
   }
 }
+
+// HMR cleanup: prevent memory leaks and duplicate components
+// When the module is re-evaluated during development, destroy the old instance
+// before the module state is reset, preventing orphaned components in DOM.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    console.log('[RTC Agent Manager] HMR dispose, cleaning up...');
+    unmountRtcAgent();
+    importPromise = null;
+  });
+}

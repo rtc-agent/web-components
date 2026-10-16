@@ -107,6 +107,7 @@ export type {
   AuthConfig,
   AuthProvider,
   EventCallbacks,
+  ExchangeTokenHint,
 } from './types/factory.js';
 
 /**

@@ -44,58 +44,77 @@ export function setGlobalSetInitialState(fn: SetInitialStateFn | null) {
  *
  * 使用统一的 refreshAccessToken 函数刷新 token，
  * 然后重新获取用户权限信息并更新全局状态。
+ *
+ * 去重机制：如果多个请求同时收到 401，只执行一次刷新流程，
+ * 其他调用者复用同一个 promise，避免重复的网络请求和状态更新。
  */
-async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
-  // 使用统一的刷新函数刷新 token
-  const newToken = await refreshAccessToken();
+let refreshAndPermissionsPromise: Promise<string | null> | null = null;
 
-  if (!newToken) {
-    return null;
+async function refreshTokenAndUpdatePermissions(): Promise<string | null> {
+  // 去重：如果已有刷新流程在进行中，复用该 promise
+  if (refreshAndPermissionsPromise) {
+    return refreshAndPermissionsPromise;
   }
 
-  // 同时刷新权限数据
-  try {
-    const userInfo = await getCurrentUser();
-    if (userInfo && globalSetInitialState) {
-      // 构建权限集合和访问级别
-      const permissionSet = buildPermissionSet(userInfo.permissions);
-      const access = computeAccessLevel(userInfo.roles);
+  refreshAndPermissionsPromise = (async () => {
+    // 使用统一的刷新函数刷新 token
+    const newToken = await refreshAccessToken();
 
-      // 直接使用 setInitialState 更新权限数据
-      // 等待状态更新完成，确保权限数据同步
-      await globalSetInitialState((prev: any) => ({
-        ...prev,
-        currentUser: {
-          ...prev?.currentUser,
-          userid: userInfo.id,
-          name: userInfo.name,
-          email: userInfo.email,
-          avatar: userInfo.avatar_url,
-          roles: userInfo.roles,
-          access,
-          permissions: permissionSet,
-        },
-      }));
-    } else if (userInfo && !globalSetInitialState) {
-      // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
-      // 此时权限数据无法更新，管理员可能需要刷新页面才能看到最新权限
-      console.warn(
-        '[refreshTokenAndUpdatePermissions] globalSetInitialState is null, permission data not updated.',
+    if (!newToken) {
+      return null;
+    }
+
+    // 同时刷新权限数据
+    try {
+      const userInfo = await getCurrentUser();
+      if (userInfo && globalSetInitialState) {
+        // 构建权限集合和访问级别
+        const permissionSet = buildPermissionSet(userInfo.permissions);
+        const access = computeAccessLevel(userInfo.roles);
+
+        // 直接使用 setInitialState 更新权限数据
+        // 等待状态更新完成，确保权限数据同步
+        await globalSetInitialState((prev: any) => ({
+          ...prev,
+          currentUser: {
+            ...prev?.currentUser,
+            userid: userInfo.id,
+            name: userInfo.name,
+            email: userInfo.email,
+            avatar: userInfo.avatar_url,
+            roles: userInfo.roles,
+            access,
+            permissions: permissionSet,
+          },
+        }));
+      } else if (userInfo && !globalSetInitialState) {
+        // 注意：如果 globalSetInitialState 为 null，说明 layout 还未 mount
+        // 此时权限数据无法更新，管理员可能需要刷新页面才能看到最新权限
+        console.warn(
+          '[refreshTokenAndUpdatePermissions] globalSetInitialState is null, permission data not updated.',
+        );
+      }
+    } catch (error) {
+      console.error(
+        '[refreshTokenAndUpdatePermissions] 刷新权限数据失败:',
+        error,
+      );
+      // 权限数据刷新失败时，通知管理员可能需要刷新页面
+      // 但不阻断 token 刷新流程
+      message.warning(
+        '权限数据同步失败，部分功能可能受限。建议刷新页面获取最新权限。',
       );
     }
-  } catch (error) {
-    console.error(
-      '[refreshTokenAndUpdatePermissions] 刷新权限数据失败:',
-      error,
-    );
-    // 权限数据刷新失败时，通知管理员可能需要刷新页面
-    // 但不阻断 token 刷新流程
-    message.warning(
-      '权限数据同步失败，部分功能可能受限。建议刷新页面获取最新权限。',
-    );
-  }
 
-  return newToken;
+    return newToken;
+  })();
+
+  try {
+    return await refreshAndPermissionsPromise;
+  } finally {
+    // 清理 promise，允许下次刷新
+    refreshAndPermissionsPromise = null;
+  }
 }
 
 // 与后端约定的响应数据格式

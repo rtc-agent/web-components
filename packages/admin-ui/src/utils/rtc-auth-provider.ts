@@ -91,14 +91,14 @@ export function createAdminAuthProvider(): AuthProvider {
             console.log('[getExchangeToken] refresh succeeded, returning new token');
             return newToken;
           }
-          console.warn('[getExchangeToken] refresh returned null, falling through to old token');
-          // 轻量刷新失败：保留旧 token 让 retry 循环自然退出，
-          // 不抛错以避免意外触发 logout。
-        } else {
-          console.warn('[getExchangeToken] no refresh token available');
+          // 刷新失败：抛出错误，让 Auth Controller 的重试循环决定是否继续
+          // 而不是返回已知无效的旧 token（会导致 5 次无效重试）
+          console.warn('[getExchangeToken] refresh failed, throwing error');
+          throw new Error('Failed to refresh token after already_used rejection');
         }
-        // 没有 refresh token 时，继续走下面的常规路径；
-        // 若旧 token 已过期则在那里抛错。
+        // 没有 refresh token，无法刷新
+        console.warn('[getExchangeToken] no refresh token available');
+        throw new Error('No refresh token available for already_used retry');
       }
 
       // Case 1: 常规过期刷新（失败即 logout，保持原有行为）

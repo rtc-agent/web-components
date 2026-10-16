@@ -107,8 +107,9 @@ export const GlobalRtcAgent: React.FC = () => {
     let authenticated = isAuthenticated();
 
     // Token 过期但 refresh token 仍在？先尝试刷新，避免误判为未登录
+    // 使用 clearOnFailure: false，临时网络问题不会清除认证状态
     if (!authenticated) {
-      const newToken = await refreshAccessToken();
+      const newToken = await refreshAccessToken({ clearOnFailure: false });
       if (newToken) {
         authenticated = true;
       }

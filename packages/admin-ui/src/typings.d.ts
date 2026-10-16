@@ -19,6 +19,15 @@ declare const __APP_VERSION__: string;
 declare const __UMI_VERSION__: string;
 declare const __UTOO_VERSION__: string;
 
+// Vite HMR API types
+interface ImportMeta {
+  hot?: {
+    accept: () => void;
+    dispose: (callback: () => void) => void;
+    // ... other HMR methods
+  };
+}
+
 // Page API registry — each page registers its API on mount
 // Individual page-api.ts files extend PagesRegistry via declaration merging
 /** Registry of all page APIs - extend via interface merging */
