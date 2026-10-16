@@ -60,10 +60,32 @@ export class TokenExchangeError extends Error {
   /** HTTP status code from the backend */
   readonly statusCode: number;
 
-  constructor(statusCode: number, message: string) {
+  /**
+   * Machine-readable error code from the backend (e.g., "already_used", "invalid_grant").
+   * Mirrors the OAuth2 / RFC 8693 "error" field.
+   *
+   * Optional: older backends or network errors may not provide it.
+   */
+  readonly errorCode?: string;
+
+  /**
+   * Human-readable error description from the backend.
+   * Mirrors the OAuth2 / RFC 8693 "error_description" field.
+   *
+   * Optional: older backends or network errors may not provide it.
+   */
+  readonly errorDescription?: string;
+
+  constructor(
+    statusCode: number,
+    message: string,
+    options?: { errorCode?: string; errorDescription?: string },
+  ) {
     super(message);
     this.name = 'TokenExchangeError';
     this.statusCode = statusCode;
+    this.errorCode = options?.errorCode;
+    this.errorDescription = options?.errorDescription;
   }
 }
 

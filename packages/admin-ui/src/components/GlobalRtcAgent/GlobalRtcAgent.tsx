@@ -124,7 +124,10 @@ export const GlobalRtcAgent: React.FC = () => {
   }, [isExcludedRoute]);
 
   useEffect(() => {
-    console.log('[GlobalRtcAgent] Component mounted');
+    const checkAuth = () => {
+      const authenticated = isAuthenticated();
+      setIsLoggedIn(authenticated);
+    };
 
     // 初始检查
     checkAuth();
@@ -137,12 +140,10 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 监听网络状态变化
     const handleOnline = () => {
-      console.log('[GlobalRtcAgent] Network online');
       // 网络恢复时，如果已登录且 agent 已挂载，组件会自动重连
     };
 
     const handleOffline = () => {
-      console.log('[GlobalRtcAgent] Network offline');
       // 网络断开时，组件会自动处理重连逻辑
     };
 
@@ -151,11 +152,7 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 监听页面可见性变化（优化性能）
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        console.log('[GlobalRtcAgent] Tab hidden');
-        // 页面隐藏时，可以减少轮询频率或暂停某些操作
-      } else {
-        console.log('[GlobalRtcAgent] Tab visible');
+      if (!document.hidden) {
         // 页面可见时，立即检查 auth 状态
         checkAuth();
       }
@@ -169,7 +166,6 @@ export const GlobalRtcAgent: React.FC = () => {
     const interval = setInterval(checkAuth, 5000);
 
     return () => {
-      console.log('[GlobalRtcAgent] Component unmounting');
       window.removeEventListener(AUTH_STATE_CHANGED_EVENT, checkAuth);
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('online', handleOnline);
@@ -181,7 +177,6 @@ export const GlobalRtcAgent: React.FC = () => {
 
   // 路由变化时重新检查认证状态
   useEffect(() => {
-    console.log('[GlobalRtcAgent] Route changed, excluded:', isExcludedRoute);
     checkAuth();
   }, [isExcludedRoute, checkAuth]);
 
@@ -199,12 +194,10 @@ export const GlobalRtcAgent: React.FC = () => {
       const userInfo = getUserInfo();
 
       if (permissions.length > 0) {
-        console.log('[GlobalRtcAgent] Permissions loaded:', permissions);
         setPermissionsReady(true);
       }
 
       if (userInfo?.id) {
-        console.log('[GlobalRtcAgent] User info loaded:', userInfo.id);
         setUserInfoReady(true);
       }
 
@@ -218,7 +211,6 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 监听权限就绪事件（由 app.tsx 的 fetchUserInfo 成功后触发）
     const handlePermissionsReady = () => {
-      console.log('[GlobalRtcAgent] Permissions ready event received');
       checkData();
     };
 
@@ -257,15 +249,6 @@ export const GlobalRtcAgent: React.FC = () => {
   // Mount and unmount are in separate effects so that permission/userInfo state changes
   // do not re-trigger unmount calls (which would cause double-unmount).
   useEffect(() => {
-    console.log(
-      '[GlobalRtcAgent] isLoggedIn:',
-      isLoggedIn,
-      'permissionsReady:',
-      permissionsReady,
-      'userInfoReady:',
-      userInfoReady,
-    );
-
     if (!isSupported) {
       console.warn('[GlobalRtcAgent] Browser not supported, skipping mount');
       return;
@@ -273,20 +256,17 @@ export const GlobalRtcAgent: React.FC = () => {
 
     // 等待权限和用户信息都加载完成再挂载，确保 getUserId() 能返回有效值
     if (isLoggedIn && permissionsReady && userInfoReady) {
-      console.log('[GlobalRtcAgent] Mounting RTC Agent...');
       // 从 localStorage 读取管理员权限，传递给 mountRtcAgent 进行 Function 过滤
       const permissions = getUserPermissions();
-      console.log('[GlobalRtcAgent] User permissions:', permissions);
       mountRtcAgent(permissions);
     }
-  }, [isLoggedIn, isSupported, permissionsReady, userInfoReady]);
+  }, [isLoggedIn, isSupported, permissionsReady, userInfoReady, mountRtcAgent]);
 
   // Unmount effect: separate from mount so that permissionsReady changes
   // do not cause a second unmountRtcAgent() call.
   useEffect(() => {
     if (!isSupported) return;
     if (!isLoggedIn) {
-      console.log('[GlobalRtcAgent] Unmounting RTC Agent...');
       unmountRtcAgent();
     }
   }, [isLoggedIn, isSupported]);
@@ -296,9 +276,6 @@ export const GlobalRtcAgent: React.FC = () => {
   // from the tree while logged in.
   useEffect(() => {
     return () => {
-      console.log(
-        '[GlobalRtcAgent] Component unmounting, cleaning up RTC Agent',
-      );
       unmountRtcAgent();
     };
   }, []);

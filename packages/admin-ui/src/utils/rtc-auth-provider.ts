@@ -8,17 +8,18 @@
  * @see docs/admin-system-requirements.md 第四章 Token Exchange 流程
  */
 
-import type { AuthProvider } from '@rtc-agent/component';
+import type { AuthProvider, ExchangeTokenHint } from '@rtc-agent/component';
 import { logout as apiLogout } from '@/services/admin-auth';
 import {
   clearAuth,
-  getAccessToken,
+  getAccessTokenDecrypted,
   getRefreshToken,
   getUserInfo,
   isAuthenticated,
   isTokenExpired,
   isTokenExpiringSoon,
   refreshAccessToken,
+  refreshAccessTokenForExchange,
 } from '@/utils/auth-storage';
 
 const DEVICE_ID_KEY = 'rtc_device_id';
@@ -70,13 +71,34 @@ export function createAdminAuthProvider(): AuthProvider {
      * 返回外部 JWT（admin JWT）
      *
      * 由 RTC Agent 组件调用，用于 Token Exchange。
-     * 如果 admin JWT 即将过期（提前 5 分钟），先刷新再返回。
-     * 使用统一的 refreshAccessToken 函数防止并发刷新请求。
+     *
+     * 触发刷新的两种情况：
+     *  1. admin JWT 即将过期（提前 5 分钟）→ 常规刷新（失败即 logout）
+     *  2. hint.reason === 'already_used' → RTC Agent 组件检测到上一次 exchange
+     *     被服务端拒绝（重放保护）。此时用轻量刷新函数（失败不清 auth，
+     *     用户不会被 logout；下次 retry 仍把现有 token 送出去）。
      */
-    getExchangeToken: async (): Promise<string> => {
-      // 检查是否需要刷新（提前 5 分钟）
+    getExchangeToken: async (hint?: ExchangeTokenHint): Promise<string> => {
+      // Case 2: Token Exchange 重放拒绝 → 强制刷新但不破坏现有状态。
+      // 旧的 admin JWT 虽不能再被 exchange，但仍可用于 admin-server API，
+      // 因此刷新失败时保留本地状态比直接 logout 更友好。
+      if (hint?.reason === 'already_used') {
+        const refreshToken = await getRefreshToken();
+        if (refreshToken) {
+          const newToken = await refreshAccessTokenForExchange();
+          if (newToken) {
+            return newToken;
+          }
+          // 轻量刷新失败：保留旧 token 让 retry 循环自然退出，
+          // 不抛错以避免意外触发 logout。
+        }
+        // 没有 refresh token 时，继续走下面的常规路径；
+        // 若旧 token 已过期则在那里抛错。
+      }
+
+      // Case 1: 常规过期刷新（失败即 logout，保持原有行为）
       if (isTokenExpiringSoon()) {
-        const refreshToken = getRefreshToken();
+        const refreshToken = await getRefreshToken();
         if (refreshToken) {
           // 使用统一的刷新函数
           const newToken = await refreshAccessToken();
@@ -91,7 +113,7 @@ export function createAdminAuthProvider(): AuthProvider {
         }
       }
 
-      const token = getAccessToken();
+      const token = await getAccessTokenDecrypted();
       if (!token) {
         throw new Error('No admin access token available');
       }
@@ -117,7 +139,7 @@ export function createAdminAuthProvider(): AuthProvider {
      * 3. 跳转登录页（由调用方处理）
      */
     logout: async (): Promise<void> => {
-      const refreshToken = getRefreshToken();
+      const refreshToken = await getRefreshToken();
       if (refreshToken) {
         try {
           await apiLogout({ refresh_token: refreshToken });

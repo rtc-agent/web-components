@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/services/admin-auth';
 import { ErrorShowType } from '@/services/types';
 import {
   clearAuth,
-  getAccessToken,
+  getAccessTokenDecrypted,
   getRefreshToken,
   refreshAccessToken,
 } from '@/utils/auth-storage';
@@ -212,9 +212,11 @@ export const errorConfig: RequestConfig = {
 
   // 请求拦截器
   requestInterceptors: [
-    (config: RequestOptions) => {
-      // 从 localStorage 获取 JWT token
-      const accessToken = getAccessToken();
+    async (config: RequestOptions) => {
+      // 从 localStorage 获取 JWT token（异步解密）
+      // P1 修复：必须使用 getAccessTokenDecrypted()，因为 getAccessToken() 返回的是加密值，
+      // 直接作为 Bearer token 会被服务器拒绝（401），导致无限刷新循环。
+      const accessToken = await getAccessTokenDecrypted();
       if (accessToken) {
         config.headers = {
           ...config.headers,
@@ -249,7 +251,8 @@ export const errorConfig: RequestConfig = {
           }
 
           // 检查是否有 refresh token
-          const refreshTokenValue = getRefreshToken();
+          // P1 修复：getRefreshToken() 是 async 的（涉及解密），必须 await
+          const refreshTokenValue = await getRefreshToken();
           if (!refreshTokenValue) {
             message.warning(
               getIntl().formatMessage({
