@@ -20,13 +20,13 @@ import { msg } from '@lit/localize';
 import type { IPersistenceLayer, UIUpdateEvent } from '@rtc-agent/persistence';
 import { getUIUpdateBus } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type {
   NotificationActions,
-  NotificationContextValue,
   NotificationState,
 } from '../contexts/notification.js';
 import { DEFAULT_NOTIFICATION_STATE } from '../contexts/notification.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
 import type { ContentData } from '../types/index.js';
 import { extractTextContent } from '../utils/format.js';
 import type { MessageController } from './message.controller.js';
@@ -46,7 +46,10 @@ import errorSoundUrl from '../assets/sounds/error.mp3?url';
 // approach: (1) no 404 from host mismatch; (2) sound files don't need to be in the same directory as scripts.
 import messageSoundUrl from '../assets/sounds/message.mp3?url';
 
-export class NotificationController implements ReactiveController {
+export class NotificationController extends CachedContextController<
+  NotificationState,
+  NotificationActions
+> {
   host: ReactiveControllerHost & HTMLElement;
 
   // ─── Dependency injection (set by Root component) ─────────────────────
@@ -83,39 +86,8 @@ export class NotificationController implements ReactiveController {
   }
 
   // ─── State ──────────────────────────────────────────────
-  /**
-   * Notification state with cached unreadCount.
-   *
-   * Design note: unreadCount is maintained incrementally (incremented on notification,
-   * reset to 0 on markAsRead) rather than computed from a notifications array because:
-   * (1) The controller only tracks a counter, not a list of notifications
-   * (2) Incremental updates are O(1) vs O(n) for filtering a list
-   * (3) No memory overhead from storing notification history in state
-   * If future requirements need to track individual notifications, consider
-   * switching to a computed getter pattern with a notifications array.
-   */
-  private _state: NotificationState = { ...DEFAULT_NOTIFICATION_STATE };
-
-  readonly actions: NotificationActions;
-
-  /**
-   * CRITICAL FIX: Value cache to prevent unnecessary Context consumer re-renders.
-   * @lit/context uses `===` comparison, so creating new objects every time triggers
-   * consumers even when the state hasn't changed. Cache the value object and only
-   * recreate when state reference changes.
-   */
-  private _cachedValue?: NotificationContextValue;
-  private _cachedState?: NotificationState;
-
-  get value(): NotificationContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = { state: this._state, actions: this.actions };
-    return this._cachedValue;
-  }
+  // State and actions are managed by CachedContextController base class.
+  // Access via this._state and this.actions.
 
   // ─── Private fields ────────────────────────────────────────
   private _busUnsubscribe?: () => void;
@@ -135,12 +107,12 @@ export class NotificationController implements ReactiveController {
   private _abortController = new AbortController();
 
   constructor(host: ReactiveControllerHost & HTMLElement) {
-    this.host = host;
-    this.host.addController(this);
-    this.actions = {
+    const actions: NotificationActions = {
       markAsRead: () => this._markAsRead(),
       clearAll: () => this._clearAll(),
     };
+    super(host, { ...DEFAULT_NOTIFICATION_STATE }, actions, log);
+    this.host = host;
   }
 
   // ─── Lifecycle ─────────────────────────────────────────
@@ -435,10 +407,10 @@ export class NotificationController implements ReactiveController {
     this._playSound('message');
 
     // Update unread count
-    this._state = {
+    this._setState({
       unreadCount: this._state.unreadCount + 1,
       lastNotificationAt: Date.now(),
-    };
+    });
     this.host.requestUpdate();
 
     // Determine display method based on window state
@@ -514,13 +486,13 @@ export class NotificationController implements ReactiveController {
   // ─── Actions implementation ────────────────────────────────
 
   private _markAsRead(): void {
-    this._state = { ...this._state, unreadCount: 0 };
+    this._setState({ ...this._state, unreadCount: 0 });
     this._clearAnimation();
     this.host.requestUpdate();
   }
 
   private _clearAll(): void {
-    this._state = { ...DEFAULT_NOTIFICATION_STATE };
+    this._setState({ ...DEFAULT_NOTIFICATION_STATE });
     this._clearAnimation();
     this.host.requestUpdate();
   }

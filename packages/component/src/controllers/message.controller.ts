@@ -127,6 +127,13 @@ export class MessageController implements ReactiveController {
       }
     }
 
+    // Diagnostic: log when map size exceeds limit (indicates LRU eviction is skipping active chains)
+    if (this._sessionUpdateChains.size > MessageController.MAX_SESSION_CHAINS) {
+      log.debug(
+        `[MessageController] sessionUpdateChains size (${this._sessionUpdateChains.size}) exceeds max (${MessageController.MAX_SESSION_CHAINS})`,
+      );
+    }
+
     let chain = this._sessionUpdateChains.get(sessionId);
     if (!chain) {
       chain = Promise.resolve();

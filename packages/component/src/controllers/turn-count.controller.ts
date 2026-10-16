@@ -24,45 +24,31 @@
 
 import type { IPersistenceLayer } from '@rtc-agent/persistence';
 import { createLogger } from '@rtc-agent/protocol';
-import type { ReactiveController, ReactiveControllerHost } from 'lit';
+import type { ReactiveControllerHost } from 'lit';
 import type {
   TurnCountActions,
-  TurnCountContextValue,
   TurnCountState,
 } from '../contexts/turn-count.js';
 import { DEFAULT_TURN_COUNT_STATE } from '../contexts/turn-count.js';
+import { CachedContextController } from '../core/cached-context.controller.js';
 
 const log = createLogger('TurnCountController');
 
-export class TurnCountController implements ReactiveController {
-  host: ReactiveControllerHost;
-
+export class TurnCountController extends CachedContextController<
+  TurnCountState,
+  TurnCountActions
+> {
   /** Persistence layer — injected by root component after construction. */
   private _persistence?: IPersistenceLayer;
 
   /** Session controller — injected by root component after construction. */
   private _getSessionId?: () => string | null;
 
-  /** Current state (immutable from consumer perspective). */
-  private _state: TurnCountState = { ...DEFAULT_TURN_COUNT_STATE };
-
-  /** Actions object — exposed for cross-controller coordination. */
-  public readonly actions: TurnCountActions;
-
-  /**
-   * Value cache to prevent unnecessary Context consumer re-renders.
-   * Only recreated when state reference changes.
-   */
-  private _cachedValue?: TurnCountContextValue;
-  private _cachedState?: TurnCountState;
-
   constructor(host: ReactiveControllerHost) {
-    this.host = host;
-    this.host.addController(this);
-
-    this.actions = {
+    const actions: TurnCountActions = {
       refresh: () => this.refresh(),
     };
+    super(host, { ...DEFAULT_TURN_COUNT_STATE }, actions, log);
   }
 
   /**
@@ -79,26 +65,6 @@ export class TurnCountController implements ReactiveController {
    */
   setSessionIdGetter(getSessionId: () => string | null) {
     this._getSessionId = getSessionId;
-  }
-
-  /**
-   * Get the current turn count value.
-   * Returns cached value if state hasn't changed (optimization for @lit/context).
-   *
-   * **Cache Design**: Similar to CachedContextController, but returns a flat structure
-   * matching TurnCountContextValue (state fields + actions at top level).
-   */
-  get value(): TurnCountContextValue {
-    // Only create new value object if state reference changed
-    if (this._cachedValue && this._cachedState === this._state) {
-      return this._cachedValue;
-    }
-    this._cachedState = this._state;
-    this._cachedValue = {
-      state: this._state,
-      actions: this.actions,
-    };
-    return this._cachedValue;
   }
 
   /**
@@ -140,17 +106,6 @@ export class TurnCountController implements ReactiveController {
       this._setState({ ...DEFAULT_TURN_COUNT_STATE });
       this.host.requestUpdate();
     }
-  }
-
-  /**
-   * Update state and invalidate cache.
-   * Creates a new object reference to trigger cache invalidation.
-   */
-  private _setState(newState: TurnCountState): void {
-    this._state = newState;
-    // Invalidate cache by clearing cached references
-    this._cachedState = undefined;
-    this._cachedValue = undefined;
   }
 
   // ReactiveController lifecycle hooks (optional, but required by interface)
