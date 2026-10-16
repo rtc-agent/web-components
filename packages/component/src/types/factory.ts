@@ -63,6 +63,35 @@ export type AuthConfig = AuthProvider;
  * });
  * ```
  */
+
+/**
+ * Hint passed to `AuthProvider.getExchangeToken()` describing a prior failure.
+ *
+ * The component uses this to give the host provider enough context to decide
+ * whether to obtain a fresh token before retrying. The `reason` field is a
+ * closed union so providers can narrow on it with exhaustive checks.
+ *
+ * Design goals:
+ *  - **Backward compatible**: older providers that ignore the hint keep working.
+ *  - **Minimal surface**: only info needed for recovery decisions.
+ *  - **No raw token leakage**: `message` is a sanitized, standard description
+ *    (never the server's raw error body, which could contain token prefixes).
+ */
+export interface ExchangeTokenHint {
+  /** Categorized reason for the prior failure. */
+  reason:
+    | 'already_used' // subject_token was previously consumed (RFC 8693 replay protection)
+    | 'invalid_token' // subject_token failed signature or claims validation
+    | 'untrusted_issuer' // issuer not in the server's trusted list
+    | 'network'; // transport-level failure (no response from server)
+
+  /**
+   * Sanitized human-readable description.
+   * Optional; providers should prefer `reason` for programmatic decisions.
+   */
+  message?: string;
+}
+
 export interface AuthProvider {
   /**
    * Authentication mode.
@@ -96,9 +125,19 @@ export interface AuthProvider {
    * external authentication system. The component will validate and exchange it,
    * but callers should ensure token integrity before returning.
    *
+   * **HINT PARAMETER (backward-compatible)**:
+   * The component MAY pass a `hint` describing why the previous exchange attempt
+   * failed. Providers can use this to decide whether to obtain a fresh token
+   * (e.g., by refreshing from the auth server) before returning.
+   *
+   * Existing providers that ignore the hint (signature `() => string`) continue
+   * to work: TypeScript permits assigning a function with fewer parameters to a
+   * type that declares optional parameters (contravariant parameter rule).
+   *
+   * @param hint Optional context about a prior failure. Absent on the first attempt.
    * @returns External JWT string (can be sync or async)
    */
-  getExchangeToken?(): string | Promise<string>;
+  getExchangeToken?(hint?: ExchangeTokenHint): string | Promise<string>;
 
   /** Returns whether the user is currently logged in */
   isLoggedIn(): boolean;
@@ -439,6 +478,28 @@ export interface RtcAgentConfig {
    * Maps to `RtcAgent.logo`.
    */
   logo?: { light?: string; dark?: string };
+
+  /**
+   * Enable debug API in production builds (optional).
+   *
+   * When set to true, installs the debug API on `window.rtcAgentDebug`, allowing
+   * programmatic control of the component for testing and debugging.
+   *
+   * Note: In DEV and test builds, the debug API is automatically enabled.
+   * This property is only needed for production environments.
+   *
+   * Maps to `RtcAgent.debugMode`.
+   *
+   * @default false
+   *
+   * @example
+   * ```ts
+   * createRtcAgent({
+   *   debugMode: true  // Enable debug API in production
+   * });
+   * ```
+   */
+  debugMode?: boolean;
 
   // ── Server configuration ──
 

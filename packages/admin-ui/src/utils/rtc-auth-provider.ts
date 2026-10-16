@@ -34,17 +34,18 @@
  * AuthProvider is imported from component (internal type).
  * See file-level comment for improvement suggestions.
  */
-import type { AuthProvider } from '@rtc-agent/component';
+import type { AuthProvider, ExchangeTokenHint } from '@rtc-agent/component';
 import { logout as apiLogout } from '@/services/admin-auth';
 import {
   clearAuth,
-  getAccessToken,
+  getAccessTokenDecrypted,
   getRefreshToken,
   getUserInfo,
   isAuthenticated,
   isTokenExpired,
   isTokenExpiringSoon,
   refreshAccessToken,
+  refreshAccessTokenForExchange,
 } from '@/utils/auth-storage';
 
 const DEVICE_ID_KEY = 'rtc_device_id';
@@ -96,11 +97,57 @@ export function createAdminAuthProvider(): AuthProvider {
      * 返回外部 JWT（admin JWT）
      *
      * 由 RTC Agent 组件调用，用于 Token Exchange。
-     * 如果 admin JWT 即将过期（提前 5 分钟），先刷新再返回。
-     * 使用统一的 refreshAccessToken 函数防止并发刷新请求。
+     *
+     * 触发刷新的两种情况：
+     *  1. admin JWT 即将过期（提前 5 分钟）→ 常规刷新（失败即 logout）
+     *  2. hint.reason === 'already_used' → RTC Agent 组件检测到上一次 exchange
+     *     被服务端拒绝（重放保护）。此时用轻量刷新函数（失败不清 auth，
+     *     用户不会被 logout；下次 retry 仍把现有 token 送出去）。
      */
-    getExchangeToken: async (): Promise<string> => {
-      // 检查是否需要刷新（提前 5 分钟）
+    getExchangeToken: async (hint?: ExchangeTokenHint): Promise<string> => {
+      // === DIAGNOSTIC: Entry point ===
+      // eslint-disable-next-line no-console
+      console.log('[DIAG-admin-ui] getExchangeToken: ENTER, hint=', hint);
+      // Case 2: Token Exchange 重放拒绝 → 强制刷新但不破坏现有状态。
+      // 旧的 admin JWT 虽不能再被 exchange，但仍可用于 admin-server API，
+      // 因此刷新失败时保留本地状态比直接 logout 更友好。
+      if (hint?.reason === 'already_used') {
+        // === DIAGNOSTIC: already_used branch ===
+        // eslint-disable-next-line no-console
+        console.log(
+          '[DIAG-admin-ui] getExchangeToken: already_used branch, calling refreshAccessTokenForExchange',
+        );
+        const refreshToken = await getRefreshToken();
+        if (refreshToken) {
+          const newToken = await refreshAccessTokenForExchange();
+          if (newToken) {
+            // === DIAGNOSTIC: Refresh succeeded ===
+            // eslint-disable-next-line no-console
+            console.log(
+              '[DIAG-admin-ui] getExchangeToken: refresh succeeded, returning new token, length=',
+              newToken.length,
+            );
+            return newToken;
+          }
+          // === DIAGNOSTIC: Refresh failed ===
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[DIAG-admin-ui] getExchangeToken: refreshAccessTokenForExchange returned null',
+          );
+          // 轻量刷新失败：保留旧 token 让 retry 循环自然退出，
+          // 不抛错以避免意外触发 logout。
+        } else {
+          // === DIAGNOSTIC: No refresh token ===
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[DIAG-admin-ui] getExchangeToken: no refresh token available',
+          );
+        }
+        // 没有 refresh token 时，继续走下面的常规路径；
+        // 若旧 token 已过期则在那里抛错。
+      }
+
+      // Case 1: 常规过期刷新（失败即 logout，保持原有行为）
       if (isTokenExpiringSoon()) {
         const refreshToken = await getRefreshToken(); // 异步获取（可能需要解密）
         if (refreshToken) {
@@ -117,7 +164,7 @@ export function createAdminAuthProvider(): AuthProvider {
         }
       }
 
-      const token = getAccessToken();
+      const token = await getAccessTokenDecrypted();
       if (!token) {
         throw new Error('No admin access token available');
       }

@@ -97,6 +97,10 @@ export function createRtcAgent(config: RtcAgentConfig): RtcAgentWithLifecycle {
     element.logo = config.logo;
   }
 
+  if (config.debugMode !== undefined) {
+    element.debugMode = config.debugMode;
+  }
+
   // ── Server configuration ──
 
   if (config.server) {

@@ -477,17 +477,43 @@ export class OAuth2Client {
             continue;
           }
 
-          // Non-retryable error or final attempt - throw
+          // Non-retryable error or final attempt - throw.
+          // Parse the response body to extract the OAuth2 error code and description
+          // (e.g., { code: "already_used", message: "subject_token has already been used" }).
+          // This lets callers distinguish between different 400-class errors and react
+          // appropriately (e.g., refresh the subject_token on "already_used").
+          let errorCode: string | undefined;
+          let errorDescription: string | undefined;
+          try {
+            const errorBody = (await resp.json()) as {
+              code?: string;
+              message?: string;
+            };
+            errorCode = errorBody?.code;
+            errorDescription = errorBody?.message;
+          } catch {
+            // Body is not JSON (e.g., HTML error page) — fall back to status text.
+          }
+
           throw new TokenExchangeError(
             statusCode,
-            `Token exchange failed: ${statusCode} ${resp.statusText || 'Request failed'}`,
+            `Token exchange failed: ${statusCode} ${errorDescription || resp.statusText || 'Request failed'}`,
+            { errorCode, errorDescription },
           );
         }
 
         return (await resp.json()) as TokenExchangeResponse;
       } catch (err) {
         // Re-throw TokenExchangeError as-is (HTTP errors already handled above)
-        if (err instanceof TokenExchangeError) {
+        // NOTE: Use duck-typing instead of `instanceof TokenExchangeError` because
+        // Umi's module federation (MFSU) can create multiple copies of the class,
+        // causing `instanceof` to fail across bundle boundaries.
+        const isTokenExchangeError =
+          err instanceof Error &&
+          err.name === 'TokenExchangeError' &&
+          'statusCode' in err &&
+          'errorCode' in err;
+        if (isTokenExchangeError) {
           throw err;
         }
 

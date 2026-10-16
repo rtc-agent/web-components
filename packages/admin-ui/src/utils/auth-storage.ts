@@ -465,6 +465,27 @@ const markRefreshTokenAsRotated = () => {
 };
 
 /**
+ * Options for {@link refreshAccessToken}.
+ */
+export interface RefreshAccessTokenOptions {
+  /**
+   * Whether to clear all auth state (tokens + user info) on failure.
+   *
+   * Default: `true` — preserves existing behavior where a failed refresh
+   * logs the user out. This is the safe default for the interactive
+   * refresh path: if the refresh token is truly invalid, there's no
+   * recovery path other than re-login.
+   *
+   * Pass `false` for call sites that want to KEEP the existing (stale)
+   * tokens when the refresh fails. Typical use: Token Exchange retry
+   * after "already_used" rejection — the existing admin JWT may still
+   * be useful for direct admin-server API calls even if it can't be
+   * exchanged again.
+   */
+  clearOnFailure?: boolean;
+}
+
+/**
  * 统一的 Token 刷新函数
  *
  * 使用单一 refreshPromise 防止并发刷新请求。
@@ -473,7 +494,7 @@ const markRefreshTokenAsRotated = () => {
  * 安全机制：
  * 1. 刷新前标记旧 refresh token 为已使用（防止重放攻击）
  * 2. 刷新成功后存储新的 refresh token
- * 3. 刷新失败时清除所有认证信息
+ * 3. 刷新失败时清除所有认证信息（默认；可通过 clearOnFailure 关闭）
  * 4. 超时保护（10 秒）+ AbortController，超时后立即取消 HTTP 请求
  *
  * 设计权衡：去重优先于激进重试
@@ -482,13 +503,18 @@ const markRefreshTokenAsRotated = () => {
  * - 超时机制（10s）确保 promise 最终会被清理，不会永久阻塞
  * - 用户可通过重新登录恢复，无需激进重试
  *
+ * @param options - 可选配置
  * @returns Promise<string | null> 刷新后的 access_token，失败返回 null
  */
 let refreshPromise: Promise<string | null> | null = null;
 let refreshTimeout: NodeJS.Timeout | null = null;
 let refreshAbortController: AbortController | null = null;
 
-export const refreshAccessToken = async (): Promise<string | null> => {
+export const refreshAccessToken = async (
+  options: RefreshAccessTokenOptions = {},
+): Promise<string | null> => {
+  const { clearOnFailure = true } = options;
+
   const refreshTokenValue = await getRefreshToken();
 
   if (!refreshTokenValue) {
@@ -572,8 +598,13 @@ export const refreshAccessToken = async (): Promise<string | null> => {
         console.error('[refreshAccessToken] 刷新失败:', error);
         // 刷新失败，也标记旧 token 为已使用（防止重放攻击）
         markRefreshTokenAsRotated();
-        // 清除 auth 信息
-        clearAuth();
+        // 清除 auth 信息（仅在 clearOnFailure=true 时）。
+        // 调用方可传 { clearOnFailure: false } 来保留本地状态，典型场景：
+        // Token Exchange "already_used" 重试 —— 旧的 admin JWT 仍可用于
+        // admin-server API 调用，只是不能再被 exchange。
+        if (clearOnFailure) {
+          clearAuth();
+        }
         resolve(null);
       } finally {
         // 清除 Promise，允许下次刷新
@@ -601,3 +632,24 @@ export const cancelPendingRefresh = () => {
     refreshAbortController = null;
   }
 };
+
+/**
+ * Token Exchange 专用的轻量刷新函数
+ *
+ * 与 {@link refreshAccessToken} 的唯一区别：刷新失败时 **不清除** localStorage
+ * 中的认证信息。用于 RTC Agent 组件在收到 "already_used" 错误后的重试路径：
+ *
+ * 1. 调用 getExchangeToken({ reason: 'already_used' })
+ * 2. admin-ui 调用 refreshAccessTokenForExchange() 尝试获取新 admin JWT
+ * 3a. 成功 → 返回新 JWT，下次 exchange 成功
+ * 3b. 失败（网络抖动、DB 暂不可达等可恢复错误）→ 返回 null，但保留旧 token
+ *     → rtc-agent-component 下次 retry 仍能把旧 token 送出去
+ *     → 服务端仍会拒绝（already_used），但 retry 循环自然退出
+ *     → 用户不会被 logout，可手动刷新或等待
+ *
+ * 与 refreshAccessToken({ clearOnFailure: false }) 等价。该入口单独导出是为了
+ * 让语义更清晰：调用方不需要理解 clearOnFailure 的语义，只需要"用于 exchange
+ * 重试的刷新"这个意图。
+ */
+export const refreshAccessTokenForExchange = (): Promise<string | null> =>
+  refreshAccessToken({ clearOnFailure: false });

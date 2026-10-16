@@ -77,6 +77,10 @@ export function buildExtAPI(): Pick<
   | 'simulateOffline'
   | 'restoreNetwork'
   | 'isOffline'
+  | 'getFunctions'
+  | 'getFunction'
+  | 'invokeFunction'
+  | 'getFunctionDocs'
 > {
   return {
     // ── Session Management ──
@@ -605,6 +609,123 @@ export function buildExtAPI(): Pick<
 
     get isOffline(): boolean {
       return _networkState.isOffline;
+    },
+
+    // ── Function Registry ──
+
+    getFunctions(): Array<{
+      name: string;
+      description?: string;
+      parameters?: Record<string, unknown>;
+      groupName?: string;
+    }> {
+      const el = getAgentElement();
+      if (!el) {
+        log.warn('getFunctions: rtc-agent element not found');
+        return [];
+      }
+      const registry = el.skillController.actions.getRegistry();
+      if (!registry) {
+        log.warn('getFunctions: FunctionRegistry not available');
+        return [];
+      }
+      const functions = registry.listFunctions();
+      return functions.map((fn) => {
+        const parts = fn.name.split('.');
+        const groupName = parts.length > 1 ? parts[0] : undefined;
+        return {
+          name: fn.name,
+          description: fn.description,
+          parameters: fn.parameters as Record<string, unknown> | undefined,
+          groupName,
+        };
+      });
+    },
+
+    getFunction(name: string): {
+      name: string;
+      description?: string;
+      parameters?: Record<string, unknown>;
+      groupName?: string;
+      schema?: Record<string, unknown>;
+    } | null {
+      const el = getAgentElement();
+      if (!el) {
+        log.warn('getFunction: rtc-agent element not found');
+        return null;
+      }
+      const registry = el.skillController.actions.getRegistry();
+      if (!registry) {
+        log.warn('getFunction: FunctionRegistry not available');
+        return null;
+      }
+      const funcDef = registry.resolve(name);
+      if (!funcDef) {
+        log.warn(`getFunction: function not found: ${name}`);
+        return null;
+      }
+      const parts = funcDef.name.split('.');
+      const groupName = parts.length > 1 ? parts[0] : undefined;
+      return {
+        name: funcDef.name,
+        description: funcDef.description,
+        parameters: funcDef.parameters as Record<string, unknown> | undefined,
+        groupName,
+        // NOTE: FunctionDef does not declare a `schema` field (it uses `zodSchema`
+        // for runtime validation). Keep the legacy response shape; the value is
+        // undefined unless the registry happens to attach `schema` at runtime.
+        schema: (funcDef as unknown as Record<string, unknown>).schema as
+          | Record<string, unknown>
+          | undefined,
+      };
+    },
+
+    async invokeFunction(
+      name: string,
+      params?: Record<string, unknown>,
+    ): Promise<unknown> {
+      const el = getAgentElement();
+      if (!el) {
+        throw new Error('invokeFunction: rtc-agent element not found');
+      }
+      const registry = el.skillController.actions.getRegistry();
+      if (!registry) {
+        throw new Error('invokeFunction: FunctionRegistry not available');
+      }
+      log.info(`invokeFunction: ${name}`, params);
+      return await registry.execute(name, params || {});
+    },
+
+    async getFunctionDocs(name?: string): Promise<string> {
+      const el = getAgentElement();
+      if (!el) {
+        throw new Error('getFunctionDocs: rtc-agent element not found');
+      }
+      const registry = el.skillController.actions.getRegistry();
+      if (!registry) {
+        throw new Error('getFunctionDocs: FunctionRegistry not available');
+      }
+
+      // Import markdown generators dynamically to avoid circular dependencies
+      const { generateFunctionMd, generateFunctionsIndex } = await import(
+        './core/markdown-generator.js'
+      );
+
+      if (name) {
+        // Generate docs for a specific function
+        const funcDef = registry.resolve(name);
+        if (!funcDef) {
+          throw new Error(`getFunctionDocs: function not found: ${name}`);
+        }
+        const parts = name.split('.');
+        const groupName = parts.length > 1 ? parts[0] : undefined;
+        return generateFunctionMd(funcDef, groupName);
+      } else {
+        // Generate functions index
+        const functions = registry.listFunctions();
+        const groups = registry.listGroups();
+        return generateFunctionsIndex(functions, groups);
+      }
     },
   };
 }

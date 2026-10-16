@@ -17,13 +17,13 @@ import type {
   TokenExchangeResponse,
   TokenExpiredAction,
 } from '@rtc-agent/client';
-import { OAuth2Client } from '@rtc-agent/client';
+import { OAuth2Client, type TokenExchangeError } from '@rtc-agent/client';
 import { createLogger, parseJwtPayload } from '@rtc-agent/protocol';
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { AUTH_CONFIG, STORAGE_KEYS } from '../config/auth.js';
 import type { AuthContextValue } from '../contexts/auth.js';
 import { DEFAULT_AUTH_STATE } from '../contexts/auth.js';
-import type { AuthProvider } from '../types/factory.js';
+import type { AuthProvider, ExchangeTokenHint } from '../types/factory.js';
 import type { AuthState } from '../types/index.js';
 import { getDeviceName, saveDeviceIdToStorage } from '../utils/device.js';
 import { maskUserID } from '../utils/mask.js';
@@ -63,6 +63,25 @@ export class AuthController implements ReactiveController {
 
   /** OAuth2Client instance for Token Exchange mode. */
   private _oauth2Client?: OAuth2Client;
+
+  /**
+   * Hint about the most recent Token Exchange failure, forwarded to
+   * `AuthProvider.getExchangeToken()` on the next attempt so the provider
+   * can decide whether to obtain a fresh subject_token (e.g., refresh the
+   * external JWT when the server reports "already_used").
+   *
+   * Cleared at the start of each exchange cycle to prevent stale hints
+   * from leaking into unrelated future attempts.
+   */
+  private _lastExchangeFailureHint?: ExchangeTokenHint;
+
+  /**
+   * Counter for consecutive "already_used" rejections that triggered a
+   * provider refresh. Caps at 1 to prevent infinite refresh loops when
+   * the provider's refresh path itself produces already-used tokens
+   * (e.g., due to caching or server-side races).
+   */
+  private _alreadyUsedRefreshCount = 0;
 
   /**
    * BroadcastChannel for cross-tab token refresh coordination.
@@ -772,6 +791,12 @@ export class AuthController implements ReactiveController {
     const maxRetries = AuthController.TOKEN_EXCHANGE_MAX_RETRIES;
     const initialDelay = AuthController.TOKEN_EXCHANGE_INITIAL_DELAY_MS;
 
+    // Reset per-cycle state. Each _doTokenExchange invocation is a fresh cycle;
+    // hints from a previous cycle must not leak in (otherwise a single failed
+    // cycle could cause the next unrelated cycle to trigger a spurious refresh).
+    this._lastExchangeFailureHint = undefined;
+    this._alreadyUsedRefreshCount = 0;
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
         const delay = initialDelay * 2 ** (attempt - 1);
@@ -783,8 +808,17 @@ export class AuthController implements ReactiveController {
 
       const success = await this._tryTokenExchangeOnce();
       if (success) {
+        // Exchange succeeded — clear any stale hint so it doesn't leak into
+        // a future exchange cycle (e.g., after a later scheduled refresh).
+        this._lastExchangeFailureHint = undefined;
+        this._alreadyUsedRefreshCount = 0;
         return true;
       }
+
+      // NOTE: Hint downgrade logic is handled inside _tryTokenExchangeOnce.
+      // After the first "already_used" failure, _alreadyUsedRefreshCount becomes 1,
+      // and subsequent failures will set hint to "network" instead of "already_used".
+      // This gives the provider exactly one chance to refresh the token.
 
       // Check if auth provider was changed during the attempt (e.g. logout/destroy)
       if (!this._authProvider) {
@@ -807,17 +841,48 @@ export class AuthController implements ReactiveController {
    * @returns true if exchange succeeded, false otherwise
    */
   private async _tryTokenExchangeOnce(): Promise<boolean> {
+    // === DIAGNOSTIC: Entry point ===
+    // eslint-disable-next-line no-console
+    console.log(
+      '[DIAG] _tryTokenExchangeOnce: ENTER, hint=',
+      this._lastExchangeFailureHint,
+    );
     try {
-      // Step 1: Get external JWT from host application
+      // Step 1: Get external JWT from host application.
+      // Pass the hint from the previous attempt (if any) so the provider can
+      // decide whether to obtain a fresh token. First attempt: hint is undefined.
       let externalJWT: string;
       try {
-        externalJWT = await this._authProvider!.getExchangeToken!();
+        // === DIAGNOSTIC: Before getExchangeToken ===
+        // eslint-disable-next-line no-console
+        console.log(
+          '[DIAG] Step 1: calling getExchangeToken with hint=',
+          this._lastExchangeFailureHint,
+        );
+        externalJWT = await this._authProvider!.getExchangeToken!(
+          this._lastExchangeFailureHint,
+        );
+        // === DIAGNOSTIC: After getExchangeToken ===
+        // eslint-disable-next-line no-console
+        console.log(
+          '[DIAG] Step 1: getExchangeToken returned, token length=',
+          externalJWT?.length ?? 0,
+        );
       } catch (err) {
+        // === DIAGNOSTIC: getExchangeToken failed ===
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[DIAG] Step 1: getExchangeToken threw:',
+          err instanceof Error ? err.message : String(err),
+        );
         log.debug('token_exchange.get_token_failed (will retry):', err);
         return false;
       }
 
       if (!externalJWT) {
+        // === DIAGNOSTIC: Empty token ===
+        // eslint-disable-next-line no-console
+        console.warn('[DIAG] Step 1: getExchangeToken returned empty token');
         log.debug('token_exchange.empty_token (will retry)');
         return false;
       }
@@ -825,6 +890,12 @@ export class AuthController implements ReactiveController {
       // Step 2: Exchange external JWT for RTC JWT
       let response: TokenExchangeResponse;
       try {
+        // === DIAGNOSTIC: Before tokenExchange ===
+        // eslint-disable-next-line no-console
+        console.log(
+          '[DIAG] Step 2: calling tokenExchange, token prefix=',
+          externalJWT.substring(0, 20),
+        );
         response = await this._oauth2Client!.tokenExchange({
           grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
           subject_token: externalJWT,
@@ -834,7 +905,81 @@ export class AuthController implements ReactiveController {
           user_agent: navigator.userAgent,
         });
       } catch (err) {
-        log.debug('token_exchange.exchange_failed (will retry):', err);
+        // === TEMPORARY DIAGNOSTIC LOG ===
+        // Will be replaced with the proper structured log once the hint chain
+        // is verified end-to-end. This log runs unconditionally on every
+        // exchange failure so we can see exactly what the runtime observes.
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[DIAG] token_exchange.catch:',
+          'name=',
+          err instanceof Error ? err.name : typeof err,
+          'errorCode=',
+          (err as { errorCode?: string } | undefined)?.errorCode,
+          'errorDescription=',
+          (err as { errorDescription?: string } | undefined)?.errorDescription,
+          'message=',
+          err instanceof Error ? err.message.slice(0, 120) : String(err),
+        );
+        // ==================================
+
+        // Categorize the failure so the provider gets a meaningful hint on retry.
+        // The hint is deliberately coarse-grained (closed union) so providers
+        // can switch on it without brittle string matching.
+        //
+        // NOTE: We use duck-typing (`name === 'TokenExchangeError'` + `errorCode`
+        // presence) instead of `instanceof TokenExchangeError`. Umi's module
+        // federation (MFSU) can end up with two distinct copies of the
+        // TokenExchangeError class — one in the host app's vendor chunk and one
+        // in the component's own bundle. `instanceof` would always return false
+        // across that boundary, silently swallowing the error classification.
+        let hint: ExchangeTokenHint;
+        const isTokenExchangeError =
+          err instanceof Error &&
+          err.name === 'TokenExchangeError' &&
+          'errorCode' in err;
+        if (isTokenExchangeError) {
+          const errorCode = (err as TokenExchangeError).errorCode;
+          switch (errorCode) {
+            case 'already_used':
+              // Only offer the refresh hint once per cycle to prevent infinite
+              // refresh loops. After that, fall through to a plain "network" hint.
+              if (this._alreadyUsedRefreshCount < 1) {
+                hint = {
+                  reason: 'already_used',
+                  message: 'subject_token has already been used',
+                };
+                this._alreadyUsedRefreshCount += 1;
+              } else {
+                hint = { reason: 'network' };
+              }
+              break;
+            case 'invalid_grant':
+              // Server rejected the JWT itself (signature/claims). Refreshing
+              // may produce a valid token, but we surface as "invalid_token"
+              // so providers that distinguish the two can react accordingly.
+              hint = {
+                reason: 'invalid_token',
+                message: (err as TokenExchangeError).errorDescription,
+              };
+              break;
+            default:
+              // Covers: "untrusted_issuer", "invalid_request", rate_limit, etc.
+              // We don't try to map every OAuth2 code — anything unrecognized
+              // falls back to "network" so providers won't over-refresh.
+              hint = {
+                reason: 'network',
+                message: (err as TokenExchangeError).errorDescription,
+              };
+              break;
+          }
+        } else {
+          hint = { reason: 'network' };
+        }
+        this._lastExchangeFailureHint = hint;
+        log.info(
+          `token_exchange.exchange_failed: errorCode=${(err as TokenExchangeError | undefined)?.errorCode ?? '<n/a>'}, reason=${hint.reason} (will retry)`,
+        );
         return false;
       }
 

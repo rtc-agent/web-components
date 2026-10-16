@@ -119,6 +119,7 @@ export type {
   AuthConfig,
   AuthProvider,
   EventCallbacks,
+  ExchangeTokenHint,
   RtcAgentConfig,
   RtcAgentWithLifecycle,
 } from './types/factory.js';

@@ -171,6 +171,7 @@ export function mountRtcAgent(userPermissions: Permission[] = []) {
           databaseName: 'admin-ui',
           lang: 'zh-CN',
           scenariosURL: '/scenarios/',
+          debugMode: true, // 启用调试 API，方便测试和问题排查
 
           // === 传入权限过滤后的 Functions ===
           ...agentConfig,
