@@ -8,8 +8,8 @@ import { usePageAPIRegistration } from '@/hooks/usePageAPIRegistration';
 import { useProTableLocale } from '@/hooks/useProTableLocale';
 import { useTableSearchParams } from '@/hooks/useTableSearchParams';
 import { createTableRequest, parseTableSort } from '@/utils/tableUtils';
+import type { AuditLogItem } from './data';
 import type { AuditLogPageAPI } from './page-api';
-import type { AuditLogItem } from './service';
 import { getAuditLogList } from './service';
 
 /**

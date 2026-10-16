@@ -73,9 +73,26 @@ export function usePermissionRefresh() {
 
   const refreshPermissions = useCallback(
     async (
-      options: { showErrorMessage?: boolean; retryCount?: number } = {},
+      options: {
+        showErrorMessage?: boolean;
+        retryCount?: number;
+        auditContext?: { action: string; target?: string; details?: unknown };
+      } = {},
     ) => {
-      const { showErrorMessage = false, retryCount = 0 } = options;
+      const {
+        showErrorMessage = false,
+        retryCount = 0,
+        auditContext,
+      } = options;
+
+      // Log permission audit trail for traceability.
+      // Captures who modified whose permissions, when, and what action was taken.
+      if (auditContext) {
+        console.info('[Permission Audit]', {
+          ...auditContext,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       // Serialize refresh requests to prevent race conditions.
       // Each request chains onto the previous one, ensuring sequential execution.
@@ -143,6 +160,7 @@ export function usePermissionRefresh() {
             return refreshPermissions({
               showErrorMessage,
               retryCount: retryCount + 1,
+              auditContext,
             });
           }
 

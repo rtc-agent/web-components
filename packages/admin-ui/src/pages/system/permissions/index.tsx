@@ -261,7 +261,12 @@ const PermissionListPage: React.FC = () => {
                       queryKey: queryKeys.roleList.all,
                     });
                     // Refresh current user permissions (permission removal may affect access)
-                    await refreshPermissions();
+                    await refreshPermissions({
+                      auditContext: {
+                        action: 'delete_permission',
+                        target: `${record.role_id}/${record.resource}/${record.action}`,
+                      },
+                    });
                   } catch (error: unknown) {
                     message.error(
                       getFriendlyErrorMessage(
@@ -319,7 +324,12 @@ const PermissionListPage: React.FC = () => {
       // Invalidate role list cache so other pages see the updated permissions
       queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
       // Refresh current user permissions (new permission may grant additional access)
-      await refreshPermissions();
+      await refreshPermissions({
+        auditContext: {
+          action: 'create_permission',
+          target: `${values.role_id}/${values.resource}/${values.action}`,
+        },
+      });
       return true;
     } catch (error: unknown) {
       message.error(
@@ -347,6 +357,12 @@ const PermissionListPage: React.FC = () => {
         rowKey={(record) =>
           `${record.role_id}-${record.resource}-${record.action}`
         }
+        scroll={{ x: 'max-content' }}
+        pagination={{
+          defaultPageSize: 10,
+          showSizeChanger: true,
+          showQuickJumper: true,
+        }}
         locale={tableLocale}
         search={{
           labelWidth: 'auto',
@@ -420,7 +436,7 @@ const PermissionListPage: React.FC = () => {
         }}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
         }}
         onFinish={handleSubmit}
       >

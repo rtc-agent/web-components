@@ -2,8 +2,7 @@
  * Service layer for the audit logs page
  *
  * Re-exports shared API from @/services/ for page-level consistency.
- * All page components should import from this file rather than @/services/ directly.
+ * All page components should import API functions from this file rather than @/services/ directly.
  */
 
-export type { AuditLogItem } from '@/services/audit-log';
 export { getAuditLogList } from '@/services/audit-log';

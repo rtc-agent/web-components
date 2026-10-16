@@ -186,7 +186,12 @@ const AdminUserManagementPage: React.FC = () => {
             await Promise.all(ids.map((id) => deleteAdminUser(id)));
             actionRef.current?.reload();
             // Refresh current user permissions if needed
-            await refreshPermissions();
+            await refreshPermissions({
+              auditContext: {
+                action: 'delete_admin_user',
+                details: { deletedUserIds: ids },
+              },
+            });
             return {
               success: true,
               deletedCount: ids.length,
@@ -415,7 +420,13 @@ const AdminUserManagementPage: React.FC = () => {
       // Refresh table data (role modal will get roles from table data)
       actionRef.current?.reload();
       // Refresh current user permissions (may have assigned roles to self)
-      await refreshPermissions();
+      await refreshPermissions({
+        auditContext: {
+          action: 'assign_roles',
+          target: currentRow.id,
+          details: { roleIds: values.role_ids },
+        },
+      });
       return true;
     } catch (error: unknown) {
       message.error(
@@ -445,7 +456,13 @@ const AdminUserManagementPage: React.FC = () => {
       // Refresh table data (role modal will get roles from table data)
       actionRef.current?.reload();
       // Refresh current user permissions (may have revoked roles from self)
-      await refreshPermissions();
+      await refreshPermissions({
+        auditContext: {
+          action: 'revoke_role',
+          target: userId,
+          details: { roleId },
+        },
+      });
     } catch (error: unknown) {
       message.error(
         getFriendlyErrorMessage(
@@ -493,7 +510,12 @@ const AdminUserManagementPage: React.FC = () => {
         );
         actionRef.current?.reload();
         // Refresh current user permissions in case of self-deletion or role changes
-        await refreshPermissions();
+        await refreshPermissions({
+          auditContext: {
+            action: 'delete_admin_user',
+            target: record.id,
+          },
+        });
       } catch (error: unknown) {
         message.error(
           getFriendlyErrorMessage(
@@ -596,6 +618,12 @@ const AdminUserManagementPage: React.FC = () => {
         })}
         actionRef={actionRef}
         rowKey="id"
+        scroll={{ x: 'max-content' }}
+        pagination={{
+          defaultPageSize: 10,
+          showSizeChanger: true,
+          showQuickJumper: true,
+        }}
         locale={tableLocale}
         search={{
           labelWidth: 'auto',
