@@ -26,6 +26,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { clearPermissionCache } from '@/access';
 import {
   getMaxLengthRule,
   getMinLengthRule,
@@ -252,6 +253,8 @@ const RoleListPage: React.FC = () => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.roleList.all,
         });
+        // Clear permission cache so fresh permissions are computed (deleted role may affect access)
+        clearPermissionCache();
         // Refresh current user permissions (deleted role may have been assigned to current user)
         await refreshPermissions();
       } catch (error: unknown) {
@@ -456,6 +459,8 @@ const RoleListPage: React.FC = () => {
                           }),
                     );
                     actionRef.current?.reload();
+                    // Clear permission cache so fresh permissions are computed (role status change affects access)
+                    clearPermissionCache();
                     // Refresh current user permissions (role status change may affect access)
                     await refreshPermissions();
                   } catch (error: unknown) {
@@ -615,6 +620,8 @@ const RoleListPage: React.FC = () => {
       });
       setRolePermissions(rolePerms.items);
 
+      // Clear permission cache so fresh permissions are computed (permission change affects access)
+      clearPermissionCache();
       // Refresh current user permissions (permission change may affect access)
       await refreshPermissions();
     } catch (error: unknown) {

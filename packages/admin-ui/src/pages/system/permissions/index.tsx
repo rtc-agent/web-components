@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Access, useAccess, useIntl } from '@umijs/max';
 import { App, Button, Popconfirm, Space, Tag } from 'antd';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { clearPermissionCache } from '@/access';
 import { getActionTypes, getResourceTypes } from '@/constants/permissions';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useModalState } from '@/hooks/useModalState';
@@ -260,6 +261,8 @@ const PermissionListPage: React.FC = () => {
                     queryClient.invalidateQueries({
                       queryKey: queryKeys.roleList.all,
                     });
+                    // Clear permission cache so fresh permissions are computed (permission removal affects access)
+                    clearPermissionCache();
                     // Refresh current user permissions (permission removal may affect access)
                     await refreshPermissions({
                       auditContext: {
@@ -323,6 +326,8 @@ const PermissionListPage: React.FC = () => {
       modal.close();
       // Invalidate role list cache so other pages see the updated permissions
       queryClient.invalidateQueries({ queryKey: queryKeys.roleList.all });
+      // Clear permission cache so fresh permissions are computed (new permission may grant access)
+      clearPermissionCache();
       // Refresh current user permissions (new permission may grant additional access)
       await refreshPermissions({
         auditContext: {

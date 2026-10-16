@@ -223,7 +223,16 @@ export default defineConfig({
         // This is a P0 security fix (2026-10-14): replaces `wss: https:` with explicit origins.
         const rtcAgentOrigins = (() => {
           const raw = process.env.RTC_AGENT_URL;
-          if (!raw) return '';
+          if (!raw) {
+            if (UMI_ENV !== 'dev') {
+              console.warn(
+                '[CSP] RTC_AGENT_URL is not set. The connect-src directive will not include ' +
+                  'rtc-agent backend origins. WebSocket connections to the backend may be blocked by CSP. ' +
+                  'Set RTC_AGENT_URL environment variable at build time to fix this.',
+              );
+            }
+            return '';
+          }
           try {
             const origin = new URL(raw).origin;
             // Allow both HTTPS (HTTP API) and WSS (WebSocket) for the same origin
@@ -265,6 +274,12 @@ export default defineConfig({
    * @name <head> 中额外的 script
    * @description 配置 <head> 中额外的 script
    * 所有脚本均通过外部文件加载，符合 CSP 规范（不使用 unsafe-inline）
+   *
+   * SECURITY NOTE: These headScripts are loaded before React hydration.
+   * Ensure CSP policy includes 'unsafe-inline' for these scripts OR
+   * configure nonce injection via server-side rendering.
+   * If these scripts are blocked by CSP, the page will render blank.
+   * Currently: Umi Max injects nonce attributes automatically at build time.
    */
   headScripts: [
     // 解决首次加载时白屏的问题

@@ -1530,17 +1530,36 @@ export class RtcAgent extends LitElement {
       log.debug('[BulkUpdate] rtc-agent gap fill state:', isSyncing);
       this._isSyncing = isSyncing;
       this.requestUpdate();
-      // When gap fill ends, reload all data to ensure consistency
+      // When gap fill ends, reload all data to ensure consistency.
+      // Split into critical path (sessions, messages, turn count) and non-critical
+      // (file tree, RTC update) to avoid IndexedDB read storms and let the UI render
+      // the most important data first.
       if (!isSyncing) {
-        log.debug('[BulkUpdate] gap fill ended, reloading all data');
-        void this._loadSessions();
+        log.debug('[BulkUpdate] gap fill ended, reloading data');
+        // Critical path — load immediately so sessions and messages render first
+        const criticalReloads: Promise<void>[] = [
+          this._loadSessions(),
+          this._turnCount.refresh(),
+        ];
         const currentSessionId = this._session.value.state.currentSessionId;
         if (currentSessionId) {
-          void this._message.reload();
+          criticalReloads.push(this._message.reload());
         }
-        void this._turnCount.refresh();
-        void this._loadFileTree();
-        this._rtcProcessor?.onRtcUpdate();
+        // Non-critical — defer to idle to reduce IndexedDB contention
+        const deferredLoad = () => {
+          // Guard: component may have been destroyed while idle callback was queued.
+          if (this._isDestroyed) return;
+          void this._loadFileTree();
+          this._rtcProcessor?.onRtcUpdate();
+        };
+        void Promise.all(criticalReloads).then(() => {
+          if (this._isDestroyed) return;
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(deferredLoad);
+          } else {
+            setTimeout(deferredLoad, 0);
+          }
+        });
       }
     });
 
