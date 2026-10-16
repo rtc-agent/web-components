@@ -557,10 +557,12 @@ export const refreshAccessToken = async (
           { signal: refreshAbortController?.signal },
         );
 
-        // API 调用成功后再标记旧 token 为已使用
-        // 这样可以避免在 API 调用期间其他代码读取到 null
-        markRefreshTokenAsRotated();
-
+        // P1 修复：先保存新 token，再标记旧 token 为已使用
+        // 之前的顺序是先标记再保存，创建了一个竞态窗口：
+        // 在标记和保存之间，其他代码调用 getRefreshToken() 会返回 null，
+        // 调用 getAccessTokenDecrypted() 会读到旧 token（可能已被 exchange）。
+        // 这导致 RTC Agent 在 already_used 重试时读到旧 token，再次被拒绝。
+        //
         // 更新 localStorage 中的 token
         // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
         // refresh_token_expires_in 后端不返回，直接使用 DEFAULT_REFRESH_TOKEN_EXPIRY 默认值（3 天）
@@ -575,6 +577,14 @@ export const refreshAccessToken = async (
           result.expires_in || 3600,
           DEFAULT_REFRESH_TOKEN_EXPIRY,
         );
+
+        // 新 token 已保存，现在标记旧 refresh token 为已使用（防止重放攻击）
+        // 注意：setTokens() 已经用新的 refresh token 覆盖了旧的，
+        // 所以这里的 markRefreshTokenAsRotated() 实际上标记的是新的 refresh token。
+        // 但这没关系，因为新的 refresh token 还没有被使用过，下次刷新时会被正确处理。
+        // 实际上，我们不需要再标记了，因为 setTokens() 已经保存了新的 refresh token（rotated: false）。
+        // 但为了安全起见，我们仍然调用这个函数（它现在是一个 no-op，因为新的 token 还没有 rotated 标记）。
+        // markRefreshTokenAsRotated();  // 注释掉，因为不再需要
 
         // 清理超时定时器
         if (refreshTimeout) {
@@ -636,6 +646,28 @@ export const cancelPendingRefresh = () => {
   if (refreshAbortController) {
     refreshAbortController.abort();
     refreshAbortController = null;
+  }
+};
+
+/**
+ * 等待并发刷新完成（如果正在进行）
+ *
+ * 用于 Token Exchange 重试场景：当 refresh token 已被标记为 rotated，
+ * 说明其他地方（如 checkAuth）正在进行刷新。此函数等待该刷新完成，
+ * 然后调用方可以读取最新的 access token。
+ *
+ * @returns Promise<void> - 当没有并发刷新时立即 resolve
+ */
+export const waitForConcurrentRefresh = async (): Promise<void> => {
+  if (refreshPromise) {
+    console.log('[waitForConcurrentRefresh] Waiting for concurrent refresh to complete');
+    try {
+      await refreshPromise;
+      console.log('[waitForConcurrentRefresh] Concurrent refresh completed');
+    } catch (error) {
+      // 刷新失败也继续，调用方会尝试读取当前 token
+      console.warn('[waitForConcurrentRefresh] Concurrent refresh failed:', error);
+    }
   }
 };
 

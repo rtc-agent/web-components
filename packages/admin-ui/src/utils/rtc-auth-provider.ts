@@ -20,6 +20,7 @@ import {
   isTokenExpiringSoon,
   refreshAccessToken,
   refreshAccessTokenForExchange,
+  waitForConcurrentRefresh,
 } from '@/utils/auth-storage';
 
 const DEVICE_ID_KEY = 'rtc_device_id';
@@ -98,10 +99,11 @@ export function createAdminAuthProvider(): AuthProvider {
         }
 
         // Refresh token 已被标记为 rotated，说明其他地方（如 checkAuth）刚完成了刷新
-        // 等待一小段时间，让 setTokens() 完成加密和存储
-        // 然后重新读取最新的 access token
+        // 等待并发刷新真正完成（而不是盲目等待固定时间）
+        // waitForConcurrentRefresh() 会检查 refreshPromise 是否存在，
+        // 如果存在则 await 它，确保 setTokens() 的加密操作已完成
         console.log('[getExchangeToken] refresh token already rotated, waiting for concurrent refresh to complete');
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForConcurrentRefresh();
 
         // 重新读取最新的 access token（应该已经被并发刷新更新了）
         const newToken = await getAccessTokenDecrypted();
