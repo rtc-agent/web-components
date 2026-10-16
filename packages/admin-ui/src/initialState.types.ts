@@ -14,8 +14,6 @@ export interface InitialState {
   settings?: Partial<LayoutSettings>;
   /** Current authenticated user information */
   currentUser?: API.CurrentUser;
-  /** Loading state during initialization */
-  loading?: boolean;
   /** Function to manually refresh user info */
   fetchUserInfo?: (
     signal?: AbortSignal,

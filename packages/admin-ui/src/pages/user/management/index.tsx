@@ -299,6 +299,8 @@ const AdminUserManagementPage: React.FC = () => {
   );
 
   // Listen for URL changes, auto-reload table
+  // Note: actionRef is a ref and doesn't change, so only tableParams is needed in dependencies.
+  // Unlike the messages page, there's no derived state (like sessionId) that needs to be tracked.
   useEffect(() => {
     actionRef.current?.reload();
   }, [tableParams]);
@@ -775,7 +777,7 @@ const AdminUserManagementPage: React.FC = () => {
         }}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
         }}
         onFinish={handleAssignRoles}
       >
@@ -841,7 +843,7 @@ const AdminUserManagementPage: React.FC = () => {
         }}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
         }}
         onFinish={handleCreateUser}
       >
@@ -942,7 +944,7 @@ const AdminUserManagementPage: React.FC = () => {
         }}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
         }}
         onFinish={handleUpdateUser}
         initialValues={{

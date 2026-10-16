@@ -24,7 +24,6 @@ const getOnlineStatus = () =>
  * - Page content: 0-100
  * - Sticky headers/nav: 100-500
  * - Offline banner: 900 (above page content, below overlays)
- * - GlobalLoadingOverlay: token.zIndexPopupBase (typically 1000)
  * - Drawer: 1000
  * - Modal: 1000+
  *
@@ -66,8 +65,8 @@ const OfflineBanner: React.FC = () => {
         // Use theme token for warning background to support dark mode
         backgroundColor: token.colorWarningBg,
         borderColor: token.colorWarningBorder,
-        // z-index 900: above page content but below GlobalLoadingOverlay (zIndexPopupBase ~1000)
-        // and modal/drawer layers (1000+). See component JSDoc for layering strategy.
+        // z-index 900: above page content but below modal/drawer layers (1000+).
+        // See component JSDoc for layering strategy.
         zIndex: 900,
       }}
       message={title}

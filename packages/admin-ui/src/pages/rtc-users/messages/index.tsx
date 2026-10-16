@@ -91,7 +91,7 @@ const MessagesPage: React.FC = () => {
     if (sessionId) {
       actionRef.current?.reload();
     }
-  }, [tableParams]);
+  }, [sessionId, tableParams]); // Added sessionId to ensure table reloads when session changes
 
   /** Open message detail drawer */
   const handleRowClick = useCallback((record: MessageInfo) => {

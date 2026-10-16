@@ -46,6 +46,14 @@
  * - 需要根据认证状态做不同处理，静态 redirect 无法满足
  *
  * 参见：src/app.tsx 的 onPageChange 实现
+ *
+ * ## 路由懒加载说明
+ * 当前所有路由使用标准的 `component` 引用。Umi Max 默认通过动态导入处理代码分割，
+ * 每个页面组件会被自动分割成独立的 chunk，实现按需加载。
+ *
+ * 对于访问频率较低的页面（如 /system/audit-logs、/rtc-agent-*），如果未来打包体积
+ * 成为性能瓶颈，可以考虑添加显式的懒加载配置进一步优化。但在当前规模下，
+ * Umi Max 的默认行为已经足够高效。
  */
 export default [
   {

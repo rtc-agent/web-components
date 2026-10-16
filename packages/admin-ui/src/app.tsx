@@ -33,7 +33,6 @@ import {
   DocLink,
   ErrorBoundary,
   Footer,
-  GlobalLoadingOverlay,
   GlobalRtcAgent,
   LangDropdown,
   OfflineBanner,
@@ -353,7 +352,6 @@ export async function getInitialState(): Promise<InitialState> {
           currentUser,
           settings: loadThemeSettings(),
           settingDrawerOpen: false,
-          loading: false,
           // Degraded flag: token exists but user info failed to load.
           // Downstream code (onPageChange) uses this to show a warning toast.
           degraded: !currentUser && isAuthenticated(),
@@ -367,7 +365,6 @@ export async function getInitialState(): Promise<InitialState> {
       fetchUserInfo,
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
-      loading: false,
       degraded: false,
     };
   } catch (error) {
@@ -381,7 +378,6 @@ export async function getInitialState(): Promise<InitialState> {
       currentUser: undefined, // 明确设置 currentUser，防止后续依赖代码出现未定义错误
       settings: loadThemeSettings(),
       settingDrawerOpen: false,
-      loading: false,
       degraded: true, // P0 修复：明确标记为降级状态，让 onPageChange 能够正确处理
     };
   }
@@ -524,7 +520,6 @@ export const layout: RunTimeLayoutConfig = ({
       // This prevents permission checks from failing due to missing currentUser.
       if (hasToken && !initialState?.currentUser && !initialState?.degraded) {
         // currentUser is still being fetched, wait for it to load
-        // The layout will show a loading indicator via initialState.loading
         return;
       }
 
@@ -587,7 +582,6 @@ export const layout: RunTimeLayoutConfig = ({
     childrenContentRender: (children: React.ReactNode) => {
       return (
         <>
-          {initialState?.loading && <GlobalLoadingOverlay />}
           {children}
           <SettingDrawer
             disableUrlParams
