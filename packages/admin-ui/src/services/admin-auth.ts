@@ -80,13 +80,6 @@ export interface LoginResult {
   refresh_token: string;
   /** Access token expiration time in seconds */
   expires_in: number;
-  /**
-   * Refresh token expiration time in seconds.
-   * @deprecated Not returned by backend API per OpenAPI spec.
-   * Client code uses DEFAULT_REFRESH_TOKEN_EXPIRY fallback in auth-storage.ts.
-   * Will be removed in future cleanup.
-   */
-  refresh_token_expires_in?: number;
   token_type: string;
   user: UserInfo;
 }
@@ -96,13 +89,6 @@ export interface RefreshTokenResult {
   access_token: string;
   refresh_token: string;
   expires_in: number;
-  /**
-   * Refresh token expiration time in seconds.
-   * @deprecated Not returned by backend API per OpenAPI spec.
-   * Client code uses DEFAULT_REFRESH_TOKEN_EXPIRY fallback in auth-storage.ts.
-   * Will be removed in future cleanup.
-   */
-  refresh_token_expires_in?: number;
   token_type: string;
 }
 

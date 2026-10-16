@@ -30,8 +30,8 @@
  */
 
 import { clearPermissionCache } from '@/access';
-import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import type { RoleInfo, UserInfo } from '@/services/admin-auth';
+import { refreshToken as apiRefreshToken } from '@/services/admin-auth';
 import {
   clearEncryptionKey,
   decryptToken,
@@ -536,12 +536,12 @@ export const refreshAccessToken = async (): Promise<string | null> => {
 
         // 更新 localStorage 中的 token
         // expires_in 默认为 1 小时（3600 秒），防止 API 未返回时 token 立即过期
-        // refresh_token_expires_in 默认为 3 天，建议后端配置更短的时间
+        // refresh_token_expires_in 后端不返回，直接使用 DEFAULT_REFRESH_TOKEN_EXPIRY 默认值（3 天）
         setTokens(
           result.access_token,
           result.refresh_token,
           result.expires_in || 3600,
-          result.refresh_token_expires_in || DEFAULT_REFRESH_TOKEN_EXPIRY,
+          DEFAULT_REFRESH_TOKEN_EXPIRY,
         );
 
         // 清理超时定时器

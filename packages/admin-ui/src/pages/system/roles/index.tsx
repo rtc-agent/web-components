@@ -731,7 +731,7 @@ const RoleListPage: React.FC = () => {
         }}
         width={modalWidth}
         modalProps={{
-          destroyOnClose: true,
+          destroyOnHidden: true,
           onCancel: () => {
             setCurrentRow(undefined);
             setIsEdit(false);
@@ -809,13 +809,17 @@ const RoleListPage: React.FC = () => {
                       ),
                     );
                   }
-                } catch (_error) {
+                } catch (error) {
                   // 网络错误或 API 调用失败时，选择放行而不是阻止用户提交。
                   // 原因：
                   // 1. 这是前端的前置校验，后端会有最终的唯一性校验
                   // 2. 网络问题不应阻止用户尝试提交
                   // 3. 如果后端也失败，会在那时显示更准确的错误信息
                   // 因此这里选择静默放行，让后端做最终校验
+                  console.warn(
+                    '[RoleForm] Uniqueness validation failed:',
+                    error,
+                  );
                 }
                 return Promise.resolve();
               },

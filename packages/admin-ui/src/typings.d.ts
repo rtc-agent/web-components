@@ -81,16 +81,21 @@ declare namespace API {
 
   /**
    * Paginated response (page-based pagination)
-   * Note: For cursor-based pagination, use PaginatedResponse from @rtc-agent/protocol
-   * For page-based pagination with full metadata, use PageBasedPaginatedResponse from @rtc-agent/protocol
-   * This global type is kept for backward compatibility with Umi/Ant Design Pro patterns
+   * @deprecated Use `PaginatedResponse` from `@/services/types` instead.
+   * This global type is kept for backward compatibility only.
+   * For cursor-based pagination, use PaginatedResponse from @rtc-agent/protocol.
+   * For page-based pagination with full metadata, use PageBasedPaginatedResponse from @rtc-agent/protocol.
    */
   interface PaginatedResponse<T> {
     items: T[];
     total: number;
   }
 
-  /** Generic response structure */
+  /**
+   * Generic response structure
+   * @deprecated Use `ApiResponse` from `@/services/types` instead.
+   * This global type is kept for backward compatibility only.
+   */
   interface Response<T = unknown> {
     success: boolean;
     data?: T;
