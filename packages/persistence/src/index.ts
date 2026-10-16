@@ -376,11 +376,23 @@ export class PersistenceLayer {
    * Handle a Publication event.
    */
   private async handlePublication(event: PublicationEvent): Promise<void> {
+    const startTime = Date.now();
+    log.debug(
+      `[PERF] handlePublication START: offset=${(event.data as Update).offset}, timestamp=${startTime}`
+    );
+
     // Treat data as Update type
     const update = event.data as Update;
 
     // Apply update (persist entity)
     await this.entityRepository.applyUpdate(update);
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    log.debug(
+      `[PERF] handlePublication COMPLETED: offset=${update.offset}, ` +
+      `duration=${duration}ms, timestamp=${endTime}`
+    );
 
     // Note: offset and epoch persistence is handled by the Client's updateOffset callback.
     // The Client calls updateOffset automatically after onPublication.

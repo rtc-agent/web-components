@@ -17,6 +17,9 @@ import {
   type ScriptTimeoutError,
   type ScriptCompileError,
 } from '../script-engine.js';
+import { createLogger } from '@rtc-agent/protocol';
+
+const log = createLogger('BuiltinTools');
 
 /**
  * Shared FS operation wrapper.
@@ -476,6 +479,8 @@ export class ScriptTool implements Tool {
     inlineCode?: string,
     title?: string,
   ): Promise<ToolResult> {
+    const totalStartTime = performance.now();
+
     if (!this.rtcAgent) {
       return {
         success: false,
@@ -487,30 +492,55 @@ export class ScriptTool implements Tool {
     try {
       let code: string;
 
+      const readStartTime = performance.now();
       if (inlineCode !== undefined) {
         // Eval mode: use inline code directly
         code = inlineCode;
+        const readDuration = Math.round(performance.now() - readStartTime);
+        log.debug(
+          `[PERF] ScriptTool._executeCode: eval mode, codeLength=${code.length}, ` +
+          `readDuration=${readDuration}ms`
+        );
       } else {
         // Run mode: read script from file system
         const path = `/scripts/${name}.ts`;
         const content = await virtualFS.read(path);
         const parsed = parseScriptContent(content);
         code = parsed.code;
+        const readDuration = Math.round(performance.now() - readStartTime);
+        log.debug(
+          `[PERF] ScriptTool._executeCode: run mode, scriptName=${name}, ` +
+          `codeLength=${code.length}, readDuration=${readDuration}ms`
+        );
       }
 
       // Create output collector
       const output = { logs: [], warns: [], errors: [] };
+      const sandboxStartTime = performance.now();
       const sandbox = createSandbox(
         this.rtcAgent,
         scriptParams,
         output,
         title || undefined,
       );
+      const sandboxDuration = Math.round(performance.now() - sandboxStartTime);
+      log.debug(
+        `[PERF] ScriptTool._executeCode: createSandbox duration=${sandboxDuration}ms`
+      );
 
       // Timing: record script execution duration
-      const startTime = performance.now();
+      const execStartTime = performance.now();
+      log.debug(
+        `[PERF] ScriptTool._executeCode: starting _executeCode, timeout=${timeout}ms`
+      );
       const result = await _executeCode(code, sandbox, timeout, name);
-      const durationMs = Math.round(performance.now() - startTime);
+      const execDuration = Math.round(performance.now() - execStartTime);
+      const totalDuration = Math.round(performance.now() - totalStartTime);
+
+      log.debug(
+        `[PERF] ScriptTool._executeCode: _executeCode completed, ` +
+        `execDuration=${execDuration}ms, totalDuration=${totalDuration}ms`
+      );
 
       // Build return data
       const data: Record<string, unknown> = {};
@@ -533,7 +563,7 @@ export class ScriptTool implements Tool {
           .slice(0, MAX_LOG_ENTRIES)
           .map(tryParseJsonString);
       }
-      data.duration_ms = durationMs;
+      data.duration_ms = totalDuration;
 
       return {
         success: true,

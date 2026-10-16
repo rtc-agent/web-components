@@ -83,14 +83,19 @@ export function createAdminAuthProvider(): AuthProvider {
       // 旧的 admin JWT 虽不能再被 exchange，但仍可用于 admin-server API，
       // 因此刷新失败时保留本地状态比直接 logout 更友好。
       if (hint?.reason === 'already_used') {
+        console.log('[getExchangeToken] already_used hint received, attempting refresh');
         const refreshToken = await getRefreshToken();
         if (refreshToken) {
           const newToken = await refreshAccessTokenForExchange();
           if (newToken) {
+            console.log('[getExchangeToken] refresh succeeded, returning new token');
             return newToken;
           }
+          console.warn('[getExchangeToken] refresh returned null, falling through to old token');
           // 轻量刷新失败：保留旧 token 让 retry 循环自然退出，
           // 不抛错以避免意外触发 logout。
+        } else {
+          console.warn('[getExchangeToken] no refresh token available');
         }
         // 没有 refresh token 时，继续走下面的常规路径；
         // 若旧 token 已过期则在那里抛错。

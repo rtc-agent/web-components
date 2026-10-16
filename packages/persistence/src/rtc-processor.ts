@@ -180,14 +180,36 @@ export class RtcProcessor {
    * If already processing, sets pendingCheck so the current loop will re-check.
    */
   async onRtcUpdate() {
+    const startTime = Date.now();
+    log.debug(
+      `[PERF] onRtcUpdate START: processing=${this.processing}, pendingCheck=${this.pendingCheck}, timestamp=${startTime}`
+    );
+
     if (this.processing) {
       this.pendingCheck = true;
+      log.debug(
+        `[PERF] onRtcUpdate: already processing, set pendingCheck=true. timestamp=${Date.now()}`
+      );
       return;
     }
+
+    log.debug(
+      `[PERF] onRtcUpdate: calling processLoop. timestamp=${Date.now()}`
+    );
     await this.processLoop();
+
+    const endTime = Date.now();
+    log.debug(
+      `[PERF] onRtcUpdate COMPLETED: duration=${endTime - startTime}ms, timestamp=${endTime}`
+    );
   }
 
   private async processLoop() {
+    const loopStartTime = Date.now();
+    log.debug(
+      `[PERF] processLoop START: timestamp=${loopStartTime}`
+    );
+
     // Non-master Tab skips tool execution (proposal section 4.2)
     // Does not set the processing flag, to avoid blocking future Master upgrade processing
     if (!this._isMasterAllowed()) {
@@ -207,6 +229,8 @@ export class RtcProcessor {
 
     try {
       while (true) {
+        const iterationStartTime = Date.now();
+
         // FIX #60: Check master status on every iteration.
         // If this Tab lost Master status during the loop, exit immediately
         // to prevent concurrent RTC execution with the new Master Tab.
@@ -223,11 +247,29 @@ export class RtcProcessor {
 
         this.pendingCheck = false;
 
+        const getNextRtcStart = Date.now();
+        log.debug(
+          `[PERF] processLoop: calling getNextRtcToProcess. timestamp=${getNextRtcStart}`
+        );
+
         const rtc = await this.persistence.getNextRtcToProcess(undefined);
+
+        const getNextRtcEnd = Date.now();
+        log.debug(
+          `[PERF] processLoop: getNextRtcToProcess returned: rtcId=${rtc?.client_id || 'null'}, ` +
+          `duration=${getNextRtcEnd - getNextRtcStart}ms, timestamp=${getNextRtcEnd}`
+        );
+
         if (!rtc) {
           if (this.pendingCheck) {
+            log.debug(
+              `[PERF] processLoop: no RTC but pendingCheck=true, continuing loop. timestamp=${Date.now()}`
+            );
             continue;
           }
+          log.debug(
+            `[PERF] processLoop: no RTC to process, exiting loop. totalDuration=${Date.now() - loopStartTime}ms`
+          );
           break;
         }
 
@@ -248,10 +290,29 @@ export class RtcProcessor {
           'sync_status:',
           rtc.sync_status,
         );
+
+        const processOneStart = Date.now();
+        log.debug(
+          `[PERF] processLoop: calling processOne: rtcId=${rtc.client_id}, timestamp=${processOneStart}`
+        );
+
         try {
           await this.processOne(rtc);
-          log.debug('processOne completed successfully');
+          const processOneEnd = Date.now();
+          const processOneDuration = processOneEnd - processOneStart;
+          log.debug(
+            `[PERF] processLoop: processOne completed: rtcId=${rtc.client_id}, ` +
+            `duration=${processOneDuration}ms, timestamp=${processOneEnd}`
+          );
         } catch (err) {
+          const processOneEnd = Date.now();
+          const processOneDuration = processOneEnd - processOneStart;
+          log.error(
+            `[PERF] processLoop: processOne failed: rtcId=${rtc.client_id}, ` +
+            `duration=${processOneDuration}ms, timestamp=${processOneEnd}`,
+            err
+          );
+
           // If processOne's sleep was aborted by cancel(), the AbortError bubbles up here.
           // Re-throw so the outer catch can handle it and exit the loop cleanly.
           if (err instanceof DOMException && err.name === 'AbortError') {
@@ -259,7 +320,6 @@ export class RtcProcessor {
             throw err;
           }
 
-          log.error('processOne failed:', err);
           // If it's a connection error, exit the loop and wait for connection recovery
           const errMsg = err instanceof Error ? err.message : String(err);
           if (
@@ -273,6 +333,13 @@ export class RtcProcessor {
           // Pass abortSignal so sleep can be interrupted by cancel().
           await this.sleep(ERROR_RETRY_DELAY_MS, abortSignal);
         }
+
+        const iterationEndTime = Date.now();
+        const iterationDuration = iterationEndTime - iterationStartTime;
+        log.debug(
+          `[PERF] processLoop: iteration completed: rtcId=${rtc.client_id}, ` +
+          `iterationDuration=${iterationDuration}ms, timestamp=${iterationEndTime}`
+        );
       }
     } catch (err) {
       // Catch AbortError from sleep() when cancelled during error-retry wait.
@@ -285,6 +352,11 @@ export class RtcProcessor {
     } finally {
       this.processing = false;
       this._abortController = undefined;
+      const loopEndTime = Date.now();
+      const totalDuration = loopEndTime - loopStartTime;
+      log.debug(
+        `[PERF] processLoop END: totalDuration=${totalDuration}ms, timestamp=${loopEndTime}`
+      );
     }
   }
 

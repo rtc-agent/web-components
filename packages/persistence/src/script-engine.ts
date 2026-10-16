@@ -718,8 +718,18 @@ export async function _executeCode(
   timeoutMs: number,
   scriptName?: string,
 ): Promise<unknown> {
+  const totalStartTime = performance.now();
+
   // Transform TypeScript syntax (pass name for error location, MD1)
+  const transformStartTime = performance.now();
   const jsCode = transformTypeScript(code, scriptName);
+  const transformDuration = Math.round(performance.now() - transformStartTime);
+
+  log.debug(
+    `[PERF] _executeCode: transformTypeScript completed, ` +
+    `codeLength=${code.length}, jsCodeLength=${jsCode.length}, ` +
+    `transformDuration=${transformDuration}ms`
+  );
 
   // Create sandbox key-value pairs
   const keys = Object.keys(sandbox);
@@ -736,7 +746,10 @@ export async function _executeCode(
   `;
 
   // Create function
+  const fnStartTime = performance.now();
   const fn = new Function(...keys, wrappedCode);
+  const fnDuration = Math.round(performance.now() - fnStartTime);
+  log.debug(`[PERF] _executeCode: new Function duration=${fnDuration}ms`);
 
   // Execute with timeout
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -749,8 +762,20 @@ export async function _executeCode(
 
   try {
     // M1: Use fn.call(undefined, ...) to bind this to undefined (strict mode)
+    const execStartTime = performance.now();
+    log.debug(
+      `[PERF] _executeCode: starting script execution, timeout=${timeoutMs}ms`
+    );
     const executionPromise = fn.call(undefined, ...values);
     const result = await Promise.race([executionPromise, timeoutPromise]);
+    const execDuration = Math.round(performance.now() - execStartTime);
+    const totalDuration = Math.round(performance.now() - totalStartTime);
+
+    log.debug(
+      `[PERF] _executeCode: script execution completed, ` +
+      `execDuration=${execDuration}ms, totalDuration=${totalDuration}ms`
+    );
+
     // Catch late rejections after timeout wins the race (prevents unhandled rejection).
     // If execution already resolved, this is a no-op.
     // eslint-disable-next-line @typescript-eslint/no-empty-function

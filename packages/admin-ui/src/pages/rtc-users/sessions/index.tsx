@@ -28,44 +28,91 @@ const SessionsPage: React.FC = () => {
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: SessionPageAPI = {
-      // Sync URL filters and trigger table reload
+      // Query session list - sync URL and return data
       list: async (params = {}) => {
         const {
+          current = 1,
+          pageSize = 10,
           userId: listUserId,
           status,
           search,
           startTime,
           endTime,
+          sortBy,
+          sortOrder,
         } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
         const effectiveUserId = listUserId || userId;
+
+        // 1. Sync URL (based on existing searchParams)
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
         if (effectiveUserId) {
           newSearchParams.set('user_id', effectiveUserId);
+        } else {
+          newSearchParams.delete('user_id');
         }
         if (status) {
           newSearchParams.set('status', status);
+        } else {
+          newSearchParams.delete('status');
         }
         if (search) {
           newSearchParams.set('search', search);
+        } else {
+          newSearchParams.delete('search');
         }
         if (startTime) {
           newSearchParams.set('start_time', startTime);
+        } else {
+          newSearchParams.delete('start_time');
         }
         if (endTime) {
           newSearchParams.set('end_time', endTime);
+        } else {
+          newSearchParams.delete('end_time');
         }
         setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
+        // 2. Call service to get data (matches ProTable request logic)
+        if (!effectiveUserId) {
+          console.warn('[SessionsPage] list called without user_id');
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'user_id is required',
+          };
+        }
 
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
+        try {
+          const response = await getSessionList({
+            user_id: effectiveUserId,
+            page: current,
+            page_size: pageSize,
+            status: status || undefined,
+            search: search || undefined,
+            start_time: startTime || undefined,
+            end_time: endTime || undefined,
+            sort_by: sortBy || undefined,
+            sort_order: sortOrder || undefined,
+          });
+
+          return {
+            success: true,
+            data: response.items || [],
+            total: response.total || 0,
+          };
+        } catch (error) {
+          console.error('[SessionsPage] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to fetch session list',
+          };
+        }
       },
 
       // Refresh table

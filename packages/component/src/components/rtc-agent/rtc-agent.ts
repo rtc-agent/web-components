@@ -629,6 +629,21 @@ export class RtcAgent extends LitElement {
   private _workerURL = '';
 
   /**
+   * Enable debug API in production builds (optional).
+   *
+   * When set, installs the debug API on `window.rtcAgentDebug`, allowing
+   * programmatic control of the component for testing and debugging.
+   *
+   * Note: In DEV and test builds, the debug API is automatically enabled.
+   * This attribute is only needed for production environments.
+   *
+   * @example
+   * <rtc-agent debug-mode></rtc-agent>
+   */
+  @property({ type: Boolean, attribute: 'debug-mode' })
+  debugMode = false;
+
+  /**
    * Window configuration (optional).
    *
    * Controls the window's default state, dimensions, position, interaction limits, etc.
@@ -1473,8 +1488,13 @@ export class RtcAgent extends LitElement {
       }
     }
 
-    // Install debug API in dev/test builds (exposes window.rtcAgentDebug for E2E tests).
-    if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
+    // Install debug API in dev/test builds or when explicitly enabled via debug-mode attribute.
+    // Exposes window.rtcAgentDebug for programmatic control and E2E tests.
+    if (
+      import.meta.env.DEV ||
+      import.meta.env.MODE === 'test' ||
+      this.debugMode
+    ) {
       installDebugAPI();
     }
   }
@@ -2413,7 +2433,7 @@ export class RtcAgent extends LitElement {
           theme=${this.theme}
           ?show-files=${!disabled.includes('files')}
           ?show-settings=${!disabled.includes('settings')}
-          ?show-functions=${!disabled.includes('functions')}
+          ?show-functions=${this.debugMode || !disabled.includes('functions')}
         ></rtc-activity-bar>
         ${
           isFiles

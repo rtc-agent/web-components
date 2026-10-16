@@ -212,12 +212,32 @@ export function handleBusEvent(
   }
 
   if (event.entity === 'rtc') {
+    const rtcEventTime = Date.now();
+    log.debug(
+      `[PERF] bus-handler RTC event received: entityId=${event.entityId}, ` +
+      `field=${event.field}, action=${event.action}, timestamp=${rtcEventTime}`
+    );
+
     // RTC update: only Master Tab triggers RtcProcessor processing loop.
     // Skip when masterLock exists and isMaster=false.
     if (persistence.masterLock?.isMaster === false) {
+      log.debug(
+        `[PERF] bus-handler RTC event: not master, skipping. timestamp=${Date.now()}`
+      );
       return;
     }
-    getRtcProcessor()?.onRtcUpdate();
+
+    const rtcProcessor = getRtcProcessor();
+    if (rtcProcessor) {
+      log.debug(
+        `[PERF] bus-handler calling onRtcUpdate: timestamp=${Date.now()}`
+      );
+      rtcProcessor.onRtcUpdate();
+    } else {
+      log.warn(
+        `[PERF] bus-handler RTC event: rtcProcessor not available, skipping. timestamp=${Date.now()}`
+      );
+    }
     return;
   }
 

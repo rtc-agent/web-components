@@ -280,4 +280,49 @@ export interface RtcAgentDebugAPI {
 
   /** Whether network simulation is currently active. */
   readonly isOffline: boolean;
+
+  // ── Function Registry ──
+
+  /**
+   * Get all registered functions.
+   *
+   * Returns a list of function definitions with their metadata (name, description, parameters).
+   */
+  getFunctions(): Array<{
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+    groupName?: string;
+  }>;
+
+  /**
+   * Get a specific function by name.
+   *
+   * Returns the function definition including full metadata and schema.
+   */
+  getFunction(name: string): {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+    groupName?: string;
+  } | null;
+
+  /**
+   * Invoke a registered function with parameters.
+   *
+   * Executes the function handler and returns the result.
+   * Throws if the function is not found or parameters are invalid.
+   */
+  invokeFunction(
+    name: string,
+    params?: Record<string, unknown>,
+  ): Promise<unknown>;
+
+  /**
+   * Get documentation for registered functions (Markdown format).
+   *
+   * If no name is provided, returns the functions index.
+   * If a name is provided, returns the documentation for that specific function.
+   */
+  getFunctionDocs(name?: string): Promise<string>;
 }

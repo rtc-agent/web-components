@@ -479,6 +479,28 @@ export interface RtcAgentConfig {
    */
   logo?: { light?: string; dark?: string };
 
+  /**
+   * Enable debug API in production builds (optional).
+   *
+   * When set to true, installs the debug API on `window.rtcAgentDebug`, allowing
+   * programmatic control of the component for testing and debugging.
+   *
+   * Note: In DEV and test builds, the debug API is automatically enabled.
+   * This property is only needed for production environments.
+   *
+   * Maps to `RtcAgent.debugMode`.
+   *
+   * @default false
+   *
+   * @example
+   * ```ts
+   * createRtcAgent({
+   *   debugMode: true  // Enable debug API in production
+   * });
+   * ```
+   */
+  debugMode?: boolean;
+
   // ── Server configuration ──
 
   /**

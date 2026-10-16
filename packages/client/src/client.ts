@@ -533,12 +533,23 @@ export class RTCAgentClient implements IRTCAgentClient {
    */
   private async processUpdate(update: Update): Promise<void> {
     const channel = `topic:u=${this.options.userId}`;
+    const processStartTime = Date.now();
+
+    log.debug(
+      `[PERF] processUpdate START: offset=${update.offset}, timestamp=${processStartTime}`
+    );
 
     if (update.offset > 0) {
       // Topic channel: detect continuity.
       const position = await this.options.getLastOffset?.(channel);
       const lastOffset = position?.offset;
       const lastEpoch = position?.epoch ?? this.epochCache.get(channel) ?? '';
+
+      log.debug(
+        `[PERF] processUpdate OFFSET CHECK: update.offset=${update.offset}, ` +
+        `lastOffset=${lastOffset}, lastEpoch=${lastEpoch}, ` +
+        `timeSinceStart=${Date.now() - processStartTime}ms`
+      );
 
       // Skip duplicate/expired messages: if offset <= lastOffset, this message was
       // already processed. Prevents offset rollback and duplicate onPublication calls.
@@ -550,11 +561,31 @@ export class RTCAgentClient implements IRTCAgentClient {
       }
 
       if (lastOffset !== undefined && update.offset > lastOffset + 1) {
+        const gapSize = update.offset - lastOffset - 1;
+        log.debug(
+          `[PERF] processUpdate GAP DETECTED: gapSize=${gapSize}, ` +
+          `currentOffset=${lastOffset}, targetOffset=${update.offset}, ` +
+          `timeSinceStart=${Date.now() - processStartTime}ms`
+        );
+
         // Gap detected — schedule async gap fill and wait for completion.
         this.scheduleGapFill(channel, update.offset, lastEpoch);
 
+        const gapFillWaitStart = Date.now();
+        log.debug(
+          `[PERF] processUpdate WAITING FOR GAP FILL: targetOffset=${update.offset - 1}, ` +
+          `timestamp=${gapFillWaitStart}`
+        );
+
         // Wait for gap fill to catch up to this update's offset.
         await this.waitForGapFill(channel, update.offset - 1);
+
+        const gapFillWaitEnd = Date.now();
+        const gapFillWaitTime = gapFillWaitEnd - gapFillWaitStart;
+        log.debug(
+          `[PERF] processUpdate GAP FILL COMPLETED: waitTime=${gapFillWaitTime}ms, ` +
+          `timestamp=${gapFillWaitEnd}`
+        );
 
         // Post-fill verification: did gap fill advance the offset to update.offset - 1?
         const newPosition = await this.options.getLastOffset?.(channel);
@@ -723,6 +754,13 @@ export class RTCAgentClient implements IRTCAgentClient {
    */
   private scheduleUpdate(update: Update): void {
     const channel = `topic:u=${this.options.userId}`;
+    const now = Date.now();
+
+    log.debug(
+      `[PERF] scheduleUpdate START: offset=${update.offset}, ` +
+      `queueSize=${this.pendingUpdates.length}, isProcessing=${this.isUpdateProcessing}, ` +
+      `timestamp=${now}`
+    );
 
     // Buffer dedup 1: stale message (offset <= already-processed lastOffset)
     if (update.offset > 0) {
@@ -747,6 +785,10 @@ export class RTCAgentClient implements IRTCAgentClient {
     }
 
     this.pendingUpdates.push(update);
+    log.debug(
+      `[PERF] scheduleUpdate ENQUEUED: offset=${update.offset}, ` +
+      `newQueueSize=${this.pendingUpdates.length}, timestamp=${Date.now()}`
+    );
     void this.processUpdateQueue();
   }
 
@@ -760,14 +802,42 @@ export class RTCAgentClient implements IRTCAgentClient {
    * applyUpdates coordinates with external callers and gap fill.
    */
   private async processUpdateQueue(): Promise<void> {
-    if (this.isUpdateProcessing) return;
+    if (this.isUpdateProcessing) {
+      log.debug(
+        `[PERF] processUpdateQueue: already processing, returning. queueSize=${this.pendingUpdates.length}`
+      );
+      return;
+    }
     this.isUpdateProcessing = true;
+    const queueStartTime = Date.now();
+
+    log.debug(
+      `[PERF] processUpdateQueue START: queueSize=${this.pendingUpdates.length}, ` +
+      `timestamp=${queueStartTime}`
+    );
 
     try {
       while (this.pendingUpdates.length > 0) {
         const update = this.pendingUpdates.shift()!;
+        const updateStartTime = Date.now();
+        const waitTime = updateStartTime - queueStartTime;
+
+        log.debug(
+          `[PERF] processUpdateQueue DEQUEUE: offset=${update.offset}, ` +
+          `waitTime=${waitTime}ms, queueStartTime=${queueStartTime}, ` +
+          `updateStartTime=${updateStartTime}`
+        );
+
         try {
           await this.applyUpdates([update]);
+          const updateEndTime = Date.now();
+          const processTime = updateEndTime - updateStartTime;
+
+          log.debug(
+            `[PERF] processUpdateQueue PROCESSED: offset=${update.offset}, ` +
+            `processTime=${processTime}ms, timestamp=${updateEndTime}`
+          );
+
           // Update sync cache on success (for subsequent enqueue dedup)
           if (update.offset > 0) {
             const channel = `topic:u=${this.options.userId}`;
@@ -1489,6 +1559,23 @@ export class RTCAgentClient implements IRTCAgentClient {
       // Live channel: no offset continuity, but still fire-and-forget so slow
       // onPublication callbacks don't block Centrifuge's internal processing.
       liveSub.on('publication', (ctx) => {
+        // Filter out control messages (e.g., _meta recovery hints)
+        // These are not regular chat messages but protocol control information.
+        const data = ctx.data as Record<string, unknown>;
+        if (data?.type === '_meta') {
+          log.debug(
+            `Received _meta control message on live channel:`,
+            data.message,
+            '| recovery:',
+            data.recovery,
+          );
+          // Store recovery capability for client's reconnection strategy
+          // Live channels don't support message recovery, so messages during
+          // disconnection are lost. Clients can use this info to request full
+          // state sync via RPC when needed.
+          return; // Don't process as regular message
+        }
+
         const event: PublicationEvent = {
           channel: liveChannel,
           data: ctx.data,

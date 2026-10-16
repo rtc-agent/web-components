@@ -40,40 +40,84 @@ const MessagesPage: React.FC = () => {
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: MessagePageAPI = {
-      // Sync URL filters and trigger table reload
+      // Query message list - sync URL and return data
       list: async (params = {}) => {
         const {
+          current = 1,
+          pageSize = 10,
           sessionId: listSessionId,
           role,
           startTime,
           endTime,
+          sortBy,
+          sortOrder,
         } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
         const effectiveSessionId = listSessionId || sessionId;
+
+        // 1. Sync URL (based on existing searchParams)
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
         if (effectiveSessionId) {
           newSearchParams.set('session_id', effectiveSessionId);
+        } else {
+          newSearchParams.delete('session_id');
         }
         if (role) {
           newSearchParams.set('role', role);
+        } else {
+          newSearchParams.delete('role');
         }
         if (startTime) {
           newSearchParams.set('created_after', startTime);
+        } else {
+          newSearchParams.delete('created_after');
         }
         if (endTime) {
           newSearchParams.set('created_before', endTime);
+        } else {
+          newSearchParams.delete('created_before');
         }
         setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
+        // 2. Call service to get data (matches ProTable request logic)
+        if (!effectiveSessionId) {
+          console.warn('[MessagesPage] list called without session_id');
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'session_id is required',
+          };
+        }
 
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
+        try {
+          const response = await getMessageList({
+            session_id: effectiveSessionId,
+            page: current,
+            page_size: pageSize,
+            role: role || undefined,
+            created_after: startTime || undefined,
+            created_before: endTime || undefined,
+            sort_by: sortBy || undefined,
+            sort_order: sortOrder || undefined,
+          });
+
+          return {
+            success: true,
+            data: response.items || [],
+            total: response.total || 0,
+          };
+        } catch (error) {
+          console.error('[MessagesPage] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to fetch message list',
+          };
+        }
       },
 
       // Refresh table

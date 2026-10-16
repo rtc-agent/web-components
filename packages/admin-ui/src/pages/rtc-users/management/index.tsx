@@ -229,28 +229,49 @@ const RtcUserManagementPage: React.FC = () => {
   // === Register Page API ===
   useEffect(() => {
     const pageAPI: RtcUserPageAPI = {
-      // Sync URL filters and trigger table reload
+      // Query RTC user list - sync URL and return data
       list: async (params = {}) => {
-        const { search, status } = params;
+        const { current = 1, pageSize = 10, search, status } = params;
 
-        // Sync filters to URL (no page refresh). Pagination is transient state, not synced.
-        const newSearchParams = new URLSearchParams();
+        // 1. Sync URL (based on existing searchParams)
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.set('current', String(current));
+        newSearchParams.set('pageSize', String(pageSize));
         if (search) {
           newSearchParams.set('search', search);
+        } else {
+          newSearchParams.delete('search');
         }
         if (status) {
           newSearchParams.set('status', status);
+        } else {
+          newSearchParams.delete('status');
         }
         setSearchParams(newSearchParams, { replace: true });
 
-        // Trigger table reload via actionRef (ProTable request will handle data fetching)
-        actionRef.current?.reload();
+        // 2. Call service to get data (matches ProTable request logic)
+        try {
+          const response = await getRtcUserList({
+            page: current,
+            page_size: pageSize,
+            search: search || undefined,
+            status: status || undefined,
+          });
 
-        return {
-          success: true,
-          data: [],
-          total: 0,
-        };
+          return {
+            success: true,
+            data: response.items || [],
+            total: response.total || 0,
+          };
+        } catch (error) {
+          console.error('[RtcUser Page API] list failed:', error);
+          return {
+            success: false,
+            data: [],
+            total: 0,
+            error: 'Failed to fetch RTC user list',
+          };
+        }
       },
 
       // Refresh table
