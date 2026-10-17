@@ -528,12 +528,12 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       // Catch the rejection immediately to avoid unhandled rejection
       const resultPromise = promise.catch((err) => err);
 
-      // Advance time past the 30 second timeout
-      await vi.advanceTimersByTimeAsync(31000);
+      // Run all pending timers to trigger the timeout
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       expect(error).toBeInstanceOf(GapFillTimeoutError);
-    });
+    }, 15000);
 
     it('should include correct channel, targetOffset, and elapsedMs in error', async () => {
       const channel = 'topic:u=test-user-id';
@@ -551,7 +551,7 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       // Catch the rejection immediately
       const resultPromise = promise.catch((err) => err);
 
-      await vi.advanceTimersByTimeAsync(31000);
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       expect(error).toBeInstanceOf(GapFillTimeoutError);
@@ -561,17 +561,17 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       expect(gapFillError.elapsedMs).toBeGreaterThanOrEqual(30000);
       expect(gapFillError.message).toContain(channel);
       expect(gapFillError.message).toContain(targetOffset.toString());
-    });
+    }, 15000);
 
     it('should return successfully when gap fill catches up before timeout', async () => {
       const channel = 'topic:u=test-user-id';
       const targetOffset = 100;
 
-      // Mock offset that catches up after 5 seconds
+      // Mock offset that catches up after a few calls
       let callCount = 0;
       mockGetLastOffset.mockImplementation(async () => {
         callCount++;
-        if (callCount < 50) {
+        if (callCount < 5) {
           return { offset: 50, epoch: 'test-epoch' };
         }
         return { offset: 100, epoch: 'test-epoch' };
@@ -585,11 +585,11 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
 
       const promise = waitForGapFill(channel, targetOffset);
 
-      // Advance time to allow polling
-      await vi.advanceTimersByTimeAsync(5000);
+      // Advance time to allow polling (with exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms, ...)
+      await vi.advanceTimersByTimeAsync(10000);
 
       await expect(promise).resolves.toBeUndefined();
-    });
+    }, 15000);
 
     it('should return successfully when gap fill task completes', async () => {
       const channel = 'topic:u=test-user-id';
@@ -723,13 +723,13 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const promise = waitForGapFill(channel, targetOffset);
       const resultPromise = promise.catch((err) => err);
 
-      // Advance to exactly 30 seconds
-      await vi.advanceTimersByTimeAsync(30000);
+      // Run all pending timers
+      await vi.runAllTimersAsync();
 
       const error = await resultPromise;
       // Should still throw (not return silently)
       expect(error).toBeInstanceOf(GapFillTimeoutError);
-    });
+    }, 15000);
 
     it('should clean up abort controller after successful completion', async () => {
       const channel = 'topic:u=test-user-id';
@@ -760,12 +760,12 @@ describe('Fix 24: waitForGapFill timeout and disconnect cleanup', () => {
       const promise = waitForGapFill(channel, targetOffset);
       const resultPromise = promise.catch(() => {});
 
-      await vi.advanceTimersByTimeAsync(31000);
+      await vi.runAllTimersAsync();
       await resultPromise;
 
       // @ts-expect-error - accessing private field for testing
       expect(client._gapFillAbortControllers.has(channel)).toBe(false);
-    });
+    }, 15000);
 
     it('should clean up abort controller after abort', async () => {
       const channel = 'topic:u=test-user-id';

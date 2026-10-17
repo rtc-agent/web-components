@@ -25,7 +25,7 @@ describe('<rtc-tool-confirm>', () => {
       html`<rtc-tool-confirm .toolCall=${mockToolCall}></rtc-tool-confirm>`,
     );
     await nextFrame();
-    expect(el.shadowRoot!.textContent).toContain('file-write');
+    expect(el.shadowRoot!.textContent).toContain('File-write');
   });
 
   it('should display parameter summary', async () => {

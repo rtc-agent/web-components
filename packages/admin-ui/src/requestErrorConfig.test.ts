@@ -242,25 +242,25 @@ describe('requestErrorConfig', () => {
     const interceptor = errorConfig.requestInterceptors?.[0] as (config: {
       url?: string;
       method?: string;
-    }) => { url?: string };
+    }) => Promise<{ url?: string }>;
 
-    it('should pass through config without modification', () => {
+    it('should pass through config without modification', async () => {
       const config = {
         url: 'https://api.example.com/users',
         method: 'GET',
       };
 
-      const result = interceptor(config);
+      const result = await interceptor(config);
 
       // Token attachment is intentionally commented out in the source;
       // interceptor currently returns config as-is
       expect(result.url).toBe('https://api.example.com/users');
     });
 
-    it('should handle URL without config', () => {
+    it('should handle URL without config', async () => {
       const config = {};
 
-      const result = interceptor(config);
+      const result = await interceptor(config);
 
       expect(result.url).toBeUndefined();
     });

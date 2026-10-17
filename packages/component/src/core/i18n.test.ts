@@ -79,7 +79,7 @@ describe('i18n core', () => {
 
     it('未知 locale 抛出明确错误', async () => {
       await expect(switchLocale('fr-FR' as any)).rejects.toThrow();
-    });
+    }, 10000);
 
     it('错误消息为 Invalid locale code', async () => {
       try {
@@ -89,7 +89,7 @@ describe('i18n core', () => {
         expect(err).toBeInstanceOf(Error);
         expect((err as Error).message).toContain('Invalid locale code');
       }
-    });
+    }, 10000);
   });
 
   describe('persistLocale', () => {

@@ -1003,7 +1003,7 @@ export class EntityRepository {
       .between(
         [sessionClientId, startOffset],
         [sessionClientId, Dexie.maxKey],
-        true, // include lower bound (startOffset)
+        false, // exclude lower bound (startOffset) - cursor is exclusive
         true, // include upper bound
       )
       .limit(limit)

@@ -132,11 +132,15 @@ export async function switchLocale(
     await executeLocaleSwitch(locale);
   } else {
     // Debounce the locale switch
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       switchLocaleTimer = setTimeout(async () => {
         switchLocaleTimer = null;
-        await executeLocaleSwitch(locale);
-        resolve();
+        try {
+          await executeLocaleSwitch(locale);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       }, SWITCH_LOCALE_DEBOUNCE_MS);
     });
   }

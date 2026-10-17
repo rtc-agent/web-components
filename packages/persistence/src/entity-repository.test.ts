@@ -1466,6 +1466,7 @@ describe('entity-repository', () => {
       });
 
       // Simulate batch update with streaming data
+      // Add a dummy update to trigger batch logic (array length > 1)
       await repo.applyUpdates([
         {
           id: '',
@@ -1487,6 +1488,26 @@ describe('entity-repository', () => {
           ],
           offset: 1,
         },
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-1-dummy',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-1-dummy',
+              client_id: 'msg-batch-1-dummy',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'dummy',
+            },
+          ],
+          offset: 2,
+        },
       ]);
 
       const msg = await repo.getClientMessage('msg-batch-1');
@@ -1502,6 +1523,7 @@ describe('entity-repository', () => {
         session_client_id: 'session-1',
       });
 
+      // Add a dummy update to trigger batch logic (array length > 1)
       await repo.applyUpdates([
         {
           id: '',
@@ -1523,6 +1545,26 @@ describe('entity-repository', () => {
           ],
           offset: 1,
         },
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-2-dummy',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-2-dummy',
+              client_id: 'msg-batch-2-dummy',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'dummy',
+            },
+          ],
+          offset: 2,
+        },
       ]);
 
       const msg = await repo.getClientMessage('msg-batch-2');
@@ -1538,6 +1580,7 @@ describe('entity-repository', () => {
         session_client_id: 'session-1',
       });
 
+      // Add a dummy update to trigger batch logic (array length > 1)
       await repo.applyUpdates([
         {
           id: '',
@@ -1558,6 +1601,26 @@ describe('entity-repository', () => {
             },
           ],
           offset: 1,
+        },
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-3-dummy',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-3-dummy',
+              client_id: 'msg-batch-3-dummy',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'dummy',
+            },
+          ],
+          offset: 2,
         },
       ]);
 
@@ -1583,6 +1646,7 @@ describe('entity-repository', () => {
       });
 
       // Batch update: try to regress 4a, advance 4b
+      // Add a dummy update to trigger batch logic (array length > 1)
       await repo.applyUpdates([
         {
           id: '',
@@ -1615,6 +1679,26 @@ describe('entity-repository', () => {
             },
           ],
           offset: 1,
+        },
+        {
+          id: '',
+          items: [
+            {
+              entity: 'message',
+              action: 'updated',
+              entity_id: 'server-msg-batch-4-dummy',
+            },
+          ],
+          data_list: [
+            {
+              id: 'server-msg-batch-4-dummy',
+              client_id: 'msg-batch-4-dummy',
+              session_client_id: 'session-1',
+              streaming_status: 'completed',
+              content: 'dummy',
+            },
+          ],
+          offset: 2,
         },
       ]);
 

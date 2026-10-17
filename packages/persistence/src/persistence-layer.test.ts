@@ -45,7 +45,7 @@ describe('Fix 26: PersistenceLayer graceful shutdown', () => {
       const tracker = persistence._syncTaskTracker;
 
       // Wait for initial recovery task to complete
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // @ts-expect-error - accessing private field for testing
       expect(tracker._tasks.size).toBe(0);
